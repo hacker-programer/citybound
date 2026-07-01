@@ -7,7 +7,7 @@
 // Resolución: 3600 entradas (0.1° de precisión), suficiente para renderizado 2D.
 // Memoria: 3600 * 4 bytes * 2 = ~28KB, cabe en caché L1.
 
-pub const TRIG_RESOLUTION: usize = 3600;
+#![allow(dead_code)]\n\npub const TRIG_RESOLUTION: usize = 3600;
 pub const RAD_TO_IDX: f32 = (TRIG_RESOLUTION as f32) / (2.0 * std::f32::consts::PI);
 
 // [TA#9]: Wrapper alineado a 64 bytes para arrays LUT

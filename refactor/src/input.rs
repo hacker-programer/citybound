@@ -7,7 +7,10 @@
 // TÉCNICA COMÚN #19 (aplicaciones): Event Delegation
 // Usamos bitfields para detectar múltiples teclas simultáneamente
 
-#![allow(dead_code)]\n\nuse minifb::{Key, MouseButton, MouseMode, Window};
+// Allow dead_code: is_key_pressed y is_key_released se usarán en UI futura
+#![allow(dead_code)]
+
+use minifb::{Key, MouseButton, MouseMode, Window};
 
 /// Estado de input para un frame
 #[derive(Clone, Debug, Default)]

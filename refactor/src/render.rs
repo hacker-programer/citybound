@@ -112,9 +112,10 @@ fn render_background(fb: &mut [u32], w: usize, h: usize, ox: f32, oy: f32, scale
             let variation = luts::cos_fast(world_x * 0.3) * luts::sin_fast(world_y * 0.3) * 0.05;
 
             let brightness = 0.92 + checker * 0.04 + variation + row_variation;
-            let r = (0x1A_f32 * brightness) as u32;
-            let g = (0x1A_f32 * brightness) as u32;
-            let b = (0x2E_f32 * brightness) as u32;
+            // Usar f32 literals (26.0, 46.0) en lugar de sufijo _f32 inválido
+            let r = (26.0_f32 * brightness) as u32;
+            let g = (26.0_f32 * brightness) as u32;
+            let b = (46.0_f32 * brightness) as u32;
 
             unsafe {
                 *fb.get_unchecked_mut(row_start + px as usize) =
@@ -422,6 +423,7 @@ fn draw_char(fb: &mut [u32], fb_w: usize, fb_h: usize,
 }
 
 /// Bitmap 5x7 para caracteres ASCII imprimibles
+/// Cada byte representa una fila; bit 4 (0x10) = píxel encendido
 fn get_glyph(ch: char) -> [u8; 7] {
     match ch {
         'A' => [0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11],
@@ -468,7 +470,6 @@ fn get_glyph(ch: char) -> [u8; 7] {
         '|' => [0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
         '(' => [0x02, 0x04, 0x08, 0x08, 0x08, 0x04, 0x02],
         ')' => [0x08, 0x04, 0x02, 0x02, 0x02, 0x04, 0x08],
-        'K' => [0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11],
         _ => [0x00; 7],
     }
 }

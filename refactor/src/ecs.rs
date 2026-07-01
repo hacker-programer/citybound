@@ -10,6 +10,9 @@
 // TÉCNICA AVANZADA #9: Structs alineados a 64 bytes (línea caché L1)
 // TÉCNICA COMÚN #24 (juegos): Máquinas de estado aplanadas
 
+// Allow dead_code en componentes que serán usados por sistemas futuros
+#![allow(dead_code)]
+
 use crate::object_pool::EntityPool;
 use crate::input::InputState;
 use rand::rngs::SmallRng;

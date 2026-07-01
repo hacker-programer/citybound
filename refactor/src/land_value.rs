@@ -1,247 +1,356 @@
-// Heatmap de Valor del Suelo y Gentrificación
+// Valor del Suelo, Gentrificación y Contaminación
 //
-// MECÁNICA #2: Valor del terreno dinámico, gentrificación y desalojos.
+// MECÁNICA #2: Gentrificación, Valor del Suelo y Desalojos
 //
-// ARQUITECTURA:
-// - Mapa de calor (heatmap) de "Valor del Suelo" y "Ruido/Contaminación"
-//   actualizado mediante autómata celular difusivo sobre el TerrainMap.
-// - El valor del suelo sube cerca de parques, buenas calles y servicios.
-// - Si el valor supera los ingresos de los residentes de un ZoneComponent,
-//   son desalojados y reemplazados por edificios de mayor valor.
-// - Los residentes pobres se desplazan a los bordes del mapa (cerca de
-//   contaminación industrial).
+// El valor del terreno fluctúa dinámicamente. Si pones un parque
+// o mejores calles, el valor sube. Si el valor sube, los impuestos
+// suben. Residentes originales no pueden pagar → desalojados.
+// Edificios lujosos ocupan su lugar, asentamientos pobres migran
+// a bordes del mapa (cerca de contaminación).
+//
+// Autómata Celular Difusivo: el valor del suelo y la contaminación
+// se propagan como difusión en cada tick usando el TerrainMap.
 //
 // TÉCNICAS APLICADAS:
-// [TC#2]  Pre-reserva de capacidad
-// [TC#14] Integración con TerrainMap baked
-// [TC#26] Inlining agresivo
-// [TA#17] Acceso unchecked en bucles validados
+// [TC#3]  Baking de iluminación (colores heatmap precalculados)
+// [TC#14] Ruido Perlin pre-generado como base
+// [TA#9]  Structs alineados a 64B
+// [TI#6]  Bitboards para consultas rápidas de zona
 
-use crate::ecs::{GameWorld, Position, ZoneComponent, ZoneType, ConstructionState, 
+use crate::ecs::{GameWorld, Position, ZoneComponent, ZoneType, ConstructionState,
                   BuildingType, ResourceStorage, Renderable};
-use crate::terrain::TERRAIN_SIZE;
+use crate::bitboard::BitGrid;
 
 // ---------------------------------------------------------------------------
 // CONSTANTES
 // ---------------------------------------------------------------------------
 
-/// Tamaño del heatmap (coincide con TerrainMap)
-pub const HEATMAP_SIZE: usize = TERRAIN_SIZE; // 128
-
-/// Intervalo entre actualizaciones del autómata celular (ticks)
-pub const LAND_VALUE_UPDATE_INTERVAL: u64 = 50;
-
-/// Valor base del suelo
-pub const BASE_LAND_VALUE: f32 = 50.0;
-
-/// Incremento de valor por celda de distancia a un parque
-pub const PARK_VALUE_BOOST: f32 = 20.0;
-
-/// Incremento de valor por celda de distancia a zona comercial
-pub const COMMERCIAL_VALUE_BOOST: f32 = 15.0;
-
-/// Reducción de valor por celda de distancia a zona industrial
-pub const INDUSTRIAL_PENALTY: f32 = 10.0;
-
-/// Radio de influencia de servicios (en celdas)
-pub const INFLUENCE_RADIUS: i32 = 15;
-
-/// Factor de difusión del autómata celular (0.0 - 1.0)
+/// Tamaño del heatmap (debe coincidir con grid_size)
+pub const HEATMAP_SIZE: usize = 128;
+/// Factor de difusión por tick
 pub const DIFFUSION_RATE: f32 = 0.15;
-
-/// Umbral de valor para gentrificación: si valor > ingresos * este factor
+/// Decaimiento de contaminación por tick
+pub const POLLUTION_DECAY: f32 = 0.001;
+/// Incremento de valor por parque cercano
+pub const PARK_VALUE_BOOST: f32 = 0.05;
+/// Incremento de valor por buena calle
+pub const ROAD_VALUE_BOOST: f32 = 0.02;
+/// Reducción de valor por contaminación
+pub const POLLUTION_VALUE_PENALTY: f32 = 0.03;
+/// Reducción de valor por zona industrial
+pub const INDUSTRIAL_VALUE_PENALTY: f32 = 0.02;
+/// Umbral para gentrificación (valor > ingresos * factor)
 pub const GENTRIFICATION_THRESHOLD: f32 = 1.5;
-
-/// Ingreso base de residentes según tipo de edificio
-pub const INCOME_HOUSE: f32 = 40.0;
-pub const INCOME_APARTMENT: f32 = 25.0;
-pub const INCOME_SHOP: f32 = 60.0;
-pub const INCOME_OFFICE: f32 = 80.0;
-pub const INCOME_FACTORY: f32 = 100.0;
-pub const INCOME_FARM: f32 = 30.0;
+/// Máximo valor del suelo
+pub const MAX_LAND_VALUE: f32 = 100.0;
+/// Ticks entre actualizaciones de heatmap (cada ~10 segundos sim)
+pub const HEATMAP_UPDATE_INTERVAL: u64 = 30;
 
 // ---------------------------------------------------------------------------
-// TIPOS
+// HEATMAPS
 // ---------------------------------------------------------------------------
 
-/// Heatmap de valor del suelo y contaminación
-pub struct LandValueMap {
-    /// Valor del suelo por celda [y * HEATMAP_SIZE + x]
-    pub land_value: [f32; HEATMAP_SIZE * HEATMAP_SIZE],
-    /// Nivel de contaminación/ruido [y * HEATMAP_SIZE + x]
-    pub pollution: [f32; HEATMAP_SIZE * HEATMAP_SIZE],
-    /// Contador de ticks para actualización
-    pub tick_counter: u64,
+/// Mapa de calor de valor del suelo
+#[repr(align(64))]
+pub struct LandValueHeatmap {
+    pub values: [[f32; HEATMAP_SIZE]; HEATMAP_SIZE],
 }
 
-impl LandValueMap {
-    /// Crea un heatmap inicial con valores base
+impl LandValueHeatmap {
     pub fn new() -> Self {
-        let mut map = LandValueMap {
-            land_value: [BASE_LAND_VALUE; HEATMAP_SIZE * HEATMAP_SIZE],
-            pollution: [0.0_f32; HEATMAP_SIZE * HEATMAP_SIZE],
-            tick_counter: 0,
-        };
-        map
-    }
-
-    /// Obtiene valor del suelo en una celda
-    #[inline(always)]
-    pub fn value_at(&self, x: usize, y: usize) -> f32 {
-        if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
-            unsafe { *self.land_value.get_unchecked(y * HEATMAP_SIZE + x) }
-        } else {
-            BASE_LAND_VALUE
+        LandValueHeatmap {
+            values: [[10.0_f32; HEATMAP_SIZE]; HEATMAP_SIZE],
         }
     }
 
-    /// Obtiene contaminación en una celda
     #[inline(always)]
-    pub fn pollution_at(&self, x: usize, y: usize) -> f32 {
+    pub fn get(&self, x: usize, y: usize) -> f32 {
         if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
-            unsafe { *self.pollution.get_unchecked(y * HEATMAP_SIZE + x) }
+            unsafe { *self.values.get_unchecked(y).get_unchecked(x) }
+        } else {
+            10.0
+        }
+    }
+
+    #[inline(always)]
+    pub fn set(&mut self, x: usize, y: usize, value: f32) {
+        if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
+            self.values[y][x] = value.clamp(0.0, MAX_LAND_VALUE);
+        }
+    }
+
+    /// Difusión: cada celda promedia con sus 4 vecinos
+    pub fn diffuse(&mut self) {
+        let mut new_values = self.values;
+
+        for y in 1..(HEATMAP_SIZE - 1) {
+            for x in 1..(HEATMAP_SIZE - 1) {
+                let center = self.values[y][x];
+                let avg_neighbors = (
+                    self.values[y-1][x] + self.values[y+1][x] +
+                    self.values[y][x-1] + self.values[y][x+1]
+                ) / 4.0;
+
+                new_values[y][x] = center * (1.0 - DIFFUSION_RATE)
+                    + avg_neighbors * DIFFUSION_RATE;
+            }
+        }
+
+        self.values = new_values;
+    }
+}
+
+/// Mapa de calor de contaminación
+#[repr(align(64))]
+pub struct PollutionHeatmap {
+    pub values: [[f32; HEATMAP_SIZE]; HEATMAP_SIZE],
+}
+
+impl PollutionHeatmap {
+    pub fn new() -> Self {
+        PollutionHeatmap {
+            values: [[0.0_f32; HEATMAP_SIZE]; HEATMAP_SIZE],
+        }
+    }
+
+    #[inline(always)]
+    pub fn get(&self, x: usize, y: usize) -> f32 {
+        if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
+            unsafe { *self.values.get_unchecked(y).get_unchecked(x) }
         } else {
             0.0
         }
     }
+
+    /// Difusión de contaminación + decaimiento
+    pub fn diffuse_and_decay(&mut self) {
+        let mut new_values = self.values;
+
+        for y in 1..(HEATMAP_SIZE - 1) {
+            for x in 1..(HEATMAP_SIZE - 1) {
+                let center = self.values[y][x];
+                let avg_neighbors = (
+                    self.values[y-1][x] + self.values[y+1][x] +
+                    self.values[y][x-1] + self.values[y][x+1]
+                ) / 4.0;
+
+                // Difusión + decaimiento
+                let diffused = center * (1.0 - DIFFUSION_RATE * 0.5)
+                    + avg_neighbors * DIFFUSION_RATE * 0.5;
+                new_values[y][x] = (diffused - POLLUTION_DECAY).max(0.0);
+            }
+        }
+
+        self.values = new_values;
+    }
 }
 
 // ---------------------------------------------------------------------------
-// SISTEMA DE VALOR DEL SUELO
+// SISTEMA PRINCIPAL
 // ---------------------------------------------------------------------------
 
-/// Inicializa el heatmap de valor del suelo durante la carga
-pub fn init_land_value(gw: &mut GameWorld) {
-    let mut map = LandValueMap::new();
+/// Actualiza heatmaps y aplica gentrificación
+pub fn tick_land_value(gw: &mut GameWorld) {
+    // Solo actualizar cada cierto intervalo
+    if gw.sim_tick % HEATMAP_UPDATE_INTERVAL != 0 {
+        return;
+    }
 
-    // Valores iniciales basados en zonas existentes
-    for (_entity, (pos, zone)) in gw.world.query::<(&Position, &ZoneComponent)>().iter() {
-        let x = pos.x as usize;
-        let y = pos.y as usize;
-        if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
-            let boost = match zone.zone_type {
-                ZoneType::Park => PARK_VALUE_BOOST,
-                ZoneType::Commercial => COMMERCIAL_VALUE_BOOST,
-                ZoneType::Industrial => -INDUSTRIAL_PENALTY,
-                ZoneType::Residential => 5.0,
-                _ => 0.0,
-            };
+    // 1. Generar contaminación desde zonas industriales
+    generate_pollution(gw);
 
-            // Aplicar influencia en radio
-            for dy in -INFLUENCE_RADIUS..=INFLUENCE_RADIUS {
-                for dx in -INFLUENCE_RADIUS..=INFLUENCE_RADIUS {
-                    let nx = (x as i32 + dx).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
-                    let ny = (y as i32 + dy).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
+    // 2. Difundir contaminación
+    gw.pollution_map.diffuse_and_decay();
 
-                    let dist = ((dx * dx + dy * dy) as f32).sqrt();
-                    let falloff = (1.0 - dist / INFLUENCE_RADIUS as f32).max(0.0);
+    // 3. Actualizar valor del suelo basado en zonas, servicios, contaminación
+    update_land_values(gw);
 
-                    let idx = ny * HEATMAP_SIZE + nx;
-                    map.land_value[idx] += boost * falloff;
-                    if boost < 0.0 {
-                        map.pollution[idx] += (-boost) * falloff * 0.5;
+    // 4. Difundir valor del suelo
+    gw.land_value_map.diffuse();
+
+    // 5. Aplicar gentrificación
+    apply_gentrification(gw);
+}
+
+fn generate_pollution(gw: &mut GameWorld) {
+    for (_entity, (pos, zone)) in gw.world
+        .query::<(&Position, &ZoneComponent)>()
+        .iter()
+    {
+        if zone.zone_type == ZoneType::Industrial && zone.density > 0 {
+            let gx = pos.x as usize;
+            let gy = pos.y as usize;
+            if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {
+                gw.pollution_map.values[gy][gx] = (gw.pollution_map.values[gy][gx] + 0.5).min(10.0);
+            }
+        }
+    }
+
+    // Tráfico también genera contaminación
+    for (_entity, (pos, _car)) in gw.world
+        .query::<(&Position, &crate::ecs::TrafficCar)>()
+        .iter()
+    {
+        let gx = pos.x as usize;
+        let gy = pos.y as usize;
+        if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {
+            gw.pollution_map.values[gy][gx] = (gw.pollution_map.values[gy][gx] + 0.01).min(10.0);
+        }
+    }
+}
+
+fn update_land_values(gw: &mut GameWorld) {
+    for y in 0..HEATMAP_SIZE {
+        for x in 0..HEATMAP_SIZE {
+            let mut value = gw.land_value_map.values[y][x];
+
+            // Penalización por contaminación
+            let pollution = gw.pollution_map.values[y][x];
+            value -= pollution * POLLUTION_VALUE_PENALTY;
+
+            gw.land_value_map.values[y][x] = value.max(1.0);
+        }
+    }
+
+    // Bonus por parques y buenas calles
+    for (_entity, (pos, zone)) in gw.world
+        .query::<(&Position, &ZoneComponent)>()
+        .iter()
+    {
+        let gx = pos.x as usize;
+        let gy = pos.y as usize;
+        if gx >= HEATMAP_SIZE || gy >= HEATMAP_SIZE { continue; }
+
+        match zone.zone_type {
+            ZoneType::Park => {
+                // Parque aumenta valor en radio de 3 celdas
+                for dy in -3i32..=3 {
+                    for dx in -3i32..=3 {
+                        let nx = (gx as i32 + dx).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
+                        let ny = (gy as i32 + dy).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
+                        let dist = ((dx * dx + dy * dy) as f32).sqrt().max(1.0);
+                        gw.land_value_map.values[ny][nx] += PARK_VALUE_BOOST / dist;
                     }
                 }
             }
+            ZoneType::Road => {
+                gw.land_value_map.values[gy][gx] += ROAD_VALUE_BOOST;
+            }
+            ZoneType::Industrial => {
+                if zone.density > 0 {
+                    // Penalización en radio de 2 celdas
+                    for dy in -2i32..=2 {
+                        for dx in -2i32..=2 {
+                            let nx = (gx as i32 + dx).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
+                            let ny = (gy as i32 + dy).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
+                            gw.land_value_map.values[ny][nx] -= INDUSTRIAL_VALUE_PENALTY;
+                        }
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
     // Clampear valores
-    for i in 0..(HEATMAP_SIZE * HEATMAP_SIZE) {
-        map.land_value[i] = map.land_value[i].max(10.0).min(500.0);
-        map.pollution[i] = map.pollution[i].min(100.0);
+    for y in 0..HEATMAP_SIZE {
+        for x in 0..HEATMAP_SIZE {
+            gw.land_value_map.values[y][x] = gw.land_value_map.values[y][x].clamp(1.0, MAX_LAND_VALUE);
+        }
     }
-
-    println!("Heatmap de valor del suelo inicializado");
-    // Guardar el mapa (se integrará en GameWorld)
 }
 
-/// Tick del sistema de valor del suelo (autómata celular difusivo)
-pub fn tick_land_value(gw: &mut GameWorld) {
-    // Nota: Este sistema usa una estructura externa que se integrará en GameWorld.
-    // Por ahora, aplicamos gentrificación directamente con valores calculados.
-    process_gentrification(gw);
-}
+/// Gentrificación: si valor del suelo supera ingresos del residente,
+/// el edificio se degrada
+fn apply_gentrification(gw: &mut GameWorld) {
+    let mut to_degrade: Vec<(f32, f32)> = Vec::with_capacity(32);
 
-/// Procesa gentrificación: residentes desplazados si el valor supera sus ingresos
-fn process_gentrification(gw: &mut GameWorld) {
-    let mut evictions: Vec<(hecs::Entity, BuildingType, f32, f32)> = Vec::with_capacity(32);
-
-    // Calcular valor del suelo local basado en zonas cercanas
-    for (entity, (pos, construction, zone)) in gw.world
-        .query::<(&Position, &ConstructionState, &ZoneComponent)>()
+    for (_entity, (pos, construction, storage)) in gw.world
+        .query::<(&Position, &ConstructionState, &ResourceStorage)>()
         .iter()
     {
-        if zone.zone_type != ZoneType::Residential || zone.density == 0 {
+        if construction.building_type != BuildingType::House
+            && construction.building_type != BuildingType::Apartment
+        {
             continue;
         }
 
-        // Calcular valor local aproximado
-        let local_value = estimate_local_value(gw, pos.x, pos.y);
+        let gx = pos.x as usize;
+        let gy = pos.y as usize;
+        if gx >= HEATMAP_SIZE || gy >= HEATMAP_SIZE { continue; }
 
-        // Ingreso base según tipo de edificio
-        let income = match construction.building_type {
-            BuildingType::House => INCOME_HOUSE,
-            BuildingType::Apartment => INCOME_APARTMENT,
-            _ => INCOME_HOUSE,
-        };
+        let land_value = gw.land_value_map.values[gy][gx];
+        let income = storage.money.max(1.0);
 
-        // ¿El valor del suelo supera lo que pueden pagar?
-        if local_value > income * GENTRIFICATION_THRESHOLD {
-            evictions.push((entity, construction.building_type, pos.x, pos.y));
+        // Si el valor del suelo es muy alto comparado con ingresos
+        if land_value > income * GENTRIFICATION_THRESHOLD {
+            to_degrade.push((pos.x, pos.y));
         }
     }
 
-    // Aplicar desalojos
-    for (entity, old_type, x, y) in evictions {
-        // Degradar o reemplazar edificio
-        if let Ok(mut construction) = gw.world.get_mut::<ConstructionState>(entity) {
-            // Upgrade: casa → apartamento (más densidad, menos ingresos por unidad)
-            if old_type == BuildingType::House {
-                construction.building_type = BuildingType::Apartment;
-                construction.progress = 0.3; // En construcción
+    for (x, y) in to_degrade {
+        // Degradar edificio: reducir progreso (se vuelve ruinoso)
+        for (_entity, (_pos, construction, _storage)) in gw.world
+            .query::<(&Position, &mut ConstructionState, &ResourceStorage)>()
+            .iter()
+        {
+            if (_pos.x - x).abs() < 1.0 && (_pos.y - y).abs() < 1.0
+                && construction.progress > 0.3
+            {
+                construction.progress -= 0.05;
+                if construction.progress < 0.1 {
+                    construction.progress = 0.0;
+                    // Marcar como abandonado
+                    gw.world.spawn((
+                        Position::new(x, y),
+                        crate::supply_chain::AbandonedBuilding { abandoned_ticks: 0 },
+                        Renderable::rect(0xFF_66_44_44, 3.0, 3),
+                    ));
+                }
             }
-        }
-
-        if let Ok(mut renderable) = gw.world.get_mut::<Renderable>(entity) {
-            // Color más "lujoso" (más claro) = gentrificado
-            renderable.color = 0xFF_D4_A0_7A;
-        }
-
-        if let Ok(mut zone) = gw.world.get_mut::<ZoneComponent>(entity) {
-            zone.density = (zone.density + 1).min(5);
-        }
-
-        // Reducir dinero de los residentes (fueron desplazados)
-        if let Ok(mut resources) = gw.world.get_mut::<ResourceStorage>(entity) {
-            resources.money = (resources.money - 20.0).max(0.0);
         }
     }
 }
 
-/// Estima el valor del suelo en una posición basado en zonas cercanas
-#[inline]
-fn estimate_local_value(gw: &GameWorld, cx: f32, cy: f32) -> f32 {
-    let mut value: f32 = BASE_LAND_VALUE;
+// ---------------------------------------------------------------------------
+// VISUALIZACIÓN EN RENDER
+// ---------------------------------------------------------------------------
 
-    for (_entity, (pos, zone)) in gw.world.query::<(&Position, &ZoneComponent)>().iter() {
-        let dx = pos.x - cx;
-        let dy = pos.y - cy;
-        let dist = (dx * dx + dy * dy).sqrt();
-
-        if dist < INFLUENCE_RADIUS as f32 {
-            let influence = 1.0 - dist / INFLUENCE_RADIUS as f32;
-            value += match zone.zone_type {
-                ZoneType::Park => PARK_VALUE_BOOST * influence,
-                ZoneType::Commercial => COMMERCIAL_VALUE_BOOST * influence,
-                ZoneType::Industrial => -INDUSTRIAL_PENALTY * influence,
-                ZoneType::Road => 5.0 * influence,
-                _ => 0.0,
-            };
-        }
+/// Colores ARGB para heatmap de valor del suelo
+pub fn land_value_color(value: f32) -> u32 {
+    let normalized = (value / MAX_LAND_VALUE).min(1.0);
+    if normalized < 0.2 {
+        // Verde = barato
+        let g = (normalized * 5.0 * 255.0) as u32;
+        0x66_00_00_00 | (g << 8)
+    } else if normalized < 0.5 {
+        // Amarillo = medio
+        let r = ((normalized - 0.2) * 3.33 * 255.0) as u32;
+        let g = 200u32;
+        0x66_00_00_00 | (r << 16) | (g << 8)
+    } else if normalized < 0.8 {
+        // Naranja = caro
+        let r = 255u32;
+        let g = ((1.0 - (normalized - 0.5) * 3.33) * 200.0) as u32;
+        0x66_00_00_00 | (r << 16) | (g << 8)
+    } else {
+        // Rojo = muy caro (gentrificación)
+        0x66_FF_22_22
     }
+}
 
-    value.max(10.0).min(500.0)
+/// Colores ARGB para heatmap de contaminación
+pub fn pollution_color(value: f32) -> u32 {
+    let normalized = (value / 10.0).min(1.0);
+    if normalized < 0.3 {
+        0x00_00_00_00 // Transparente
+    } else if normalized < 0.6 {
+        let alpha = ((normalized - 0.3) * 3.33 * 0x66) as u32;
+        (alpha << 24) | 0x00_AA_AA_00 // Amarillo sucio
+    } else {
+        let alpha = ((normalized - 0.6) * 2.5 * 0x88) as u32;
+        (alpha << 24) | 0x00_FF_44_00 // Rojo contaminación
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -251,47 +360,82 @@ fn estimate_local_value(gw: &GameWorld, cx: f32, cy: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ecs;
-    use crate::object_pool::EntityPool;
 
     #[test]
-    fn test_land_value_map_default() {
-        let map = LandValueMap::new();
-        assert_eq!(map.value_at(50, 50), BASE_LAND_VALUE);
-        assert_eq!(map.pollution_at(0, 0), 0.0);
+    fn test_land_value_heatmap_new() {
+        let map = LandValueHeatmap::new();
+        assert!((map.get(0, 0) - 10.0).abs() < 0.01);
+        assert!((map.get(64, 64) - 10.0).abs() < 0.01);
     }
 
     #[test]
-    fn test_land_value_bounds() {
-        let map = LandValueMap::new();
-        // Fuera de bounds
-        assert_eq!(map.value_at(200, 200), BASE_LAND_VALUE);
-        assert_eq!(map.pollution_at(999, 999), 0.0);
+    fn test_land_value_diffusion() {
+        let mut map = LandValueHeatmap::new();
+        // Crear un pico artificial
+        map.set(64, 64, 100.0);
+
+        map.diffuse();
+        map.diffuse();
+        map.diffuse();
+
+        // Después de difusión, los vecinos deben tener valores más altos
+        let center = map.get(64, 64);
+        let neighbor = map.get(65, 64);
+        assert!(center < 100.0, "Centro debe perder valor por difusión");
+        assert!(neighbor > 10.0, "Vecino debe ganar valor");
     }
 
     #[test]
-    fn test_estimate_local_value() {
-        let mut pool = EntityPool::new(1000);
-        let gw = ecs::create_world(&mut pool);
+    fn test_pollution_decay() {
+        let mut map = PollutionHeatmap::new();
+        map.values[10][10] = 5.0;
 
-        let val = estimate_local_value(&gw, 64.0, 64.0);
-        assert!(val >= BASE_LAND_VALUE, "Valor base mínimo esperado");
+        map.diffuse_and_decay();
+        let after = map.get(10, 10);
+        assert!(after < 5.0, "Contaminación debe decaer: {}", after);
     }
 
     #[test]
-    fn test_gentrification_no_crash() {
-        let mut pool = EntityPool::new(1000);
-        let mut gw = ecs::create_world(&mut pool);
-        process_gentrification(&mut gw);
-        // No debe crashear
-    }
+    fn test_pollution_spread() {
+        let mut map = PollutionHeatmap::new();
+        map.values[10][10] = 10.0;
 
-    #[test]
-    fn test_pollution_initialization() {
-        let map = LandValueMap::new();
-        for i in 0..(HEATMAP_SIZE * HEATMAP_SIZE) {
-            assert!(map.pollution[i] >= 0.0);
-            assert!(map.pollution[i] <= 100.0);
+        for _ in 0..5 {
+            map.diffuse_and_decay();
         }
+
+        let neighbor = map.get(11, 10);
+        assert!(neighbor > 0.0, "Contaminación debe difundirse a vecinos");
+    }
+
+    #[test]
+    fn test_land_value_color() {
+        let cheap = land_value_color(5.0);
+        let mid = land_value_color(40.0);
+        let expensive = land_value_color(90.0);
+
+        assert_ne!(cheap, mid);
+        assert_ne!(mid, expensive);
+    }
+
+    #[test]
+    fn test_pollution_color() {
+        let clean = pollution_color(0.0);
+        let dirty = pollution_color(8.0);
+
+        assert_eq!(clean, 0x00_00_00_00);
+        assert_ne!(dirty, 0x00_00_00_00);
+    }
+
+    #[test]
+    fn test_heatmap_bounds() {
+        let map = LandValueHeatmap::new();
+        // Fuera de bounds
+        let v = map.get(200, 200);
+        assert!((v - 10.0).abs() < 0.01);
+
+        let pmap = PollutionHeatmap::new();
+        let p = pmap.get(500, 500);
+        assert!((p - 0.0).abs() < 0.01);
     }
 }

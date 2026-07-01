@@ -16,7 +16,10 @@ struct AlignedLut {
     data: [f32; TRIG_RESOLUTION],
 }
 
-// Usamos static mut para inicialización lazy segura
+// Usamos static mut con acceso vía punteros crudos (Rust 2024 compatible)
+// SAFETY: Inicializadas en init_trig_luts() antes de cualquier acceso de lectura,
+// y nunca modificadas después. El acceso concurrente de solo-lectura es seguro
+// en todas las arquitecturas objetivo.
 static mut SIN_LUT: AlignedLut = AlignedLut { data: [0.0_f32; TRIG_RESOLUTION] };
 static mut COS_LUT: AlignedLut = AlignedLut { data: [0.0_f32; TRIG_RESOLUTION] };
 
@@ -31,12 +34,15 @@ pub fn init_trig_luts() {
     }
 
     // SAFETY: Acceso exclusivo durante inicialización, single-thread.
-    // Usamos static mut con acceso controlado por AtomicBool.
+    // Después de init_trig_luts(), las LUTs nunca se modifican, por lo que
+    // las lecturas concurrentes posteriores son seguras.
     unsafe {
+        let sin_ptr = std::ptr::addr_of_mut!(SIN_LUT);
+        let cos_ptr = std::ptr::addr_of_mut!(COS_LUT);
         for i in 0..TRIG_RESOLUTION {
             let angle = (i as f32) * (2.0 * std::f32::consts::PI) / (TRIG_RESOLUTION as f32);
-            SIN_LUT.data[i] = libm::sinf(angle);
-            COS_LUT.data[i] = libm::cosf(angle);
+            (*sin_ptr).data[i] = libm::sinf(angle);
+            (*cos_ptr).data[i] = libm::cosf(angle);
         }
     }
 
@@ -48,8 +54,11 @@ pub fn init_trig_luts() {
 pub fn sin_fast(angle: f32) -> f32 {
     let normalized = angle.rem_euclid(2.0 * std::f32::consts::PI);
     let idx = (normalized * RAD_TO_IDX) as usize % TRIG_RESOLUTION;
-    // SAFETY: idx en [0, TRIG_RESOLUTION) y LUT ya inicializada
-    unsafe { *SIN_LUT.data.get_unchecked(idx) }
+    // SAFETY: LUT ya inicializada (init_trig_luts llamado en main), idx en [0, TRIG_RESOLUTION)
+    unsafe {
+        let lut_ptr = std::ptr::addr_of!(SIN_LUT);
+        *(*lut_ptr).data.as_ptr().add(idx)
+    }
 }
 
 /// Coseno rápido usando LUT. Ángulo en radianes.
@@ -57,22 +66,27 @@ pub fn sin_fast(angle: f32) -> f32 {
 pub fn cos_fast(angle: f32) -> f32 {
     let normalized = angle.rem_euclid(2.0 * std::f32::consts::PI);
     let idx = (normalized * RAD_TO_IDX) as usize % TRIG_RESOLUTION;
-    // SAFETY: idx validado
-    unsafe { *COS_LUT.data.get_unchecked(idx) }
+    // SAFETY: LUT ya inicializada, idx validado
+    unsafe {
+        let lut_ptr = std::ptr::addr_of!(COS_LUT);
+        *(*lut_ptr).data.as_ptr().add(idx)
+    }
 }
 
 /// Sin bounds check para hot paths.
-/// SAFETY: caller debe garantizar idx < TRIG_RESOLUTION
+/// SAFETY: caller debe garantizar idx < TRIG_RESOLUTION y LUT inicializada
 #[inline(always)]
 pub unsafe fn sin_unchecked(idx: usize) -> f32 {
-    *SIN_LUT.data.get_unchecked(idx)
+    let lut_ptr = std::ptr::addr_of!(SIN_LUT);
+    *(*lut_ptr).data.as_ptr().add(idx)
 }
 
 /// Sin bounds check para hot paths.
-/// SAFETY: caller debe garantizar idx < TRIG_RESOLUTION
+/// SAFETY: caller debe garantizar idx < TRIG_RESOLUTION y LUT inicializada
 #[inline(always)]
 pub unsafe fn cos_unchecked(idx: usize) -> f32 {
-    *COS_LUT.data.get_unchecked(idx)
+    let lut_ptr = std::ptr::addr_of!(COS_LUT);
+    *(*lut_ptr).data.as_ptr().add(idx)
 }
 
 #[cfg(test)]

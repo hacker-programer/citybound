@@ -18,7 +18,6 @@
 
 use crate::ecs::{GameWorld, Position, Renderable, ZoneComponent, ZoneType, Camera,
                   ConstructionState, BuildingType};
-use crate::luts;
 
 // ---------------------------------------------------------------------------
 // PALETA DE COLORES (ARGB)
@@ -115,7 +114,7 @@ fn render_background(
     for py in 0..h_i32 {
         let row_start = (py as usize) * w;
 
-        // Calcular world_y para esta fila (constante por fila)
+        // Calcular world_y para esta fila
         let world_y = (py as f32 - oy) / scale;
 
         for px in 0..w_i32 {
@@ -150,7 +149,6 @@ fn render_base_layer(
     gw: &GameWorld, fb: &mut [u32], w: usize, h: usize,
     ox: f32, oy: f32, scale: f32,
 ) {
-    // Entidades con layer 0 o 1
     for (_entity, (pos, renderable)) in gw.world
         .query::<(&Position, &Renderable)>()
         .iter()
@@ -160,7 +158,6 @@ fn render_base_layer(
         }
     }
 
-    // Overlay de zonas (capa alpha)
     for (_entity, (pos, zone)) in gw.world
         .query::<(&Position, &ZoneComponent)>()
         .iter()
@@ -226,19 +223,16 @@ fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
     let w_i32 = w as i32;
     let h_i32 = h as i32;
 
-    // Panel superior
     fill_rect_alpha(fb, w, h, 0, 0, w_i32, 24, COLOR_UI_BG);
 
     let time_str = format!("Citybound Native | Hora: {} | Tick: {}",
         crate::sim::formatted_time(gw.time_of_day), gw.sim_tick);
     draw_text(fb, w, h, 8, 4, &time_str, COLOR_UI_TEXT);
 
-    // Panel inferior
     fill_rect_alpha(fb, w, h, 0, h_i32 - 20, w_i32, 20, COLOR_UI_BG);
     draw_text(fb, w, h, 8, h_i32 - 16,
         "WASD: Mover | PageUp/Down: Zoom | ESC: Salir", COLOR_UI_TEXT);
 
-    // Mini-mapa (esquina inferior derecha)
     let mm_x = w_i32 - 70;
     let mm_y = h_i32 - 90;
     fill_rect_alpha(fb, w, h, mm_x, mm_y, 64, 64, COLOR_UI_BG);
@@ -281,8 +275,7 @@ fn fill_rect(fb: &mut [u32], fb_w: usize, fb_h: usize,
     }
 
     // [TA#17]: Acceso unchecked en bucles validados
-    // [TC#13]: Loop unrolling: procesar de a 4 píxeles para reducir
-    // la sobrecarga de saltos condicionales en ~25%
+    // [TC#13]: Loop unrolling: procesar de a 4 píxeles
     let width = (x2 - x1) as usize;
     let unrolled_end = x1 as usize + (width / 4) * 4;
 
@@ -290,7 +283,6 @@ fn fill_rect(fb: &mut [u32], fb_w: usize, fb_h: usize,
         let row_start = (py as usize) * fb_w;
         let mut px = x1 as usize;
 
-        // Bucle unrolled: 4 píxeles por iteración
         while px < unrolled_end {
             unsafe {
                 *fb.get_unchecked_mut(row_start + px) = color;
@@ -301,7 +293,6 @@ fn fill_rect(fb: &mut [u32], fb_w: usize, fb_h: usize,
             px += 4;
         }
 
-        // Resto (0-3 píxeles)
         while px < x2 as usize {
             unsafe {
                 *fb.get_unchecked_mut(row_start + px) = color;
@@ -384,12 +375,12 @@ fn fill_circle(fb: &mut [u32], fb_w: usize, fb_h: usize,
 
     for py in y1..y2 {
         let dy = py - cy;
-        let dy2 = dy * dy; // [TC#21]: pre-calcular dy² por fila
+        let dy2 = dy * dy; // [TC#21]: pre-calcular dy^2 por fila
         let row_start = (py as usize) * fb_w;
 
         for px in x1..x2 {
             let dx = px - cx;
-            // [TC#21]: comparar contra r² sin sqrt
+            // [TC#21]: comparar contra r^2 sin sqrt
             if dx * dx + dy2 <= r2 {
                 unsafe {
                     *fb.get_unchecked_mut(row_start + px as usize) = color;
@@ -460,7 +451,6 @@ fn draw_char(fb: &mut [u32], fb_w: usize, fb_h: usize,
 }
 
 /// Bitmap 5x7 para caracteres ASCII imprimibles
-/// Cada byte representa una fila; bit 4 (0x10) = píxel encendido
 fn get_glyph(ch: char) -> [u8; 7] {
     match ch {
         'A' => [0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11],
@@ -564,23 +554,17 @@ mod tests {
 
     #[test]
     fn test_fill_rect_bounds() {
-        let mut fb = vec![0u32; 100]; // 10x10
+        let mut fb = vec![0u32; 100];
         fill_rect(&mut fb, 10, 10, -5, -5, 3, 3, 0xFF_FF_00_00);
         fill_rect(&mut fb, 10, 10, 8, 8, 10, 10, 0xFF_FF_00_00);
     }
 
     #[test]
     fn test_fill_rect_unrolled() {
-        // Verificar que loop unrolling produce el mismo resultado
-        let mut fb1 = vec![0u32; 400]; // 20x20
-        let mut fb2 = vec![0u32; 400];
-
-        // fill_rect usa unrolling internamente; verificamos que funcione
-        fill_rect(&mut fb1, 20, 20, 2, 2, 16, 16, 0xFF_FF_00_00);
-
-        // Debe haber rellenado exactamente 16x16 = 256 píxeles
-        let filled = fb1.iter().filter(|&&p| p == 0xFF_FF_00_00).count();
-        assert_eq!(filled, 256, "Loop unrolling debe rellenar 16x16=256 píxeles");
+        let mut fb = vec![0u32; 400];
+        fill_rect(&mut fb, 20, 20, 2, 2, 16, 16, 0xFF_FF_00_00);
+        let filled = fb.iter().filter(|&&p| p == 0xFF_FF_00_00).count();
+        assert_eq!(filled, 256, "Loop unrolling debe rellenar 16x16=256 pixeles");
     }
 
     #[test]
@@ -611,10 +595,9 @@ mod tests {
         let mut pool = crate::object_pool::EntityPool::new(1000);
         let gw = crate::ecs::create_world(&mut pool);
 
-        let mut fb = vec![0u32; 400]; // 20x20
+        let mut fb = vec![0u32; 400];
         render_background(&gw, &mut fb, 20, 20, 10.0, 10.0, 1.0);
 
-        // Debe haber modificado píxeles con colores del terreno
         let modified = fb.iter().any(|&p| p != 0);
         assert!(modified, "Background debe usar colores del terreno baked");
     }

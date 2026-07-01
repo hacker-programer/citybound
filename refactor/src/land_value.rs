@@ -347,10 +347,10 @@ pub fn pollution_color(value: f32) -> u32 {
     if normalized < 0.3 {
         0x00_00_00_00 // Transparente
     } else if normalized < 0.6 {
-        let alpha = ((normalized - 0.3) * 3.33_f32 * 0x66_f32) as u32;
+        let alpha = ((normalized - 0.3) * 3.33_f32 * 0x66u32 as f32) as u32;
         (alpha << 24) | 0x00_AA_AA_00 // Amarillo sucio
     } else {
-        let alpha = ((normalized - 0.6) * 2.5_f32 * 0x88_f32) as u32;
+        let alpha = ((normalized - 0.6) * 2.5_f32 * 0x88u32 as f32) as u32;
         (alpha << 24) | 0x00_FF_44_00 // Rojo contaminación
     }
 }

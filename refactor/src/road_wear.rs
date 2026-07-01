@@ -105,10 +105,10 @@ impl RoadWearGrid {
         if wear < DAMAGE_THRESHOLD {
             0x00_00_00_00 // Sin daño visible
         } else if wear < SEVERE_DAMAGE_THRESHOLD {
-            let alpha = ((wear - DAMAGE_THRESHOLD) / (SEVERE_DAMAGE_THRESHOLD - DAMAGE_THRESHOLD) * 0x88_f32) as u32;
+            let alpha = ((wear - DAMAGE_THRESHOLD) / (SEVERE_DAMAGE_THRESHOLD - DAMAGE_THRESHOLD) * 0x88u32 as f32) as u32;
             (alpha << 24) | 0x00_FF_FF_00 // Amarillo
         } else {
-            let alpha = ((wear - SEVERE_DAMAGE_THRESHOLD) / (MAX_WEAR - SEVERE_DAMAGE_THRESHOLD) * 0xAA_f32) as u32;
+            let alpha = ((wear - SEVERE_DAMAGE_THRESHOLD) / (MAX_WEAR - SEVERE_DAMAGE_THRESHOLD) * 0xAAu32 as f32) as u32;
             (alpha.min(0xAA) << 24) | 0x00_FF_44_00 // Rojo
         }
     }

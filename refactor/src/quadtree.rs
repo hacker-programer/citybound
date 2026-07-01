@@ -87,7 +87,7 @@ struct QuadNode {
 }
 
 impl QuadNode {
-    const EMPTY: Self = QuadNode {
+    #[allow(dead_code)] const EMPTY: Self = QuadNode {
         bounds: AABB { x: 0.0, y: 0.0, w: 0.0, h: 0.0 },
         first_child: 0,
         child_count: 0,

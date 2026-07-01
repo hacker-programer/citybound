@@ -265,7 +265,7 @@ impl Quadtree {
         // Verificar si hay espacio en las entidades del nodo
         if node.entity_count < MAX_ENTITIES_PER_NODE as u16 || node.depth >= MAX_DEPTH {
             // Insertar directamente
-            let insert_pos = if node.first_entity == 0 && node.entity_count == 0 {
+            let _insert_pos = if node.first_entity == 0 && node.entity_count == 0 {
                 // Primera entidad del nodo
                 node.first_entity = self.entity_ids.len() as u32;
                 self.entity_ids.push(handle);
@@ -584,3 +584,4 @@ mod tests {
         assert!(!a.contains_point(15.0, 15.0)); // exclusive en x+w, y+h
     }
 }
+

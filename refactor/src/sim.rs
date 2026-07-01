@@ -110,7 +110,7 @@ fn tick_traffic(game_world: &mut GameWorld, dt: f32) {
     }
 
     // Para cada coche, buscar vecinos con quadtree y ajustar velocidad
-    for (entity, (pos, vel, car)) in game_world.world
+    for (_entity, (pos, vel, car)) in game_world.world
         .query::<(&mut Position, &mut Velocity, &mut TrafficCar)>()
         .iter()
     {

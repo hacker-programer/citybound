@@ -12,7 +12,7 @@
 //
 // Memoria: 128x128 f32 = 64KB (cabe en caché L2 de Pentium)
 
-use crate::luts;
+// use crate::luts; // LUTs no usadas actualmente, reservado para smoothstep futuro
 
 /// Tamaño del mapa de terreno (debe coincidir con la grilla del mundo)
 pub const TERRAIN_SIZE: usize = 128;

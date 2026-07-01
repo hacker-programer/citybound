@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod integration_tests {
-    use citybound_native::ecs::{self, GameWorld, Position, ZoneType};
+    use citybound_native::ecs;
     use citybound_native::object_pool::EntityPool;
     use citybound_native::sim;
     use citybound_native::luts;
@@ -30,10 +30,9 @@ mod integration_tests {
 
         // Verificar que el tiempo avanzó
         assert!(gw.sim_tick > 0);
-        // ~33 segundos simulados = ~0.5 minutos
-        let expected_time = (7 * 60 + 0) % (24 * 60);
-        // Allow some flexibility in time
-        assert!(gw.time_of_day >= 7 * 60 && gw.time_of_day < 8 * 60);
+        // La hora debe seguir en el rango 7:00-7:59 AM después de ~33s simulados
+        assert!(gw.time_of_day >= 7 * 60 && gw.time_of_day < 8 * 60,
+            "Hora del día fuera de rango: {}", gw.time_of_day);
     }
 
     /// Test: verificar que las entidades de tráfico existen y se mueven

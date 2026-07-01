@@ -12,7 +12,10 @@
 // El bloque de memoria se alinea a página (4KB) para aprovechar
 // el TLB (Translation Lookaside Buffer).
 
-#![allow(dead_code)]\n\nuse std::alloc::{alloc_zeroed, dealloc, Layout};
+// Allow dead_code: método allocate usado en tests, será usado en runtime futuro
+#![allow(dead_code)]
+
+use std::alloc::{alloc_zeroed, dealloc, Layout};
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

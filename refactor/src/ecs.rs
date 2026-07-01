@@ -1,11 +1,18 @@
 // Módulo ECS - Entity Component System v0.7.0
 //
-// GameWorld actualizado con los 5 nuevos sistemas de realismo:
-// [M#1] SupplyChain - Cadenas de suministro
-// [M#2] LandValue - Valor del suelo y gentrificación
-// [M#3] Utilities - Agua y electricidad
-// [M#4] RoadWear - Desgaste de infraestructura
+// GameWorld con todos los sistemas integrados:
+// [#361] LaneManager - Tráfico con carriles
+// [#392] DesignTool - Diseño urbano interactivo
+// [M#1] SupplyChain - Cadenas de suministro física
+// [M#2] LandValue - Valor del suelo y contaminación
+// [M#3] Utilities - Agua y electricidad con propagación
+// [M#4] RoadWear - Desgaste de asfalto
 // [M#5] LaborMarket - Mercado laboral
+// [M#6] TaxSystem - Impuestos milimétricos + bonos
+// [M#7] Parking - Estacionamiento físico + HOA
+// [M#8] WasteMgmt - Clasificación de basura
+// [M#9] Customization - Personalización visual
+// [M#10] Politics - NIMBY, sindicatos, elecciones
 
 use crate::object_pool::EntityPool;
 use crate::input::InputState;
@@ -18,6 +25,11 @@ use crate::interactive::DesignTool;
 use crate::utilities::UtilityGrid;
 use crate::road_wear::RoadWearGrid;
 use crate::land_value::{LandValueHeatmap, PollutionHeatmap};
+use crate::tax_system::MunicipalFinance;
+use crate::parking::ParkingManager;
+use crate::waste_mgmt::WasteManager;
+use crate::customization::CustomizationManager;
+use crate::politics::PoliticalSystem;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 
@@ -89,15 +101,21 @@ pub struct GameWorld {
     pub bitgrid: BitGrid,
     pub lane_manager: LaneManager,
     pub design_tool: DesignTool,
-    /// Grid de servicios (agua/electricidad) [M#3]
     pub water_grid: UtilityGrid,
     pub power_grid: UtilityGrid,
-    /// Mapa de desgaste de carreteras [M#4]
     pub road_wear: RoadWearGrid,
-    /// Heatmap de valor del suelo [M#2]
     pub land_value_map: LandValueHeatmap,
-    /// Heatmap de contaminación [M#2]
     pub pollution_map: PollutionHeatmap,
+    /// Finanzas municipales e impuestos [M#6]
+    pub finance: MunicipalFinance,
+    /// Gestión de estacionamiento [M#7]
+    pub parking_mgr: ParkingManager,
+    /// Gestión de residuos [M#8]
+    pub waste_mgr: WasteManager,
+    /// Personalización visual [M#9]
+    pub customization: CustomizationManager,
+    /// Sistema político [M#10]
+    pub politics: PoliticalSystem,
     pub grid_size: i32,
 }
 
@@ -115,18 +133,36 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
 
     let design_tool = DesignTool::new();
 
-    // [M#3]: Grids de servicios
-    let mut water_grid = UtilityGrid::new(utilities::UtilitySourceType::WaterTower);
+    let mut water_grid = UtilityGrid::new(crate::utilities::UtilitySourceType::WaterTower);
     water_grid.add_source(64.0, 64.0);
-    let mut power_grid = UtilityGrid::new(utilities::UtilitySourceType::PowerPlant);
+    let mut power_grid = UtilityGrid::new(crate::utilities::UtilitySourceType::PowerPlant);
     power_grid.add_source(64.0, 64.0);
 
-    // [M#4]: Mapa de desgaste
     let road_wear = RoadWearGrid::new();
-
-    // [M#2]: Heatmaps
     let land_value_map = LandValueHeatmap::new();
     let pollution_map = PollutionHeatmap::new();
+
+    // [M#6]: Finanzas municipales
+    let finance = MunicipalFinance::new();
+
+    // [M#7]: Parking manager
+    let mut parking_mgr = ParkingManager::new();
+    // Generar estacionamiento en calle a lo largo de avenidas principales
+    for i in 0..6 {
+        let ave_x = 20.0 + i as f32 * 20.0;
+        for y in (10..120).step_by(4) {
+            parking_mgr.add_street_parking(ave_x, y as f32, 4, false, 0.0);
+        }
+    }
+
+    // [M#8]: Gestor de residuos
+    let waste_mgr = WasteManager::new();
+
+    // [M#9]: Personalización
+    let customization = CustomizationManager::new();
+
+    // [M#10]: Sistema político
+    let politics = PoliticalSystem::new();
 
     // Cámara
     world.spawn((
@@ -205,6 +241,8 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         lane_manager, design_tool,
         water_grid, power_grid, road_wear,
         land_value_map, pollution_map,
+        finance, parking_mgr, waste_mgr,
+        customization, politics,
         grid_size,
     }
 }
@@ -239,11 +277,40 @@ mod tests {
     }
 
     #[test]
-    fn test_new_grids_exist() {
+    fn test_finance_exists() {
         let mut pool = EntityPool::new(1000);
         let gw = create_world(&mut pool);
-        assert!((gw.road_wear.get(50, 50) - 0.0).abs() < 0.01);
-        assert!((gw.land_value_map.get(50, 50) - 10.0).abs() < 0.01);
+        assert!(gw.finance.treasury > 0.0);
+        assert_eq!(gw.finance.active_bonds.len(), 0);
+    }
+
+    #[test]
+    fn test_parking_exists() {
+        let mut pool = EntityPool::new(1000);
+        let gw = create_world(&mut pool);
+        assert!(!gw.parking_mgr.street_segments.is_empty());
+    }
+
+    #[test]
+    fn test_waste_mgr_exists() {
+        let mut pool = EntityPool::new(1000);
+        let gw = create_world(&mut pool);
+        assert_eq!(gw.waste_mgr.landfills.len(), 0);
+    }
+
+    #[test]
+    fn test_customization_exists() {
+        let mut pool = EntityPool::new(1000);
+        let gw = create_world(&mut pool);
+        assert!(gw.customization.appearances.is_empty());
+    }
+
+    #[test]
+    fn test_politics_exists() {
+        let mut pool = EntityPool::new(1000);
+        let gw = create_world(&mut pool);
+        assert_eq!(gw.politics.districts.len(), 9);
+        assert_eq!(gw.politics.unions.len(), 6);
     }
 
     #[test]

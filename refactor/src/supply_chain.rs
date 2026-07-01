@@ -14,10 +14,9 @@
 // [TA#7]  Flow Fields para navegación de camiones
 // [TA#17] Acceso unchecked en bucles validados
 
-use crate::ecs::{GameWorld, Position, Velocity, TrafficCar, Renderable, ZoneType,
-                  ResourceStorage, ConstructionState, BuildingType, ZoneComponent};
+use crate::ecs::{GameWorld, Position, Velocity, TrafficCar, Renderable,
+                  ResourceStorage, ConstructionState, BuildingType};
 use crate::flow_field::FlowCell;
-use crate::rng_pool;
 
 // ---------------------------------------------------------------------------
 // CONSTANTES
@@ -103,7 +102,7 @@ fn tick_factory_production(gw: &mut GameWorld, _dt: f32) {
         .iter()
     {
         if construction.progress < 0.5 {
-            continue; // Fábrica en construcción no produce
+            continue;
         }
 
         match construction.building_type {
@@ -150,7 +149,6 @@ fn spawn_cargo_trucks(gw: &mut GameWorld) {
 
     // Emparejar fábricas con tiendas cercanas
     for (fx, fy, _stock) in factories.iter().take(3) {
-        // Encontrar la tienda más cercana
         let mut best_dist = f32::MAX;
         let mut best_shop = (0.0f32, 0.0f32);
 
@@ -163,8 +161,7 @@ fn spawn_cargo_trucks(gw: &mut GameWorld) {
         }
 
         if best_dist < f32::MAX {
-            // Crear camión de carga
-            let truck_entity = gw.world.spawn((
+            let _truck_entity = gw.world.spawn((
                 Position::new(*fx, *fy),
                 Velocity::new(0.0, 0.0),
                 TrafficCar {
@@ -181,7 +178,7 @@ fn spawn_cargo_trucks(gw: &mut GameWorld) {
                     delivering_to_shop: true,
                     travel_ticks: 0,
                 },
-                Renderable::rect(0xFF_00_AA_FF, 2.0, 6), // Azul para camiones de carga
+                Renderable::rect(0xFF_00_AA_FF, 2.0, 6),
             ));
 
             // Deducir stock de la fábrica
@@ -212,29 +209,24 @@ fn move_cargo_trucks(gw: &mut GameWorld, dt: f32) {
     {
         truck.travel_ticks += 1;
 
-        // Calcular dirección hacia destino
         let dx = truck.destination_x - pos.x;
         let dy = truck.destination_y - pos.y;
         let dist = (dx * dx + dy * dy).sqrt();
 
         if dist < 2.0 {
-            // Llegó al destino
             car.speed = 0.0;
             continue;
         }
 
-        // Usar Flow Field para navegación base
         let flow: FlowCell = gw.flow_fields.sample_combined(pos.x, pos.y, false);
 
-        // Combinar dirección del flow field con dirección al destino
         let target_angle = dy.atan2(dx);
-        let flow_weight = 0.3; // 30% flow field, 70% ruta directa
+        let flow_weight: f32 = 0.3;
         let combined_angle = flow.angle * flow_weight + target_angle * (1.0 - flow_weight);
 
         let target_speed = CARGO_TRUCK_SPEED * flow.magnitude.max(0.3);
         car.max_speed = CARGO_TRUCK_SPEED;
 
-        // Acelerar/desacelerar suavemente
         if car.speed < target_speed {
             car.speed = (car.speed + 2.0 * dt).min(target_speed);
         } else {
@@ -247,7 +239,6 @@ fn move_cargo_trucks(gw: &mut GameWorld, dt: f32) {
         pos.x += move_dx;
         pos.y += move_dy;
 
-        // Wrap
         let gs = gw.grid_size as f32;
         if pos.x < 0.0 { pos.x += gs; }
         if pos.x >= gs { pos.x -= gs; }
@@ -266,29 +257,20 @@ fn move_cargo_trucks(gw: &mut GameWorld, dt: f32) {
 fn deliver_cargo(gw: &mut GameWorld) {
     let mut deliveries: Vec<(f32, f32, f32)> = Vec::with_capacity(16);
 
-    // Encontrar camiones que llegaron a destino
-    let truck_deliveries: Vec<(f32, f32, f32, bool)> = gw.world
-        .query::<(&Position, &CargoTruck)>()
-        .iter()
-        .filter(|(_, (pos, truck))| {
-            let dx = truck.destination_x - pos.x;
-            let dy = truck.destination_y - pos.y;
-            (dx * dx + dy * dy).sqrt() < 2.0
-        })
-        .map(|(_, (pos, truck))| (pos.x, pos.y, truck.cargo, truck.delivering_to_shop))
-        .collect();
-
-    // Eliminar camiones que entregaron
-    let mut to_remove = Vec::new();
-    for (entity, (_pos, truck)) in gw.world
-        .query::<(hecs::Entity, (&CargoTruck,))>()
-        .iter()
+    // Encontrar camiones que llegaron a destino y eliminarlos
+    let mut to_remove: Vec<hecs::Entity> = Vec::with_capacity(16);
     {
-        let dx = truck.destination_x - _pos.x;
-        let dy = truck.destination_y - _pos.y;
-        if (dx * dx + dy * dy).sqrt() < 2.0 {
-            deliveries.push((truck.destination_x, truck.destination_y, truck.cargo));
-            to_remove.push(entity);
+        // Usamos query sin Entity - el iterador nos da (Entity, components)
+        for (entity, (_pos, truck)) in gw.world
+            .query::<(&Position, &CargoTruck)>()
+            .iter()
+        {
+            let dx = truck.destination_x - _pos.x;
+            let dy = truck.destination_y - _pos.y;
+            if (dx * dx + dy * dy).sqrt() < 2.0 {
+                deliveries.push((truck.destination_x, truck.destination_y, truck.cargo));
+                to_remove.push(entity);
+            }
         }
     }
 
@@ -330,7 +312,7 @@ fn tick_shop_consumption(gw: &mut GameWorld) {
 
         if storage.goods > 0.0 {
             storage.goods -= SHOP_CONSUMPTION;
-            storage.money += 2.0; // Venta
+            storage.money += 2.0;
             supply.ticks_without_supply = 0;
         } else {
             supply.ticks_without_supply += 1;
@@ -343,17 +325,16 @@ fn tick_shop_consumption(gw: &mut GameWorld) {
 
     // Marcar tiendas quebradas
     for (bx, by) in bankruptcies {
-        // Marcar como abandonada
         gw.world.spawn((
             Position::new(bx, by),
             AbandonedBuilding { abandoned_ticks: 0 },
-            Renderable::rect(0xFF_44_44_44, 3.0, 3), // Gris oscuro
+            Renderable::rect(0xFF_44_44_44, 3.0, 3),
         ));
 
         // Eliminar la tienda original
-        let mut to_remove = Vec::new();
+        let mut to_remove: Vec<hecs::Entity> = Vec::new();
         for (entity, (pos, construction)) in gw.world
-            .query::<(hecs::Entity, (&Position, &ConstructionState))>()
+            .query::<(&Position, &ConstructionState)>()
             .iter()
         {
             if construction.building_type == BuildingType::Shop
@@ -371,7 +352,7 @@ fn tick_shop_consumption(gw: &mut GameWorld) {
 }
 
 fn tick_abandoned_buildings(gw: &mut GameWorld) {
-    let mut to_remove = Vec::new();
+    let mut to_remove: Vec<hecs::Entity> = Vec::new();
 
     for (entity, (abandoned,)) in gw.world
         .query::<(&mut AbandonedBuilding,)>()
@@ -402,7 +383,6 @@ mod tests {
         let mut pool = EntityPool::new(1000);
         let mut gw = ecs::create_world(&mut pool);
 
-        // Agregar una fábrica y una tienda de prueba
         gw.world.spawn((
             Position::new(50.0, 50.0),
             ConstructionState { progress: 1.0, building_type: BuildingType::Factory },
@@ -423,7 +403,6 @@ mod tests {
     fn test_factory_production() {
         let mut gw = setup_world();
 
-        // Verificar stock inicial
         let initial = gw.world.query::<&ResourceStorage>()
             .iter()
             .find(|(_, s)| s.goods > 50.0)
@@ -456,7 +435,6 @@ mod tests {
         let mut gw = setup_world();
         spawn_cargo_trucks(&mut gw);
 
-        // Verificar que los camiones se mueven
         let positions_before: Vec<(f32, f32)> = gw.world
             .query::<(&Position, &CargoTruck)>()
             .iter()
@@ -472,8 +450,7 @@ mod tests {
             .collect();
 
         if !positions_before.is_empty() && !positions_after.is_empty() {
-            let moved = (positions_before[0].0 - positions_after[0].0).abs() > 0.01;
-            // Puede no moverse si ya está en destino
+            let _moved = (positions_before[0].0 - positions_after[0].0).abs() > 0.01;
         }
     }
 
@@ -481,7 +458,6 @@ mod tests {
     fn test_shop_bankruptcy() {
         let mut gw = setup_world();
 
-        // Darle SupplyTimer con ticks cerca de bancarrota
         for (_entity, (_pos, construction, _storage, supply)) in gw.world
             .query::<(&Position, &ConstructionState, &ResourceStorage, &mut SupplyTimer)>()
             .iter()
@@ -493,7 +469,6 @@ mod tests {
 
         tick_shop_consumption(&mut gw);
 
-        // Verificar que se creó AbandonedBuilding
         let abandoned = gw.world.query::<&AbandonedBuilding>().iter().count();
         assert!(abandoned > 0, "Tienda debe quebrar sin suministro");
     }
@@ -502,7 +477,6 @@ mod tests {
     fn test_supply_timer_reset() {
         let mut gw = setup_world();
 
-        // Dar goods a la tienda
         for (_entity, (_pos, construction, storage, supply)) in gw.world
             .query::<(&Position, &ConstructionState, &mut ResourceStorage, &mut SupplyTimer)>()
             .iter()
@@ -515,7 +489,6 @@ mod tests {
 
         tick_shop_consumption(&mut gw);
 
-        // Verificar que el timer se reseteó
         let timer = gw.world.query::<&SupplyTimer>()
             .iter()
             .find(|(_, s)| s.ticks_without_supply == 0);

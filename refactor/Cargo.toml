@@ -4,7 +4,7 @@ version = "0.7.0"
 authors = ["Citybound Refactor Team"]
 license = "AGPL-3.0"
 edition = "2021"
-description = "Citybound native desktop refactor - ECS city simulator with supply chains, labor market, utilities, road wear, and gentrification"
+description = "Citybound native desktop refactor - Realistic city builder with supply chains, land value, utilities, road wear, and labor market"
 
 [workspace]
 

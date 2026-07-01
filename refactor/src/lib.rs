@@ -10,6 +10,8 @@
 // - object_pool: Pool de entidades preasignadas
 // - bump_alloc: Bump allocator por frame
 // - input: Manejo de input con debounce
+// - terrain: Mapa de terreno con ruido Perlin pre-generado
+// - quadtree: Quadtree espacial para consultas O(log N)
 
 pub mod ecs;
 pub mod sim;
@@ -18,3 +20,5 @@ pub mod luts;
 pub mod object_pool;
 pub mod bump_alloc;
 pub mod input;
+pub mod terrain;
+pub mod quadtree;

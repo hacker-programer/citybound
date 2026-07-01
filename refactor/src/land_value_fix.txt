@@ -1,0 +1,30 @@
+// land_value.rs: fix borrow conflict at line 304 + f32*{integer} at 348,351
+
+// --- Fix 1: borrow conflict at line 304 ---
+// Replace lines 291-312: collect to_abandon first, spawn after query
+
+    for (x, y) in to_degrade {
+        let mut to_abandon: Vec<(f32, f32)> = Vec::new();
+        for (_entity, (_pos, construction, _storage)) in gw.world
+            .query::<(&Position, &mut ConstructionState, &ResourceStorage)>()
+            .iter()
+        {
+            if (_pos.x - x).abs() < 1.0 && (_pos.y - y).abs() < 1.0
+                && construction.progress > 0.3
+            {
+                construction.progress -= 0.05;
+                if construction.progress < 0.1 {
+                    construction.progress = 0.0;
+                    to_abandon.push((x, y));
+                }
+            }
+        }
+        // Spawn after query borrow is released
+        for (ax, ay) in to_abandon {
+            gw.world.spawn((
+                Position::new(ax, ay),
+                crate::supply_chain::AbandonedBuilding { abandoned_ticks: 0 },
+                Renderable::rect(0xFF_66_44_44, 3.0, 3),
+            ));
+        }
+    }

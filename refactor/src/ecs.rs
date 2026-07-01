@@ -3,24 +3,26 @@
 // ARQUITECTURA:
 // Usamos hecs como motor ECS puro. Todos los componentes se almacenan
 // en Struct-of-Arrays (SoA) para maximizar la localidad de caché.
-// En hecs, cualquier tipo Send + Sync + 'static es automáticamente
-// un Component, sin necesidad de derive macro.
 //
-// TÉCNICA AVANZADA #4: ECS puro - Struct of Arrays
-// TÉCNICA AVANZADA #9: Structs alineados a 64 bytes (línea caché L1)
-// TÉCNICA COMÚN #24 (juegos): Máquinas de estado aplanadas
+// TÉCNICAS:
+// [TA#4]  ECS puro - Struct of Arrays
+// [TA#9]  Structs alineados a 64 bytes (línea caché L1)
+// [TC#24] Máquinas de estado aplanadas
+// [TI#6]  Bitboards integrados en GameWorld
+// [TA#7]  Flow Fields integrados en GameWorld
 
 use crate::object_pool::EntityPool;
 use crate::input::InputState;
 use crate::terrain::TerrainMap;
 use crate::quadtree::Quadtree;
+use crate::flow_field::FlowFieldManager;
+use crate::bitboard::BitGrid;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 
 // ---------------------------------------------------------------------------
 // COMPONENTES
 // [TA#9]: Cada struct alineado a 64 bytes = una línea de caché L1 completa
-// Esto maximiza los hits de caché en CPUs legacy como Pentium
 // ---------------------------------------------------------------------------
 
 /// Posición en el mundo (coordenadas de grilla)
@@ -57,13 +59,9 @@ impl Velocity {
 #[derive(Copy, Clone, Debug)]
 #[repr(align(64))]
 pub struct Renderable {
-    /// Tipo de forma: 0=círculo, 1=rectángulo, 2=triángulo
     pub shape_type: u8,
-    /// Color en formato ARGB
     pub color: u32,
-    /// Tamaño en píxeles (radio para círculo, ancho para rect)
     pub size: f32,
-    /// Capa de renderizado (z-order): 0=terreno, 1=zonas, 2-3=edificios, 4+=tráfico
     pub layer: u8,
 }
 
@@ -79,7 +77,7 @@ impl Renderable {
     }
 }
 
-/// Tipo de zona (planificación urbana)
+/// Tipo de zona
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(align(64))]
 pub enum ZoneType {
@@ -96,7 +94,6 @@ pub enum ZoneType {
 #[repr(align(64))]
 pub struct ZoneComponent {
     pub zone_type: ZoneType,
-    /// Densidad: 0=sin desarrollar, 1=baja, 2=media, 3=alta
     pub density: u8,
 }
 
@@ -104,27 +101,19 @@ pub struct ZoneComponent {
 #[derive(Copy, Clone, Debug)]
 #[repr(align(64))]
 pub struct TrafficCar {
-    /// Velocidad actual (m/s)
     pub speed: f32,
-    /// Velocidad máxima (m/s)
     pub max_speed: f32,
-    /// Aceleración actual (m/s²)
     pub acceleration: f32,
-    /// Posición en el carril (0.0 = inicio, 1.0 = final)
     pub lane_position: f32,
-    /// ID del carril actual
     pub lane_id: u32,
 }
 
-/// Almacenamiento de recursos para economía
+/// Almacenamiento de recursos
 #[derive(Copy, Clone, Debug)]
 #[repr(align(64))]
 pub struct ResourceStorage {
-    /// Dinero
     pub money: f32,
-    /// Comida
     pub food: f32,
-    /// Bienes
     pub goods: f32,
 }
 
@@ -132,9 +121,7 @@ pub struct ResourceStorage {
 #[derive(Copy, Clone, Debug)]
 #[repr(align(64))]
 pub struct ConstructionState {
-    /// Progreso 0.0 a 1.0
     pub progress: f32,
-    /// Tipo de construcción
     pub building_type: BuildingType,
 }
 
@@ -176,17 +163,16 @@ pub struct QuadIndex(pub u32);
 pub struct GameWorld {
     pub world: hecs::World,
     pub pool: EntityPool,
-    /// Tiempo de simulación actual (en ticks)
     pub sim_tick: u64,
-    /// Hora del día simulada (minutos desde medianoche)
     pub time_of_day: u16,
-    /// Generador de números aleatorios determinista [TC#12]
     pub rng: SmallRng,
-    /// Mapa de terreno pre-generado con ruido Perlin [TC#14]
     pub terrain: TerrainMap,
-    /// Quadtree espacial para consultas aceleradas [TC#7]
+    /// Quadtree espacial (conservado para consultas que lo requieran)
     pub quadtree: Quadtree,
-    /// Tamaño de la grilla del mundo
+    /// Flow fields para pathfinding de tráfico O(1) [TA#7]
+    pub flow_fields: FlowFieldManager,
+    /// Bitboards para colisiones en grilla O(1) [TI#6]
+    pub bitgrid: BitGrid,
     pub grid_size: i32,
 }
 
@@ -202,28 +188,33 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     // [TC#7]: Crear quadtree con las dimensiones del mundo
     let quadtree = Quadtree::new(grid_size as f32, grid_size as f32);
 
-    // Cámara (1 entidad)
+    // [TA#7]: Generar flow fields durante la carga
+    let flow_fields = FlowFieldManager::generate_all();
+
+    // [TI#6]: Inicializar bitgrid vacío
+    let bitgrid = BitGrid::new();
+
+    // Cámara
     world.spawn((
         Camera { offset_x: grid_size as f32 / 2.0, offset_y: grid_size as f32 / 2.0, zoom: 1.0 },
         Position::new(0.0, 0.0),
     ));
 
-    // Mapa base: grilla de celdas de terreno (usando TerrainMap para decidir zonas)
+    // Mapa base: grilla de celdas de terreno
     for gx in 0..grid_size {
         for gy in 0..grid_size {
             let ttype = terrain.terrain_type(gx as usize, gy as usize);
-            // Solo spawnear celdas de tierra (no agua) como entidades
             if ttype != 0 {
                 world.spawn((
                     Position::new(gx as f32, gy as f32),
-                    Renderable::rect(0x00_00_00_00, 1.0, 0), // Color se toma del terrain baked
+                    Renderable::rect(0x00_00_00_00, 1.0, 0),
                     ZoneComponent { zone_type: ZoneType::Residential, density: 0 },
                 ));
             }
         }
     }
 
-    // Pool de coches preasignados: reducir a 40 y posicionarlos horizontalmente
+    // Pool de coches preasignados
     for i in 0..40 {
         world.spawn((
             Position::new(i as f32 * 3.0 + 5.0, 60.0),
@@ -239,7 +230,7 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         ));
     }
 
-    // Edificios de ejemplo en posiciones más naturales
+    // Edificios de ejemplo
     let buildings: [(f32, f32, BuildingType, u32); 8] = [
         (30.0, 30.0, BuildingType::House, 0xFF_C4_7B_4A),
         (35.0, 30.0, BuildingType::Shop, 0xFF_26_C6_DA),
@@ -260,7 +251,7 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         ));
     }
 
-    // Zonas planificadas - ajustadas al terreno
+    // Zonas planificadas
     let zones: [(f32, f32, f32, f32, ZoneType, u32); 4] = [
         (15.0, 15.0, 30.0, 18.0, ZoneType::Residential, 0x44_66_BB_6A),
         (55.0, 15.0, 25.0, 18.0, ZoneType::Commercial, 0x44_42_A5_F5),
@@ -288,11 +279,12 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         rng: SmallRng::seed_from_u64(42),
         terrain,
         quadtree,
+        flow_fields,
+        bitgrid,
         grid_size,
     }
 }
 
-/// Retorna el número de entidades en el mundo
 #[inline(always)]
 pub fn entity_count(game_world: &GameWorld) -> usize {
     game_world.world.len() as usize
@@ -406,6 +398,21 @@ mod tests {
     }
 
     #[test]
+    fn test_flow_fields_exist_in_world() {
+        let mut pool = EntityPool::new(1000);
+        let gw = create_world(&mut pool);
+        let cell = gw.flow_fields.primary.sample(64.0, 64.0);
+        assert!(cell.magnitude >= 0.0);
+    }
+
+    #[test]
+    fn test_bitgrid_exists_in_world() {
+        let mut pool = EntityPool::new(1000);
+        let gw = create_world(&mut pool);
+        assert_eq!(gw.bitgrid.count_layer(0), 0);
+    }
+
+    #[test]
     fn test_process_input_no_panic() {
         let mut pool = EntityPool::new(1000);
         let mut gw = create_world(&mut pool);
@@ -418,7 +425,6 @@ mod tests {
         let mut pool = EntityPool::new(1000);
         let gw = create_world(&mut pool);
         let count = entity_count(&gw);
-        // El número exacto depende del terreno, pero debe ser > 5000
         assert!(count > 5000, "Esperado > 5000 entidades, hay {}", count);
     }
 
@@ -426,9 +432,8 @@ mod tests {
     fn test_terrain_exists() {
         let mut pool = EntityPool::new(1000);
         let gw = create_world(&mut pool);
-        // Verificar que el terreno tiene variación
         let h0 = gw.terrain.height(0, 0);
         let h1 = gw.terrain.height(64, 64);
-        assert!((h0 - h1).abs() >= 0.0); // Solo verifica que no panic
+        assert!((h0 - h1).abs() >= 0.0);
     }
 }

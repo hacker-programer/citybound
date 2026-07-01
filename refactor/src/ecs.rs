@@ -10,6 +10,8 @@
 // [TC#24] Máquinas de estado aplanadas
 // [TI#6]  Bitboards integrados en GameWorld
 // [TA#7]  Flow Fields integrados en GameWorld
+// [#361]  LaneManager para tráfico con carriles A/B Street
+// [#392]  DesignTool para diseño urbano interactivo
 
 use crate::object_pool::EntityPool;
 use crate::input::InputState;
@@ -17,6 +19,8 @@ use crate::terrain::TerrainMap;
 use crate::quadtree::Quadtree;
 use crate::flow_field::FlowFieldManager;
 use crate::bitboard::BitGrid;
+use crate::traffic_lanes::LaneManager;
+use crate::interactive::DesignTool;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 
@@ -173,6 +177,10 @@ pub struct GameWorld {
     pub flow_fields: FlowFieldManager,
     /// Bitboards para colisiones en grilla O(1) [TI#6]
     pub bitgrid: BitGrid,
+    /// Gestor de carriles A/B Street [#361]
+    pub lane_manager: LaneManager,
+    /// Herramienta de diseño urbano interactivo [#392]
+    pub design_tool: DesignTool,
     pub grid_size: i32,
 }
 
@@ -194,37 +202,42 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     // [TI#6]: Inicializar bitgrid vacío
     let bitgrid = BitGrid::new();
 
+    // [#361]: Generar red de carriles A/B Street
+    let mut lane_manager = LaneManager::new();
+    lane_manager.generate_default_network();
+
+    // [#392]: Herramienta de diseño urbano
+    let design_tool = DesignTool::new();
+
     // Cámara
     world.spawn((
         Camera { offset_x: grid_size as f32 / 2.0, offset_y: grid_size as f32 / 2.0, zoom: 1.0 },
         Position::new(0.0, 0.0),
     ));
 
-    // Mapa base: grilla de celdas de terreno
-    for gx in 0..grid_size {
-        for gy in 0..grid_size {
-            let ttype = terrain.terrain_type(gx as usize, gy as usize);
-            if ttype != 0 {
-                world.spawn((
-                    Position::new(gx as f32, gy as f32),
-                    Renderable::rect(0x00_00_00_00, 1.0, 0),
-                    ZoneComponent { zone_type: ZoneType::Residential, density: 0 },
-                ));
-            }
-        }
-    }
-
-    // Pool de coches preasignados
+    // Pool de coches preasignados - asignados a carriles
     for i in 0..40 {
+        // Asignar cada coche a un carril diferente si hay disponibles
+        let lane_id = if i < lane_manager.lanes.len() as i32 {
+            i as u32
+        } else {
+            (i as u32) % lane_manager.lanes.len().max(1) as u32
+        };
+        let (start_x, start_y) = if (lane_id as usize) < lane_manager.lanes.len() {
+            lane_manager.lanes[lane_id as usize].position_at(0.1 + (i as f32 * 0.02))
+        } else {
+            (i as f32 * 3.0 + 5.0, 60.0)
+        };
+
         world.spawn((
-            Position::new(i as f32 * 3.0 + 5.0, 60.0),
+            Position::new(start_x, start_y),
             Velocity::new(0.0, 0.0),
             TrafficCar {
                 speed: (i as f32 % 5.0 + 1.0) * 2.0,
                 max_speed: 13.8,
                 acceleration: 0.0,
                 lane_position: i as f32 / 40.0,
-                lane_id: 0,
+                lane_id,
             },
             Renderable::circle(0xFF_FF_AA_00, 1.2, 5),
         ));
@@ -281,6 +294,8 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         quadtree,
         flow_fields,
         bitgrid,
+        lane_manager,
+        design_tool,
         grid_size,
     }
 }
@@ -410,6 +425,22 @@ mod tests {
         let mut pool = EntityPool::new(1000);
         let gw = create_world(&mut pool);
         assert_eq!(gw.bitgrid.count_layer(0), 0);
+    }
+
+    #[test]
+    fn test_lane_manager_exists() {
+        let mut pool = EntityPool::new(1000);
+        let gw = create_world(&mut pool);
+        assert!(!gw.lane_manager.lanes.is_empty(), "Debe tener red de carriles");
+        assert!(!gw.lane_manager.intersections.is_empty(), "Debe tener intersecciones");
+    }
+
+    #[test]
+    fn test_design_tool_exists() {
+        let mut pool = EntityPool::new(1000);
+        let gw = create_world(&mut pool);
+        assert!(!gw.design_tool.active);
+        assert_eq!(gw.design_tool.brush_size, 3);
     }
 
     #[test]

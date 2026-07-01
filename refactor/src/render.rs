@@ -13,6 +13,9 @@
 // [TC#23] Pre-ordenamiento por Z-Index (capas de renderizado)
 // [TA#17] Acceso unchecked en bucles validados
 
+// Allow dead_code en paleta de colores: usados por sistemas futuros y tests
+#![allow(dead_code)]
+
 use crate::ecs::{GameWorld, Position, Renderable, ZoneComponent, ZoneType, Camera,
                   ConstructionState, BuildingType};
 use crate::luts;

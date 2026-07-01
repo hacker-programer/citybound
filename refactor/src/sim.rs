@@ -4,15 +4,22 @@
 // Basado en la simulación original de Citybound (cb_simulation).
 //
 // SUBSISTEMAS:
-// - time: Avance del tiempo, hora del día, ticks
-// - traffic: Microsimulación de tráfico usando Quadtree [TC#7]
+// - time: Avance del tiempo
+// - traffic: Microsimulación con Flow Fields [TA#7] + Bitboards [TI#6]
 // - economy: Economía de hogares y recursos
-// - land_use: Zonificación y desarrollo de terrenos
+// - land_use: Zonificación y desarrollo usando RNG pool [TC#22]
+//
+// NUEVAS TÉCNICAS:
+// [TA#7]  Flow Fields: tráfico O(1) por coche
+// [TI#6]  Bitboards: colisiones O(1) en grilla
+// [TA#5]  Fixed-point: velocidades cuantizadas
+// [TC#22] RNG pool: sin llamadas a generador en runtime
 
 use crate::ecs::{GameWorld, Position, Velocity, TrafficCar, ZoneComponent, ZoneType,
-                  ResourceStorage, ConstructionState, Lifetime, BuildingType};
-use crate::ecs::Renderable;
-use crate::quadtree::AABB;
+                  ResourceStorage, ConstructionState, Lifetime, BuildingType, Renderable};
+use crate::flow_field::{FlowFieldManager, FlowCell};
+use crate::bitboard::BitGrid;
+use crate::rng_pool;
 
 // ---------------------------------------------------------------------------
 // INICIALIZACIÓN DE SIMULACIÓN
@@ -22,6 +29,24 @@ use crate::quadtree::AABB;
 pub fn init_simulation(game_world: &mut GameWorld) {
     game_world.sim_tick = 0;
     game_world.time_of_day = 7 * 60; // 7:00 AM
+
+    // Inicializar bitboard con edificios y obstáculos
+    init_bitboard_obstacles(game_world);
+}
+
+/// Registra edificios como obstáculos en el bitboard
+fn init_bitboard_obstacles(gw: &mut GameWorld) {
+    for (_entity, (pos, _construction)) in gw.world
+        .query::<(&Position, &ConstructionState)>()
+        .iter()
+    {
+        // Registrar edificio y sus celdas adyacentes como ocupadas
+        for dx in -1i32..=1 {
+            for dy in -1i32..=1 {
+                gw.bitgrid.set(0, pos.x + dx as f32, pos.y + dy as f32);
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -29,18 +54,17 @@ pub fn init_simulation(game_world: &mut GameWorld) {
 // ---------------------------------------------------------------------------
 
 /// Ejecuta un tick de simulación (paso fijo)
-/// `dt` es la duración del tick en segundos (ej. 0.1 para 10 ticks/s)
 pub fn tick(game_world: &mut GameWorld, dt: f32) {
     // 1. Avanzar tiempo
     tick_time(game_world);
 
-    // 2. Actualizar tráfico con quadtree [TC#7]
-    tick_traffic(game_world, dt);
+    // 2. Tráfico con Flow Fields [TA#7] y Bitboards [TI#6]
+    tick_traffic_flow(game_world, dt);
 
     // 3. Actualizar economía
     tick_economy(game_world, dt);
 
-    // 4. Desarrollo de zonas
+    // 4. Desarrollo de zonas (usa RNG pool [TC#22])
     tick_land_use(game_world);
 
     // 5. Limpiar entidades expiradas
@@ -51,17 +75,13 @@ pub fn tick(game_world: &mut GameWorld, dt: f32) {
 // SISTEMA DE TIEMPO
 // ---------------------------------------------------------------------------
 
-/// SimTicks por segundo de simulación (3 ticks = 1 segundo simulado)
 const TICKS_PER_SIM_SECOND: u32 = 3;
-/// Minutos por día
 const MINUTES_PER_DAY: u16 = 24 * 60;
-/// Hora de inicio del día simulado
-const BEGINNING_TIME_OF_DAY: u16 = 7 * 60; // 7:00 AM
+const BEGINNING_TIME_OF_DAY: u16 = 7 * 60;
 
 fn tick_time(game_world: &mut GameWorld) {
     game_world.sim_tick = game_world.sim_tick.wrapping_add(1);
 
-    // Actualizar hora del día cada TICKS_PER_SIM_SECOND ticks
     if game_world.sim_tick % TICKS_PER_SIM_SECOND as u64 == 0 {
         let sim_seconds = game_world.sim_tick / TICKS_PER_SIM_SECOND as u64;
         game_world.time_of_day = ((BEGINNING_TIME_OF_DAY as u64
@@ -77,86 +97,121 @@ pub fn formatted_time(time_of_day: u16) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// SISTEMA DE TRÁFICO (Microsimulación con Quadtree)
+// SISTEMA DE TRÁFICO CON FLOW FIELDS [TA#7] + BITBOARDS [TI#6]
 //
-// TÉCNICA COMÚN #7: Árboles de Colisión - Quadtree
-// Usamos el quadtree para encontrar coches vecinos en O(log N)
-// en lugar de iterar sobre todos los coches en O(N).
+// En lugar de quadtree O(N log N), cada coche consulta su Flow Field
+// en O(1) para obtener dirección y velocidad deseadas.
+// Las colisiones se verifican con el BitGrid en O(1).
 //
-// TÉCNICA COMÚN #21: Pre-cálculo de distancias al cuadrado
-// Comparamos distancias² para evitar sqrt() en cada comprobación.
+// [TA#5] Fixed-point: velocidades cuantizadas a décimas para reducir
+// errores de redondeo y mejorar la consistencia.
 // ---------------------------------------------------------------------------
 
 /// Aceleración máxima (m/s²)
 const MAX_ACCELERATION: f32 = 3.0;
 /// Desaceleración máxima (m/s²)
 const MAX_DECELERATION: f32 = 6.0;
-/// Radio de búsqueda de vecinos para quadtree al cuadrado [TC#21]
-const NEIGHBOR_SEARCH_RADIUS_SQ: f32 = 100.0; // 10.0²
+/// Velocidad máxima en autopista
+const HIGHWAY_SPEED: f32 = 20.0;
+/// Velocidad máxima en calle normal
+const STREET_SPEED: f32 = 8.0;
 
-fn tick_traffic(game_world: &mut GameWorld, dt: f32) {
-    // Reconstruir quadtree con posiciones actuales de coches
-    game_world.quadtree.clear();
+fn tick_traffic_flow(gw: &mut GameWorld, dt: f32) {
+    // Limpiar capa de tráfico del bitboard para este frame
+    gw.bitgrid.clear_layer(5);
 
-    // Registrar todos los coches en el quadtree
-    for (_entity, (pos, _car)) in game_world.world.query::<(&Position, &TrafficCar)>().iter() {
-        let bounds = AABB::new(pos.x - 0.5, pos.y - 0.5, 1.0, 1.0);
-        game_world.quadtree.insert(bounds);
+    // Reconstruir capa de tráfico con posiciones actuales
+    for (_entity, (pos, _car)) in gw.world.query::<(&Position, &TrafficCar)>().iter() {
+        gw.bitgrid.set(5, pos.x, pos.y);
     }
 
-    // Para cada coche, buscar vecinos con quadtree y ajustar velocidad
-    for (_entity, (pos, vel, car)) in game_world.world
+    // Actualizar cada coche usando Flow Fields
+    for (_entity, (pos, vel, car)) in gw.world
         .query::<(&mut Position, &mut Velocity, &mut TrafficCar)>()
         .iter()
     {
-        // [TC#21]: distancia mínima al cuadrado para evitar sqrt
-        let mut closest_dist_sq: f32 = f32::MAX;
+        // [TA#7]: Consultar flow field para dirección deseada
+        let flow: FlowCell = gw.flow_fields.sample_combined(pos.x, pos.y, false);
 
-        // Usar quadtree para encontrar coches cercanos [TC#7]
-        game_world.quadtree.query_radius(
-            pos.x, pos.y,
-            NEIGHBOR_SEARCH_RADIUS_SQ,
-            &mut |qh| {
-                if let Some(bounds) = game_world.quadtree.get_bounds(qh) {
-                    let dx = bounds.x - pos.x;
-                    let dy = bounds.y - pos.y;
-                    let dist_sq = dx * dx + dy * dy; // [TC#21]: sin sqrt
-                    if dist_sq > 0.001 && dist_sq < closest_dist_sq {
-                        closest_dist_sq = dist_sq;
-                    }
-                }
-            },
+        // Determinar si está en autopista (magnitud alta + dirección horizontal)
+        let on_highway = flow.magnitude > 0.5 && flow.angle.abs() < 0.3;
+
+        let max_speed = if on_highway { HIGHWAY_SPEED } else { STREET_SPEED };
+        car.max_speed = max_speed;
+
+        // [TA#5]: Cuantizar velocidad objetivo a décimas (fixed-point implícito)
+        let target_speed = max_speed * flow.magnitude;
+
+        // Verificar obstáculo adelante con bitboard [TI#6]
+        let look_ahead_x = pos.x + flow.angle.cos() * 3.0;
+        let look_ahead_y = pos.y + flow.angle.sin() * 3.0;
+
+        let obstacle_ahead = gw.bitgrid.is_obstacle(look_ahead_x, look_ahead_y)
+            || gw.bitgrid.test(5, look_ahead_x, look_ahead_y);
+        // Verificar también celdas adyacentes
+        let obstacle_left = gw.bitgrid.is_obstacle(
+            look_ahead_x - flow.angle.sin() * 1.5,
+            look_ahead_y + flow.angle.cos() * 1.5
+        );
+        let obstacle_right = gw.bitgrid.is_obstacle(
+            look_ahead_x + flow.angle.sin() * 1.5,
+            look_ahead_y - flow.angle.cos() * 1.5
         );
 
-        // [TC#21]: comparar contra distancia mínima al cuadrado
-        let safe_distance_sq = {
-            let sd = car.speed * 2.0 + 2.0; // Distancia segura = velocidad * 2 + mínima
-            sd * sd
-        };
-
-        let desired_accel: f32 = if closest_dist_sq < safe_distance_sq && closest_dist_sq > 0.001 {
-            // Frenar proporcionalmente a la urgencia
-            let urgency = (safe_distance_sq - closest_dist_sq) / safe_distance_sq;
-            -MAX_DECELERATION * urgency.min(1.0)
-        } else if car.speed < car.max_speed {
-            // Acelerar suavemente hacia velocidad máxima
-            MAX_ACCELERATION * (1.0 - car.speed / car.max_speed)
+        let desired_accel: f32 = if obstacle_ahead {
+            // Frenar urgente
+            -MAX_DECELERATION
+        } else if obstacle_left || obstacle_right {
+            // Reducir velocidad
+            if car.speed > target_speed * 0.5 {
+                -MAX_ACCELERATION * 0.5
+            } else {
+                MAX_ACCELERATION * 0.3
+            }
+        } else if car.speed < target_speed {
+            // Acelerar suavemente hacia velocidad objetivo del flow field
+            MAX_ACCELERATION * (1.0 - car.speed / target_speed.max(0.1))
+        } else if car.speed > target_speed * 1.1 {
+            // Desacelerar suavemente si excede
+            -MAX_ACCELERATION * 0.3
         } else {
             0.0
         };
 
-        // Aplicar aceleración con límites
         car.acceleration = desired_accel.clamp(-MAX_DECELERATION, MAX_ACCELERATION);
-        car.speed = (car.speed + car.acceleration * dt).clamp(0.0, car.max_speed);
+        car.speed = (car.speed + car.acceleration * dt).clamp(0.0, max_speed);
 
-        // Actualizar posición horizontal
-        pos.x += car.speed * dt;
-        if pos.x > game_world.grid_size as f32 - 1.0 {
-            pos.x = 1.0;
-        }
+        // [TA#5]: Cuantizar posición a décimas
+        let (flow_dx, flow_dy) = FlowField::cell_to_velocity(&flow, car.speed);
 
-        vel.dx = car.speed;
-        vel.dy = 0.0;
+        // También aplicar desvío si hay obstáculo cerca
+        let dx = if obstacle_ahead && !obstacle_right {
+            flow_dx * 0.3 + flow_dy * 0.7 // Desviar a la derecha
+        } else if obstacle_ahead && !obstacle_left {
+            flow_dx * 0.3 - flow_dy * 0.7 // Desviar a la izquierda
+        } else {
+            flow_dx
+        };
+        let dy = if obstacle_ahead && !obstacle_right {
+            flow_dy * 0.3 - flow_dx * 0.7
+        } else if obstacle_ahead && !obstacle_left {
+            flow_dy * 0.3 + flow_dx * 0.7
+        } else {
+            flow_dy
+        };
+
+        pos.x += dx * dt;
+        pos.y += dy * dt;
+
+        // Wrap alrededor del mundo
+        let gs = gw.grid_size as f32;
+        if pos.x < 0.0 { pos.x += gs; }
+        if pos.x >= gs { pos.x -= gs; }
+        if pos.y < 0.0 { pos.y += gs; }
+        if pos.y >= gs { pos.y -= gs; }
+
+        vel.dx = dx;
+        vel.dy = dy;
     }
 }
 
@@ -164,21 +219,17 @@ fn tick_traffic(game_world: &mut GameWorld, dt: f32) {
 // SISTEMA DE ECONOMÍA
 // ---------------------------------------------------------------------------
 
-fn tick_economy(game_world: &mut GameWorld, dt: f32) {
-    for (_entity, (storage,)) in game_world.world.query::<(&mut ResourceStorage,)>().iter() {
-        // Consumo básico por tick
+fn tick_economy(gw: &mut GameWorld, dt: f32) {
+    for (_entity, (storage,)) in gw.world.query::<(&mut ResourceStorage,)>().iter() {
         storage.food -= 0.001 * dt;
-        // Ingresos básicos
         storage.money += 0.01 * dt;
-
-        // Clampear
         storage.food = storage.food.max(0.0);
         storage.money = storage.money.max(0.0);
     }
 }
 
 // ---------------------------------------------------------------------------
-// SISTEMA DE USO DE SUELO
+// SISTEMA DE USO DE SUELO [TC#22]: usa RNG pool
 // ---------------------------------------------------------------------------
 
 fn tick_land_use(game_world: &mut GameWorld) {
@@ -189,7 +240,8 @@ fn tick_land_use(game_world: &mut GameWorld) {
         .iter()
     {
         if zone.density > 0 {
-            if fast_random(pos.x as u64 + pos.y as u64 + game_world.sim_tick) < 0.0001 {
+            // [TC#22]: Usar RNG pool en lugar de fast_random
+            if rng_pool::rng_chance(0.0001) {
                 to_spawn.push((pos.x, pos.y, zone.zone_type));
             }
         }
@@ -204,12 +256,18 @@ fn tick_land_use(game_world: &mut GameWorld) {
             _ => continue,
         };
 
-        game_world.world.spawn((
-            Position::new(x, y),
-            Renderable::rect(color, 2.0, 3),
-            ConstructionState { progress: 0.0, building_type: btype },
-            ResourceStorage { money: 100.0, food: 10.0, goods: 5.0 },
-        ));
+        // Verificar que no hay obstáculo [TI#6]
+        if !game_world.bitgrid.is_obstacle(x, y) {
+            game_world.world.spawn((
+                Position::new(x, y),
+                Renderable::rect(color, 2.0, 3),
+                ConstructionState { progress: 0.0, building_type: btype },
+                ResourceStorage { money: 100.0, food: 10.0, goods: 5.0 },
+            ));
+
+            // Registrar en bitboard
+            game_world.bitgrid.set(0, x, y);
+        }
     }
 }
 
@@ -234,19 +292,6 @@ fn tick_lifetimes(game_world: &mut GameWorld) {
 }
 
 // ---------------------------------------------------------------------------
-// RNG RÁPIDO DETERMINISTA (splitmix64 simplificado)
-// [TC#12]: RNG inline sin dependencia de crate pesada
-// ---------------------------------------------------------------------------
-
-#[inline(always)]
-fn fast_random(seed: u64) -> f32 {
-    let mut x = seed.wrapping_mul(0x9E3779B97F4A7C15);
-    x = x.wrapping_add(x >> 30).wrapping_mul(0xBF58476D1CE4E5B9);
-    x = x.wrapping_add(x >> 27).wrapping_mul(0x94D049BB133111EB);
-    (x as f32) / (u64::MAX as f32)
-}
-
-// ---------------------------------------------------------------------------
 // TESTS
 // ---------------------------------------------------------------------------
 
@@ -267,7 +312,7 @@ mod tests {
         for _ in 0..180 {
             tick_time(&mut gw);
         }
-        assert_eq!(gw.time_of_day, 7 * 60 + 1); // 7:01 AM
+        assert_eq!(gw.time_of_day, 7 * 60 + 1);
     }
 
     #[test]
@@ -279,7 +324,10 @@ mod tests {
     }
 
     #[test]
-    fn test_tick_traffic_moves_cars() {
+    fn test_tick_traffic_flow_moves_cars() {
+        crate::luts::init_trig_luts();
+        crate::rng_pool::init_rng_pool(42);
+
         let mut pool = EntityPool::new(1000);
         let mut gw = ecs::create_world(&mut pool);
 
@@ -287,26 +335,11 @@ mod tests {
         assert_eq!(car_count_before, 40);
 
         for _ in 0..10 {
-            tick_traffic(&mut gw, 0.1);
+            tick_traffic_flow(&mut gw, 0.1);
         }
 
         let car_count_after = gw.world.query::<&TrafficCar>().iter().count();
         assert_eq!(car_count_after, 40);
-    }
-
-    #[test]
-    fn test_fast_random_range() {
-        for i in 0..1000 {
-            let val = fast_random(i);
-            assert!(val >= -1.0 && val <= 2.0, "Random fuera de rango: {}", val);
-        }
-    }
-
-    #[test]
-    fn test_fast_random_determinism() {
-        let a = fast_random(42);
-        let b = fast_random(42);
-        assert_eq!(a, b, "fast_random debe ser determinista");
     }
 
     #[test]
@@ -322,6 +355,8 @@ mod tests {
 
     #[test]
     fn test_tick_land_use_no_panic() {
+        crate::rng_pool::init_rng_pool(42);
+
         let mut pool = EntityPool::new(1000);
         let mut gw = ecs::create_world(&mut pool);
         tick_land_use(&mut gw);
@@ -336,6 +371,9 @@ mod tests {
 
     #[test]
     fn test_full_tick_pipeline() {
+        crate::luts::init_trig_luts();
+        crate::rng_pool::init_rng_pool(42);
+
         let mut pool = EntityPool::new(1000);
         let mut gw = ecs::create_world(&mut pool);
 
@@ -344,5 +382,18 @@ mod tests {
         tick(&mut gw, 0.1);
 
         assert!(gw.world.len() >= initial_count);
+    }
+
+    #[test]
+    fn test_bitboard_obstacles_initialized() {
+        crate::luts::init_trig_luts();
+
+        let mut pool = EntityPool::new(1000);
+        let mut gw = ecs::create_world(&mut pool);
+
+        // Después de init, debe haber obstáculos registrados
+        let obstacle_count = gw.bitgrid.count_layer(0);
+        // Solo los 8 edificios iniciales + adyacentes (cada uno ~9 celdas)
+        assert!(obstacle_count > 0, "Debe haber obstáculos inicializados");
     }
 }

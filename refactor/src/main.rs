@@ -64,11 +64,18 @@ fn main() {
     println!("Citybound Native v0.4.0 - ECS City Simulator");
     println!("Optimizado para Pentium 4GB RAM / 2 cores");
 
-    // Inicializar LUTs trigonométricas [TC#5]
-    luts::init_trig_luts();
+    // [TA#20] Inicializar Bump Allocator global (16MB preasignados)
+    bump_alloc::init_frame_allocator();
+    println!("  Bump Allocator: {}MB listos", bump_alloc::frame_allocator().free() / (1024 * 1024));
 
-    // Inicializar Object Pool [TC#1]
-    let mut pool = object_pool::EntityPool::new(1000);
+    // [TC#5] Inicializar LUTs trigonométricas
+    luts::init_trig_luts();
+    println!("  LUTs trigonométricas: {} entradas ({}KB)",
+        luts::TRIG_RESOLUTION, luts::TRIG_RESOLUTION * 2 * 4 / 1024);
+
+    // [TC#1] Inicializar Object Pool
+    let mut pool = object_pool::EntityPool::new(10_000);
+    println!("  Object Pool: {} slots preasignados", pool.capacity());
 
     // Inicializar ECS World
     let mut world = ecs::create_world(&mut pool);
@@ -76,7 +83,7 @@ fn main() {
     // Inicializar sistemas de simulación
     sim::init_simulation(&mut world);
 
-    // Crear ventana con framebuffer
+    // [TC#2] Crear ventana con framebuffer
     let mut window = Window::new(
         "Citybound Native - ECS Simulator (ESC para salir)",
         WINDOW_WIDTH,
@@ -91,7 +98,7 @@ fn main() {
 
     window.set_target_fps(TARGET_FPS as usize);
 
-    // Framebuffer [TC#2]: pre-reservado con capacidad exacta
+    // [TC#2]: Framebuffer pre-reservado con capacidad exacta
     let mut framebuffer: Vec<u32> = vec![0xFF_1A_1A_2E; FB_SIZE];
     let mut backbuffer: Vec<u32> = vec![0xFF_1A_1A_2E; FB_SIZE];
 
@@ -108,12 +115,18 @@ fn main() {
     let mut fps_timer = Instant::now();
     let mut current_fps: u32 = 0;
 
+    // Contador de frames para estadísticas del bump allocator
+    let mut frames_since_bump_report: u64 = 0;
+
     println!("Simulación iniciada. Presiona ESC para salir.");
 
     // =======================================================================
     // BUCLE PRINCIPAL
     // =======================================================================
     while window.is_open() && !window.is_key_down(Key::Escape) {
+        // [TA#20]: Resetear bump allocator al inicio de cada frame
+        bump_alloc::reset_frame();
+
         let _frame_start = Instant::now();
 
         // Input
@@ -141,17 +154,36 @@ fn main() {
 
         // Estadísticas
         frame_count += 1;
+        frames_since_bump_report += 1;
+
         if fps_timer.elapsed() >= Duration::from_secs(1) {
             current_fps = frame_count as u32;
             frame_count = 0;
             fps_timer = Instant::now();
-            window.set_title(&format!(
-                "Citybound Native - {} FPS | Entidades: {}",
-                current_fps,
-                ecs::entity_count(&world)
-            ));
+
+            // Reportar uso del bump allocator cada 5 segundos
+            if frames_since_bump_report >= 5 * TARGET_FPS as u64 {
+                let used_kb = bump_alloc::frame_allocator().used() / 1024;
+                let free_kb = bump_alloc::frame_allocator().free() / 1024;
+                frames_since_bump_report = 0;
+                window.set_title(&format!(
+                    "Citybound Native - {} FPS | Entidades: {} | Bump: {}KB/{}KB libres",
+                    current_fps,
+                    ecs::entity_count(&world),
+                    used_kb,
+                    free_kb,
+                ));
+            } else {
+                window.set_title(&format!(
+                    "Citybound Native - {} FPS | Entidades: {}",
+                    current_fps,
+                    ecs::entity_count(&world),
+                ));
+            }
         }
     }
 
     println!("Simulación terminada. FPS final: {}", current_fps);
+    println!("Pool: {}/{} slots usados", pool.alive_count(), pool.capacity());
+    println!("Bump allocator: {}KB pico usado", bump_alloc::frame_allocator().used() / 1024);
 }

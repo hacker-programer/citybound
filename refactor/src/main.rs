@@ -9,6 +9,8 @@
 // [TC#1]  Object Pooling Masivo: 10,000 entidades preasignadas
 // [TC#2]  Pre-reserva de capacidad en Vec::with_capacity
 // [TC#5]  LUTs trigonométricas precalculadas
+// [TC#7]  Quadtree espacial para consultas O(log N)
+// [TC#14] Ruido Perlin pre-generado para terreno
 // [TA#2]  LTO + PGO en release
 // [TA#9]  Structs alineados a 64 bytes para caché L1
 // [TA#15] Uso exclusivo de f32
@@ -21,14 +23,7 @@
 #![allow(unsafe_code)]
 #![cfg_attr(not(test), windows_subsystem = "windows")]
 
-mod ecs;
-mod sim;
-mod render;
-mod object_pool;
-mod luts;
-mod input;
-mod bump_alloc;
-
+use citybound_native::*;
 use minifb::{Key, Window, WindowOptions, Scale, ScaleMode};
 use std::time::{Duration, Instant};
 
@@ -64,26 +59,19 @@ fn main() {
     println!("Citybound Native v0.4.0 - ECS City Simulator");
     println!("Optimizado para Pentium 4GB RAM / 2 cores");
 
-    // [TA#20] Inicializar Bump Allocator global (16MB preasignados)
-    bump_alloc::init_frame_allocator();
-    println!("  Bump Allocator: {}MB listos", bump_alloc::frame_allocator().free() / (1024 * 1024));
-
-    // [TC#5] Inicializar LUTs trigonométricas
+    // Inicializar LUTs trigonométricas [TC#5]
     luts::init_trig_luts();
-    println!("  LUTs trigonométricas: {} entradas ({}KB)",
-        luts::TRIG_RESOLUTION, luts::TRIG_RESOLUTION * 2 * 4 / 1024);
 
-    // [TC#1] Inicializar Object Pool
-    let mut pool = object_pool::EntityPool::new(10_000);
-    println!("  Object Pool: {} slots preasignados", pool.capacity());
+    // Inicializar Object Pool [TC#1]
+    let mut pool = object_pool::EntityPool::new(1000);
 
-    // Inicializar ECS World
+    // Inicializar ECS World (incluye terreno Perlin [TC#14] y Quadtree [TC#7])
     let mut world = ecs::create_world(&mut pool);
 
     // Inicializar sistemas de simulación
     sim::init_simulation(&mut world);
 
-    // [TC#2] Crear ventana con framebuffer
+    // Crear ventana con framebuffer
     let mut window = Window::new(
         "Citybound Native - ECS Simulator (ESC para salir)",
         WINDOW_WIDTH,
@@ -98,7 +86,7 @@ fn main() {
 
     window.set_target_fps(TARGET_FPS as usize);
 
-    // [TC#2]: Framebuffer pre-reservado con capacidad exacta
+    // Framebuffer [TC#2]: pre-reservado con capacidad exacta
     let mut framebuffer: Vec<u32> = vec![0xFF_1A_1A_2E; FB_SIZE];
     let mut backbuffer: Vec<u32> = vec![0xFF_1A_1A_2E; FB_SIZE];
 
@@ -115,18 +103,12 @@ fn main() {
     let mut fps_timer = Instant::now();
     let mut current_fps: u32 = 0;
 
-    // Contador de frames para estadísticas del bump allocator
-    let mut frames_since_bump_report: u64 = 0;
-
     println!("Simulación iniciada. Presiona ESC para salir.");
 
     // =======================================================================
     // BUCLE PRINCIPAL
     // =======================================================================
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        // [TA#20]: Resetear bump allocator al inicio de cada frame
-        bump_alloc::reset_frame();
-
         let _frame_start = Instant::now();
 
         // Input
@@ -154,36 +136,17 @@ fn main() {
 
         // Estadísticas
         frame_count += 1;
-        frames_since_bump_report += 1;
-
         if fps_timer.elapsed() >= Duration::from_secs(1) {
             current_fps = frame_count as u32;
             frame_count = 0;
             fps_timer = Instant::now();
-
-            // Reportar uso del bump allocator cada 5 segundos
-            if frames_since_bump_report >= 5 * TARGET_FPS as u64 {
-                let used_kb = bump_alloc::frame_allocator().used() / 1024;
-                let free_kb = bump_alloc::frame_allocator().free() / 1024;
-                frames_since_bump_report = 0;
-                window.set_title(&format!(
-                    "Citybound Native - {} FPS | Entidades: {} | Bump: {}KB/{}KB libres",
-                    current_fps,
-                    ecs::entity_count(&world),
-                    used_kb,
-                    free_kb,
-                ));
-            } else {
-                window.set_title(&format!(
-                    "Citybound Native - {} FPS | Entidades: {}",
-                    current_fps,
-                    ecs::entity_count(&world),
-                ));
-            }
+            window.set_title(&format!(
+                "Citybound Native - {} FPS | Entidades: {}",
+                current_fps,
+                ecs::entity_count(&world)
+            ));
         }
     }
 
     println!("Simulación terminada. FPS final: {}", current_fps);
-    println!("Pool: {}/{} slots usados", pool.alive_count(), pool.capacity());
-    println!("Bump allocator: {}KB pico usado", bump_alloc::frame_allocator().used() / 1024);
 }

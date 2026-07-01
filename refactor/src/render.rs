@@ -18,7 +18,7 @@
 
 use crate::ecs::{GameWorld, Position, Renderable, ZoneComponent, ZoneType, Camera,
                   ConstructionState, BuildingType};
-#[allow(unused_imports)] use crate::luts; // vía crate::luts::sin_fast/cos_fast directamente
+use crate::luts;
 
 // ---------------------------------------------------------------------------
 // PALETA DE COLORES (ARGB)

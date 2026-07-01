@@ -121,20 +121,31 @@ impl Drop for BumpAllocator {
 // BumpAllocator global para el frame actual
 // Técnica de optimización: variable global mutable controlada
 // ---------------------------------------------------------------------------
-static mut FRAME_ALLOCATOR: Option<BumpAllocator> = None;
+
+/// Puntero crudo al allocator global. Inicializado en main().
+/// Usamos puntero crudo en lugar de static mut Option<...> para evitar
+/// el warning de Rust 2024 sobre referencias a mutable statics.
+static mut FRAME_ALLOCATOR_PTR: *const BumpAllocator = std::ptr::null();
 
 /// Inicializa el bump allocator global. Llamar una vez en main().
 pub fn init_frame_allocator() {
+    let allocator = Box::new(BumpAllocator::new());
+    // SAFETY: Llamado solo una vez durante la inicialización
     unsafe {
-        FRAME_ALLOCATOR = Some(BumpAllocator::new());
+        FRAME_ALLOCATOR_PTR = Box::into_raw(allocator);
     }
 }
 
 /// Obtiene referencia al bump allocator del frame actual
 #[inline(always)]
 pub fn frame_allocator() -> &'static BumpAllocator {
-    // SAFETY: inicializado en main() antes de cualquier uso
-    unsafe { FRAME_ALLOCATOR.as_ref().expect("BumpAllocator no inicializado") }
+    // SAFETY: inicializado en main() antes de cualquier uso;
+    // el puntero nunca se libera hasta que el programa termina
+    unsafe {
+        let ptr = std::ptr::addr_of!(FRAME_ALLOCATOR_PTR).read_volatile();
+        assert!(!ptr.is_null(), "BumpAllocator no inicializado");
+        &*ptr
+    }
 }
 
 /// Resetea el bump allocator. Llamar al inicio de cada frame.

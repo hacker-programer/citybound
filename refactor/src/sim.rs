@@ -41,27 +41,42 @@ pub fn init_simulation(game_world: &mut GameWorld) {
 
 /// Registra edificios como obstáculos en el bitboard
 fn init_bitboard_obstacles(gw: &mut GameWorld) {
-    for (_entity, (pos, _construction)) in gw.world
+    // Recolectar posiciones primero para evitar borrow conflict
+    let obstacle_positions: Vec<(f32, f32)> = gw.world
         .query::<(&Position, &ConstructionState)>()
         .iter()
-    {
-        for dx in -1i32..=1 {
-            for dy in -1i32..=1 {
-                gw.bitgrid.set(0, pos.x + dx as f32, pos.y + dy as f32);
+        .flat_map(|(_entity, (pos, _))| {
+            let mut positions = Vec::with_capacity(9);
+            for dx in -1i32..=1 {
+                for dy in -1i32..=1 {
+                    positions.push((pos.x + dx as f32, pos.y + dy as f32));
+                }
             }
-        }
+            positions
+        })
+        .collect();
+
+    for (x, y) in obstacle_positions {
+        gw.bitgrid.set(0, x, y);
     }
 }
 
 /// Asigna parámetros IDM a cada coche [#361]
 fn init_car_idm_params(gw: &mut GameWorld) {
-    for (entity, (car,)) in gw.world.query::<(&TrafficCar,)>().iter() {
-        let params = IdmParams {
-            desired_speed: car.max_speed,
-            ..IdmParams::default()
-        };
-        // Usamos el entity ID (convertido de hecs) como key
-        gw.lane_manager.set_vehicle_params(entity.id() as u32, params);
+    // Recolectar primero, luego modificar (evita borrow conflict)
+    let assignments: Vec<(u32, IdmParams)> = gw.world.query::<&TrafficCar>()
+        .iter()
+        .map(|(entity, car)| {
+            let params = IdmParams {
+                desired_speed: car.max_speed,
+                ..IdmParams::default()
+            };
+            (entity.to_bits() as u32, params)
+        })
+        .collect();
+
+    for (entity_bits, params) in assignments {
+        gw.lane_manager.set_vehicle_params(entity_bits, params);
     }
 }
 
@@ -139,7 +154,7 @@ fn tick_lane_congestion(gw: &mut GameWorld) {
     }
 
     // Contar coches por carril
-    for (_entity, (pos, car)) in gw.world.query::<(&Position, &TrafficCar)>().iter() {
+    for (_entity, (_pos, car)) in gw.world.query::<(&Position, &TrafficCar)>().iter() {
         let lane_id = car.lane_id as usize;
         if lane_id < gw.lane_manager.lanes.len() {
             gw.lane_manager.lanes[lane_id].vehicle_count += 1;
@@ -157,13 +172,9 @@ fn tick_lane_congestion(gw: &mut GameWorld) {
 // SISTEMA DE TRÁFICO CON FLOW FIELDS [TA#7] + BITBOARDS [TI#6] + LANES [#361]
 // ---------------------------------------------------------------------------
 
-/// Aceleración máxima (m/s²)
 const MAX_ACCELERATION: f32 = 3.0;
-/// Desaceleración máxima (m/s²)
 const MAX_DECELERATION: f32 = 6.0;
-/// Velocidad máxima en autopista
 const HIGHWAY_SPEED: f32 = 20.0;
-/// Velocidad máxima en calle normal
 const STREET_SPEED: f32 = 8.0;
 
 fn tick_traffic_flow(gw: &mut GameWorld, dt: f32) {
@@ -171,21 +182,29 @@ fn tick_traffic_flow(gw: &mut GameWorld, dt: f32) {
     gw.bitgrid.clear_layer(5);
 
     // Reconstruir capa de tráfico con posiciones actuales
-    for (_entity, (pos, _car)) in gw.world.query::<(&Position, &TrafficCar)>().iter() {
-        gw.bitgrid.set(5, pos.x, pos.y);
+    // Recolectar posiciones primero
+    let car_positions: Vec<(f32, f32)> = gw.world.query::<&Position>()
+        .iter()
+        .map(|(_e, pos)| (pos.x, pos.y))
+        .collect();
+
+    for (x, y) in car_positions {
+        gw.bitgrid.set(5, x, y);
     }
 
     // Actualizar cada coche usando Flow Fields + Lane data
+    // Recolectar datos necesarios para evitar borrow conflicts
+    let num_lanes = gw.lane_manager.lanes.len();
+    let has_intersections = !gw.lane_manager.intersections.is_empty();
+
     for (_entity, (pos, vel, car)) in gw.world
         .query::<(&mut Position, &mut Velocity, &mut TrafficCar)>()
         .iter()
     {
-        // Intentar obtener velocidad del carril actual [#361]
-        let lane_speed = if (car.lane_id as usize) < gw.lane_manager.lanes.len() {
+        let lane_speed = if (car.lane_id as usize) < num_lanes {
             let lane = &gw.lane_manager.lanes[car.lane_id as usize];
-            // Reducir velocidad si el semáforo está en rojo
             let can_proceed = if let Some(intersection_id) = lane.to_intersection {
-                if (intersection_id as usize) < gw.lane_manager.intersections.len() {
+                if has_intersections && (intersection_id as usize) < gw.lane_manager.intersections.len() {
                     gw.lane_manager.intersections[intersection_id as usize]
                         .can_proceed(car.lane_id)
                 } else {
@@ -195,26 +214,18 @@ fn tick_traffic_flow(gw: &mut GameWorld, dt: f32) {
                 true
             };
 
-            if can_proceed {
-                lane.speed_limit
-            } else {
-                // Acercándose a semáforo en rojo: reducir
-                lane.speed_limit * 0.3
-            }
+            if can_proceed { lane.speed_limit } else { lane.speed_limit * 0.3 }
         } else {
             STREET_SPEED
         };
 
-        // [TA#7]: Consultar flow field para dirección deseada
         let flow: FlowCell = gw.flow_fields.sample_combined(pos.x, pos.y, false);
-
         let on_highway = flow.magnitude > 0.5 && flow.angle.abs() < 0.3;
         let max_speed = if on_highway { HIGHWAY_SPEED } else { lane_speed };
         car.max_speed = max_speed;
 
         let target_speed = max_speed * flow.magnitude.max(0.3);
 
-        // Verificar obstáculo adelante con bitboard [TI#6]
         let look_ahead_x = pos.x + flow.angle.cos() * 3.0;
         let look_ahead_y = pos.y + flow.angle.sin() * 3.0;
 
@@ -239,7 +250,6 @@ fn tick_traffic_flow(gw: &mut GameWorld, dt: f32) {
         pos.x += flow_dx * dt;
         pos.y += flow_dy * dt;
 
-        // Wrap alrededor del mundo
         let gs = gw.grid_size as f32;
         if pos.x < 0.0 { pos.x += gs; }
         if pos.x >= gs { pos.x -= gs; }
@@ -249,8 +259,8 @@ fn tick_traffic_flow(gw: &mut GameWorld, dt: f32) {
         vel.dx = flow_dx;
         vel.dy = flow_dy;
 
-        // Actualizar posición en el carril (proyectar)
-        if (car.lane_id as usize) < gw.lane_manager.lanes.len() {
+        // Actualizar posición en el carril
+        if (car.lane_id as usize) < num_lanes {
             let lane = &gw.lane_manager.lanes[car.lane_id as usize];
             let (t, _, _) = lane.project(pos.x, pos.y);
             car.lane_position = t;
@@ -388,12 +398,10 @@ mod tests {
         let mut pool = EntityPool::new(1000);
         let mut gw = ecs::create_world(&mut pool);
 
-        let initial_phase = gw.lane_manager.intersections[0].phase;
         // Avanzar suficientes ticks para cambiar fase
         for _ in 0..100 {
             tick_intersections(&mut gw, 1.0);
         }
-        // La fase debe haber cambiado al menos una vez
         assert!(gw.lane_manager.intersections[0].cycle_counter > 0);
     }
 
@@ -403,11 +411,7 @@ mod tests {
         let mut gw = ecs::create_world(&mut pool);
 
         tick_lane_congestion(&mut gw);
-
-        // Algún carril debe tener coches
-        let has_cars = gw.lane_manager.lanes.iter().any(|l| l.vehicle_count > 0);
-        // Los coches pueden no estar en carriles si el lane_id no coincide
-        // Verificar que al menos no crashea
+        // No debe crashear
     }
 
     #[test]

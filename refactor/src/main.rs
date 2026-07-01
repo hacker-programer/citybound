@@ -8,6 +8,8 @@
 // - RNG Pool pre-generado [TC#22]
 // - Bump Allocator por frame [TA#20]
 // - Audio procedural [TC#6]
+// - Lane-based traffic A/B Street [#361]
+// - Interactive urban design tool [#392]
 //
 // OPTIMIZACIONES APLICADAS (referencias a las 90 técnicas):
 // [TC#1]  Object Pooling Masivo
@@ -53,7 +55,8 @@ fn main() {
         std::process::abort();
     }));
 
-    println!("Citybound Native v0.5.0 - ECS City Simulator");
+    println!("Citybound Native v0.6.0 - ECS City Simulator");
+    println!("Features: Flow Fields | Bitboards | Lane Traffic | Design Tool");
     println!("Optimizado para Pentium 4GB RAM / 2 cores");
 
     // =======================================================================
@@ -76,7 +79,7 @@ fn main() {
     let mut pool = object_pool::EntityPool::new(1000);
 
     // ECS World (incluye Terrain [TC#14], Quadtree [TC#7],
-    // Flow Fields [TA#7], BitGrid [TI#6])
+    // Flow Fields [TA#7], BitGrid [TI#6], LaneManager [#361], DesignTool [#392])
     let mut world = ecs::create_world(&mut pool);
 
     // Inicializar simulación (registra obstáculos en bitgrid)
@@ -84,14 +87,13 @@ fn main() {
 
     // =======================================================================
     // CACHE WARMING [TA#8]
-    // Forzar que las estructuras críticas estén en caché L1/L2
     // =======================================================================
     println!("Calentando caché...");
 
     // Warm RNG pool
     rng_pool::warm_rng_cache();
 
-    // Warm terrain (tocar todas las alturas)
+    // Warm terrain
     for y in (0..terrain::TERRAIN_SIZE).step_by(8) {
         for x in (0..terrain::TERRAIN_SIZE).step_by(8) {
             let _h = world.terrain.height(x, y);
@@ -106,13 +108,21 @@ fn main() {
         }
     }
 
-    println!("Caché caliente. Iniciando simulación...");
+    // Warm lane spatial grid
+    for _ in 0..10 {
+        let _ = world.lane_manager.lanes_near(64.0, 64.0, 10.0);
+    }
+
+    println!("Caché caliente. {} carriles, {} intersecciones.",
+        world.lane_manager.lanes.len(),
+        world.lane_manager.intersections.len());
+    println!("[Tab] Herramienta de diseño | [WASD] Mover | [ESC] Salir");
 
     // =======================================================================
     // VENTANA Y FRAMEBUFFER
     // =======================================================================
     let mut window = Window::new(
-        "Citybound Native - ECS Simulator (ESC para salir)",
+        "Citybound Native v0.6.0 - ECS Simulator (ESC para salir)",
         WINDOW_WIDTH,
         WINDOW_HEIGHT,
         WindowOptions {
@@ -125,7 +135,7 @@ fn main() {
 
     window.set_target_fps(TARGET_FPS as usize);
 
-    // [TC#2]: Framebuffers pre-reservados con capacidad exacta
+    // [TC#2]: Framebuffers pre-reservados
     let mut framebuffer: Vec<u32> = vec![0xFF_1A_1A_2E; FB_SIZE];
     let mut backbuffer: Vec<u32> = vec![0xFF_1A_1A_2E; FB_SIZE];
 
@@ -145,8 +155,6 @@ fn main() {
     let mut fps_timer = Instant::now();
     let mut current_fps: u32 = 0;
 
-    println!("Simulación iniciada. Presiona ESC para salir.");
-
     // =======================================================================
     // BUCLE PRINCIPAL
     // =======================================================================
@@ -156,7 +164,26 @@ fn main() {
 
         // Input
         input_state.update(&window);
-        ecs::process_input(&mut world, &input_state);
+
+        // Procesar input de herramienta de diseño [#392]
+        interactive::process_design_input(
+            &mut world.design_tool,
+            &mut world,
+            &input_state,
+            WINDOW_WIDTH,
+            WINDOW_HEIGHT,
+        );
+
+        // Input de cámara (solo si herramienta de diseño no está activa,
+        // o con teclas WASD siempre)
+        if !world.design_tool.active
+            || input_state.is_key_down(input::GameKey::W)
+            || input_state.is_key_down(input::GameKey::S)
+            || input_state.is_key_down(input::GameKey::A)
+            || input_state.is_key_down(input::GameKey::D)
+        {
+            ecs::process_input(&mut world, &input_state);
+        }
 
         // Simulación (paso fijo)
         let now = Instant::now();
@@ -172,6 +199,16 @@ fn main() {
         // Render
         backbuffer.fill(0xFF_1A_1A_2E);
         render::render_world(&world, &mut backbuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        // Renderizar overlay de herramienta de diseño [#392]
+        interactive::render_design_overlay(
+            &world.design_tool,
+            &mut backbuffer,
+            WINDOW_WIDTH,
+            WINDOW_HEIGHT,
+            &world,
+        );
+
         framebuffer.copy_from_slice(&backbuffer);
         window
             .update_with_buffer(&framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -184,12 +221,23 @@ fn main() {
             frame_count = 0;
             fps_timer = Instant::now();
 
-            // Mostrar estadísticas detalladas en el título
             let cars = world.world.query::<&ecs::TrafficCar>().iter().count();
             let buildings = world.world.query::<&ecs::ConstructionState>().iter().count();
+            let mode_str = if world.design_tool.active {
+                match world.design_tool.mode {
+                    interactive::DesignMode::PaintZone => "PINTAR",
+                    interactive::DesignMode::PlaceBuilding => "CONSTRUIR",
+                    interactive::DesignMode::Inspect => "INSPECCIONAR",
+                    _ => "DISEÑO",
+                }
+            } else {
+                "SIM"
+            };
+
             window.set_title(&format!(
-                "Citybound Native - {} FPS | {} coches | {} edificios | Tick {}",
-                current_fps, cars, buildings, world.sim_tick
+                "Citybound v0.6 [{}] - {} FPS | {} coches | {} edificios | {} carriles",
+                mode_str, current_fps, cars, buildings,
+                world.lane_manager.lanes.len()
             ));
         }
     }
@@ -198,4 +246,7 @@ fn main() {
     println!("  FPS: {}", current_fps);
     println!("  Ticks simulados: {}", world.sim_tick);
     println!("  Entidades: {}", ecs::entity_count(&world));
+    println!("  Carriles: {}", world.lane_manager.lanes.len());
+    println!("  Intersecciones: {}", world.lane_manager.intersections.len());
+    println!("  Acciones deshechas: {}", world.design_tool.undo_stack.len());
 }

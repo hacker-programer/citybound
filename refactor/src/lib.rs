@@ -4,26 +4,31 @@
 //
 // Arquitectura:
 // - ecs: Entity Component System (hecs)
-// - sim: Sistemas de simulación
+// - sim: Sistemas de simulación (tiempo, tráfico, economía, suelo)
 // - render: Renderizado software al framebuffer (con SIMD)
 // - luts: Look-up tables trigonométricas precalculadas
 // - object_pool: Pool de entidades preasignadas
 // - bump_alloc: Bump allocator por frame
 // - input: Manejo de input con debounce
 // - terrain: Mapa de terreno con ruido Perlin pre-generado
-// - quadtree: Quadtree espacial para consultas O(log N)
-// - simd_render: Funciones de framebuffer aceleradas con SIMD
-// - rng_pool: Pool de RNG pre-generado [TC#22]
+// - quadtree: Quadtree espacial
+// - simd_render: Framebuffer SIMD autovectorizado
+// - rng_pool: RNG pre-generado [TC#22]
 // - flow_field: Flow fields para pathfinding O(1) [TA#7]
 // - bitboard: Bitboards para colisiones en grilla [TI#6]
-// - audio: Sistema de audio procedural [TC#6]
+// - audio: Audio procedural [TC#6]
 // - traffic_lanes: Tráfico con carriles A/B Street [#361]
 // - interactive: Herramienta de diseño urbano [#392]
-// - supply_chain: Cadenas de suministro con camiones físicos [M#1]
-// - land_value: Valor del suelo, contaminación, gentrificación [M#2]
-// - utilities: Propagación de agua y electricidad [M#3]
-// - road_wear: Desgaste de infraestructura y baches [M#4]
-// - labor_market: Mercado laboral con commutes reales [M#5]
+// - supply_chain: Cadena de suministro física [M#1]
+// - land_value: Valor del suelo y gentrificación [M#2]
+// - utilities: Propagación de agua/electricidad [M#3]
+// - road_wear: Desgaste de infraestructura [M#4]
+// - labor_market: Mercado laboral [M#5]
+// - tax_system: Impuestos milimétricos y bonos [M#6]
+// - parking: Estacionamiento físico y HOA [M#7]
+// - waste_mgmt: Clasificación de basura [M#8]
+// - customization: Personalización visual de edificios [M#9]
+// - politics: NIMBY, sindicatos, elecciones [M#10]
 
 pub mod ecs;
 pub mod sim;
@@ -46,3 +51,8 @@ pub mod land_value;
 pub mod utilities;
 pub mod road_wear;
 pub mod labor_market;
+pub mod tax_system;
+pub mod parking;
+pub mod waste_mgmt;
+pub mod customization;
+pub mod politics;

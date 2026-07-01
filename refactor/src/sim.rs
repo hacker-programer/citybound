@@ -15,7 +15,7 @@
 
 use crate::ecs::{GameWorld, Position, Velocity, TrafficCar, ZoneComponent, ZoneType,
                   ResourceStorage, ConstructionState, Lifetime, BuildingType, Renderable};
-use crate::flow_field::{FlowFieldManager, FlowCell};
+use crate::flow_field::FlowCell;
 use crate::traffic_lanes::IdmParams;
 use crate::rng_pool;
 
@@ -51,7 +51,9 @@ fn init_car_idm_params(gw: &mut GameWorld) {
     let assignments: Vec<(u32, IdmParams)> = gw.world.query::<&TrafficCar>()
         .iter()
         .map(|(entity, car)| {
-            (entity.to_bits() as u32, IdmParams { desired_speed: car.max_speed, ..IdmParams::default() })
+            // hecs 0.10: to_bits() devuelve NonZero<u64>, usamos .get()
+            let raw_id = entity.to_bits().get();
+            (raw_id as u32, IdmParams { desired_speed: car.max_speed, ..IdmParams::default() })
         })
         .collect();
     for (id, params) in assignments { gw.lane_manager.set_vehicle_params(id, params); }
@@ -195,7 +197,7 @@ fn tick_traffic_flow(gw: &mut GameWorld, dt: f32) {
         car.acceleration = desired.clamp(-MAX_DECELERATION, MAX_ACCELERATION);
         car.speed = (car.speed + car.acceleration * dt).clamp(0.0, max_speed);
 
-        let (dx, dy) = FlowField::cell_to_velocity(&flow, car.speed);
+        let (dx, dy) = crate::flow_field::FlowField::cell_to_velocity(&flow, car.speed);
         pos.x += dx * dt; pos.y += dy * dt;
 
         let gs = gw.grid_size as f32;

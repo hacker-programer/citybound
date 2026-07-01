@@ -7,10 +7,12 @@
 // TÉCNICA COMÚN #19 (aplicaciones): Event Delegation
 // Usamos bitfields para detectar múltiples teclas simultáneamente
 
-// Allow dead_code: is_key_pressed y is_key_released se usarán en UI futura
 #![allow(dead_code)]
 
-use minifb::{Key, MouseButton, MouseMode, Window};
+use minifb::{Key, MouseButton as MinifbMouseButton, MouseMode, Window};
+
+// Re-export para uso en otros módulos
+pub use minifb::MouseButton;
 
 /// Estado de input para un frame
 #[derive(Clone, Debug, Default)]
@@ -24,10 +26,14 @@ pub struct InputState {
     /// Posición del mouse en coordenadas de ventana
     pub mouse_x: f32,
     pub mouse_y: f32,
-    /// Botones del mouse presionados
+    /// Botones del mouse presionados actualmente
     pub mouse_left: bool,
     pub mouse_right: bool,
     pub mouse_middle: bool,
+    /// Botones del mouse en frame anterior (para detección de flancos)
+    prev_mouse_left: bool,
+    prev_mouse_right: bool,
+    prev_mouse_middle: bool,
     /// Scroll vertical
     pub scroll_delta: f32,
     /// Si el mouse está dentro de la ventana
@@ -73,12 +79,19 @@ pub enum GameKey {
     Home = 53,
     End = 54,
     F1 = 55, F2 = 56, F3 = 57, F4 = 58, F5 = 59,
+    BracketLeft = 60,
+    BracketRight = 61,
 }
 
 impl InputState {
     /// Actualiza el estado de input desde la ventana (una vez por frame)
     pub fn update(&mut self, window: &Window) {
         let prev_keys = self.keys_down;
+
+        // Guardar estado previo del mouse
+        self.prev_mouse_left = self.mouse_left;
+        self.prev_mouse_right = self.mouse_right;
+        self.prev_mouse_middle = self.mouse_middle;
 
         // Mouse
         if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Clamp) {
@@ -89,9 +102,9 @@ impl InputState {
             self.mouse_inside = false;
         }
 
-        self.mouse_left = window.get_mouse_down(MouseButton::Left);
-        self.mouse_right = window.get_mouse_down(MouseButton::Right);
-        self.mouse_middle = window.get_mouse_down(MouseButton::Middle);
+        self.mouse_left = window.get_mouse_down(MinifbMouseButton::Left);
+        self.mouse_right = window.get_mouse_down(MinifbMouseButton::Right);
+        self.mouse_middle = window.get_mouse_down(MinifbMouseButton::Middle);
 
         if let Some(scroll) = window.get_scroll_wheel() {
             self.scroll_delta = scroll.1;
@@ -128,6 +141,36 @@ impl InputState {
     #[inline(always)]
     pub fn is_key_released(&self, key: GameKey) -> bool {
         (self.keys_released & (1u128 << (key as u8))) != 0
+    }
+
+    /// Botón del mouse presionado (mantenido)
+    #[inline(always)]
+    pub fn is_mouse_down(&self, button: MouseButton) -> bool {
+        match button {
+            MouseButton::Left => self.mouse_left,
+            MouseButton::Right => self.mouse_right,
+            MouseButton::Middle => self.mouse_middle,
+        }
+    }
+
+    /// Botón del mouse recién presionado en este frame (flanco positivo)
+    #[inline(always)]
+    pub fn is_mouse_pressed(&self, button: MouseButton) -> bool {
+        match button {
+            MouseButton::Left => self.mouse_left && !self.prev_mouse_left,
+            MouseButton::Right => self.mouse_right && !self.prev_mouse_right,
+            MouseButton::Middle => self.mouse_middle && !self.prev_mouse_middle,
+        }
+    }
+
+    /// Botón del mouse recién soltado en este frame (flanco negativo)
+    #[inline(always)]
+    pub fn is_mouse_released(&self, button: MouseButton) -> bool {
+        match button {
+            MouseButton::Left => !self.mouse_left && self.prev_mouse_left,
+            MouseButton::Right => !self.mouse_right && self.prev_mouse_right,
+            MouseButton::Middle => !self.mouse_middle && self.prev_mouse_middle,
+        }
     }
 }
 
@@ -196,4 +239,76 @@ static KEY_MAP: &[(Key, GameKey)] = &[
     (Key::F3, GameKey::F3),
     (Key::F4, GameKey::F4),
     (Key::F5, GameKey::F5),
+    (Key::LeftBracket, GameKey::BracketLeft),
+    (Key::RightBracket, GameKey::BracketRight),
 ];
+
+// ---------------------------------------------------------------------------
+// TESTS
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_input_state_default() {
+        let state = InputState::default();
+        assert_eq!(state.keys_down, 0);
+        assert_eq!(state.keys_pressed, 0);
+        assert_eq!(state.keys_released, 0);
+        assert!(!state.mouse_left);
+        assert!(!state.mouse_right);
+    }
+
+    #[test]
+    fn test_key_down() {
+        let mut state = InputState::default();
+        state.keys_down = 1u128 << (GameKey::W as u8);
+        assert!(state.is_key_down(GameKey::W));
+        assert!(!state.is_key_down(GameKey::S));
+    }
+
+    #[test]
+    fn test_key_pressed() {
+        let mut state = InputState::default();
+        state.keys_pressed = 1u128 << (GameKey::Space as u8);
+        assert!(state.is_key_pressed(GameKey::Space));
+        assert!(!state.is_key_pressed(GameKey::Enter));
+    }
+
+    #[test]
+    fn test_key_released() {
+        let mut state = InputState::default();
+        state.keys_released = 1u128 << (GameKey::Escape as u8);
+        assert!(state.is_key_released(GameKey::Escape));
+        assert!(!state.is_key_released(GameKey::Tab));
+    }
+
+    #[test]
+    fn test_mouse_methods() {
+        let mut state = InputState::default();
+
+        // Simular click
+        state.prev_mouse_left = false;
+        state.mouse_left = true;
+        assert!(state.is_mouse_pressed(MouseButton::Left));
+        assert!(state.is_mouse_down(MouseButton::Left));
+        assert!(!state.is_mouse_released(MouseButton::Left));
+
+        // Simular release
+        state.prev_mouse_left = true;
+        state.mouse_left = false;
+        assert!(!state.is_mouse_pressed(MouseButton::Left));
+        assert!(!state.is_mouse_down(MouseButton::Left));
+        assert!(state.is_mouse_released(MouseButton::Left));
+    }
+
+    #[test]
+    fn test_game_key_values() {
+        assert_eq!(GameKey::Escape as u8, 0);
+        assert_eq!(GameKey::W as u8, 45);
+        assert_eq!(GameKey::BracketLeft as u8, 60);
+        assert_eq!(GameKey::BracketRight as u8, 61);
+    }
+}

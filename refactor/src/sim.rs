@@ -87,8 +87,6 @@ pub fn formatted_time(time_of_day: u16) -> String {
 // Comparamos distancias² para evitar sqrt() en cada comprobación.
 // ---------------------------------------------------------------------------
 
-/// Distancia mínima entre coches al cuadrado [TC#21]
-const MIN_CAR_DISTANCE_SQ: f32 = 4.0; // 2.0²
 /// Aceleración máxima (m/s²)
 const MAX_ACCELERATION: f32 = 3.0;
 /// Desaceleración máxima (m/s²)
@@ -101,12 +99,9 @@ fn tick_traffic(game_world: &mut GameWorld, dt: f32) {
     game_world.quadtree.clear();
 
     // Registrar todos los coches en el quadtree
-    let mut car_handles: Vec<(hecs::Entity, crate::quadtree::QuadEntity)> = Vec::with_capacity(64);
-
-    for (entity, (pos, _car)) in game_world.world.query::<(&Position, &TrafficCar)>().iter() {
+    for (_entity, (pos, _car)) in game_world.world.query::<(&Position, &TrafficCar)>().iter() {
         let bounds = AABB::new(pos.x - 0.5, pos.y - 0.5, 1.0, 1.0);
-        let qh = game_world.quadtree.insert(bounds);
-        car_handles.push((entity, qh));
+        game_world.quadtree.insert(bounds);
     }
 
     // Para cada coche, buscar vecinos con quadtree y ajustar velocidad

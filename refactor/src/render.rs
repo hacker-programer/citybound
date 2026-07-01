@@ -1,23 +1,23 @@
 // Módulo de Renderizado Software
 //
 // Renderiza el estado del juego a un framebuffer ARGB (u32).
-// Usa rasterización software pura - sin GPU, sin shaders, sin OpenGL.
-// Ideal para hardware legacy (Pentium 4GB) que puede tener
-// soporte limitado de GPU.
+// Usa rasterización software pura con SIMD autovectorizado.
 //
 // TÉCNICAS APLICADAS:
 // [TC#3]  Baking de iluminación: colores precalculados en paleta
 // [TC#5]  LUTs trigonométricas para círculos y curvas
 // [TC#10] Pre-multiplicación de matrices de transformación (cámara)
-// [TC#13] Loop unrolling manual en fill_rect
+// [TC#13] Loop unrolling manual en fill_rect (16px/batch via SIMD)
 // [TC#14] Ruido Perlin pre-generado (terreno baked)
 // [TC#17] Culling estático: solo renderizar entidades en viewport
 // [TC#21] Pre-cálculo de distancias al cuadrado en círculos
 // [TC#23] Pre-ordenamiento por Z-Index (capas de renderizado)
 // [TA#17] Acceso unchecked en bucles validados
+// NUEVO:  SIMD fill_rect (16 píxeles por batch) [simd_render.rs]
 
 use crate::ecs::{GameWorld, Position, Renderable, ZoneComponent, ZoneType, Camera,
                   ConstructionState, BuildingType};
+use crate::simd_render;
 
 // ---------------------------------------------------------------------------
 // PALETA DE COLORES (ARGB)
@@ -51,7 +51,6 @@ const CELL_SIZE: f32 = 4.0;
 // ---------------------------------------------------------------------------
 
 /// Renderiza el mundo al framebuffer.
-/// `framebuffer` es un slice mutable de u32 ARGB de tamaño width*height.
 pub fn render_world(
     game_world: &GameWorld,
     framebuffer: &mut [u32],
@@ -94,7 +93,6 @@ pub fn render_world(
 // ---------------------------------------------------------------------------
 // FONDO CON TERRENO BAKED [TC#14]
 // Usa el TerrainMap pre-generado para colores de terreno.
-// Los colores ya están calculados desde la carga, cero costo runtime.
 // ---------------------------------------------------------------------------
 
 fn render_background(
@@ -110,17 +108,13 @@ fn render_background(
     let h_i32 = h as i32;
     let grid_size = gw.grid_size as f32;
 
-    // Para cada píxel de la pantalla, encontrar la celda del terreno correspondiente
     for py in 0..h_i32 {
         let row_start = (py as usize) * w;
-
-        // Calcular world_y para esta fila
         let world_y = (py as f32 - oy) / scale;
 
         for px in 0..w_i32 {
             let world_x = (px as f32 - ox) / scale;
 
-            // Solo dibujar celdas dentro de los límites del terreno
             if world_x >= 0.0 && world_x < grid_size && world_y >= 0.0 && world_y < grid_size {
                 let tx = world_x as usize;
                 let ty = world_y as usize;
@@ -132,7 +126,6 @@ fn render_background(
                     *fb.get_unchecked_mut(row_start + px as usize) = color;
                 }
             } else {
-                // Fuera del terreno: color de fondo oscuro
                 unsafe {
                     *fb.get_unchecked_mut(row_start + px as usize) = COLOR_BACKGROUND;
                 }
@@ -174,7 +167,10 @@ fn render_base_layer(
             let sx = (pos.x * scale + ox) as i32;
             let sy = (pos.y * scale + oy) as i32;
             let size = scale as i32;
-            fill_rect_alpha(fb, w, h, sx, sy, size, size, zone_color);
+            // [SIMD]: Usar fill_rect SIMD para zonas
+            unsafe {
+                simd_render::fill_rect_alpha_simd(fb, w, h, sx, sy, size, size, zone_color);
+            }
         }
     }
 }
@@ -201,7 +197,11 @@ fn render_building_layer(
         let sx = (pos.x * scale + ox) as i32;
         let sy = (pos.y * scale + oy) as i32;
         let size = (scale * 2.0) as i32;
-        fill_rect_alpha(fb, w, h, sx, sy, size, size, multiply_alpha(color, alpha));
+        let blended = multiply_alpha(color, alpha);
+        // [SIMD]: fill_rect_alpha_simd para blending rápido
+        unsafe {
+            simd_render::fill_rect_alpha_simd(fb, w, h, sx, sy, size, size, blended);
+        }
     }
 }
 
@@ -223,19 +223,28 @@ fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
     let w_i32 = w as i32;
     let h_i32 = h as i32;
 
-    fill_rect_alpha(fb, w, h, 0, 0, w_i32, 24, COLOR_UI_BG);
+    // [SIMD]: Barra superior
+    unsafe {
+        simd_render::fill_rect_alpha_simd(fb, w, h, 0, 0, w_i32, 24, COLOR_UI_BG);
+    }
 
     let time_str = format!("Citybound Native | Hora: {} | Tick: {}",
         crate::sim::formatted_time(gw.time_of_day), gw.sim_tick);
     draw_text(fb, w, h, 8, 4, &time_str, COLOR_UI_TEXT);
 
-    fill_rect_alpha(fb, w, h, 0, h_i32 - 20, w_i32, 20, COLOR_UI_BG);
+    // [SIMD]: Barra inferior
+    unsafe {
+        simd_render::fill_rect_alpha_simd(fb, w, h, 0, h_i32 - 20, w_i32, 20, COLOR_UI_BG);
+    }
     draw_text(fb, w, h, 8, h_i32 - 16,
         "WASD: Mover | PageUp/Down: Zoom | ESC: Salir", COLOR_UI_TEXT);
 
+    // Minimapa
     let mm_x = w_i32 - 70;
     let mm_y = h_i32 - 90;
-    fill_rect_alpha(fb, w, h, mm_x, mm_y, 64, 64, COLOR_UI_BG);
+    unsafe {
+        simd_render::fill_rect_alpha_simd(fb, w, h, mm_x, mm_y, 64, 64, COLOR_UI_BG);
+    }
     draw_rect(fb, w, h, mm_x - 1, mm_y - 1, 66, 66, 0xFF_88_88_88);
 }
 
@@ -254,109 +263,41 @@ fn draw_shape(fb: &mut [u32], w: usize, h: usize,
 
     match r.shape_type {
         0 => fill_circle(fb, w, h, sx, sy, size, color),
-        1 => fill_rect_alpha(fb, w, h, sx, sy, size, size, color),
+        // [SIMD]: Usar SIMD fill para rectángulos
+        1 => unsafe {
+            simd_render::fill_rect_alpha_simd(fb, w, h, sx, sy, size, size, color);
+        },
         2 => fill_triangle(fb, w, h, sx, sy, size, color),
         _ => {}
     }
 }
 
-/// Rellena un rectángulo sólido (sin alpha blending)
-/// [TC#13]: Loop unrolling manual - procesamos 4 píxeles por iteración
+/// Rellena un rectángulo sólido (usa SIMD internamente)
 #[inline(always)]
 fn fill_rect(fb: &mut [u32], fb_w: usize, fb_h: usize,
              x: i32, y: i32, rw: i32, rh: i32, color: u32) {
-    let x1 = x.max(0);
-    let y1 = y.max(0);
-    let x2 = (x + rw).min(fb_w as i32);
-    let y2 = (y + rh).min(fb_h as i32);
-
-    if x1 >= x2 || y1 >= y2 {
-        return;
-    }
-
-    // [TA#17]: Acceso unchecked en bucles validados
-    // [TC#13]: Loop unrolling: procesar de a 4 píxeles
-    let width = (x2 - x1) as usize;
-    let unrolled_end = x1 as usize + (width / 4) * 4;
-
-    for py in y1..y2 {
-        let row_start = (py as usize) * fb_w;
-        let mut px = x1 as usize;
-
-        while px < unrolled_end {
-            unsafe {
-                *fb.get_unchecked_mut(row_start + px) = color;
-                *fb.get_unchecked_mut(row_start + px + 1) = color;
-                *fb.get_unchecked_mut(row_start + px + 2) = color;
-                *fb.get_unchecked_mut(row_start + px + 3) = color;
-            }
-            px += 4;
-        }
-
-        while px < x2 as usize {
-            unsafe {
-                *fb.get_unchecked_mut(row_start + px) = color;
-            }
-            px += 1;
-        }
+    unsafe {
+        simd_render::fill_rect_simd(fb, fb_w, fb_h, x, y, rw, rh, color);
     }
 }
 
-/// Rellena un rectángulo con alpha blending
+/// Rellena un rectángulo con alpha blending (usa SIMD internamente)
 #[inline(always)]
 fn fill_rect_alpha(fb: &mut [u32], fb_w: usize, fb_h: usize,
                    x: i32, y: i32, rw: i32, rh: i32, color: u32) {
-    let x1 = x.max(0);
-    let y1 = y.max(0);
-    let x2 = (x + rw).min(fb_w as i32);
-    let y2 = (y + rh).min(fb_h as i32);
-
-    if x1 >= x2 || y1 >= y2 {
-        return;
-    }
-
-    let src_a = ((color >> 24) & 0xFF) as u32;
-    if src_a >= 255 {
-        fill_rect(fb, fb_w, fb_h, x1, y1, x2 - x1, y2 - y1, color);
-        return;
-    }
-    if src_a == 0 {
-        return;
-    }
-
-    let inv_a = 255 - src_a;
-    let src_r = (color >> 16) & 0xFF;
-    let src_g = (color >> 8) & 0xFF;
-    let src_b = color & 0xFF;
-
-    for py in y1..y2 {
-        let row_start = (py as usize) * fb_w;
-        for px in x1..x2 {
-            unsafe {
-                let dst = *fb.get_unchecked(row_start + px as usize);
-                let dst_a = (dst >> 24) & 0xFF;
-                let dst_r = (dst >> 16) & 0xFF;
-                let dst_g = (dst >> 8) & 0xFF;
-                let dst_b = dst & 0xFF;
-
-                let out_a = src_a + ((dst_a * inv_a) / 255);
-                let out_r = (src_r * src_a + dst_r * inv_a) / 255;
-                let out_g = (src_g * src_a + dst_g * inv_a) / 255;
-                let out_b = (src_b * src_a + dst_b * inv_a) / 255;
-
-                *fb.get_unchecked_mut(row_start + px as usize) =
-                    (out_a << 24) | (out_r << 16) | (out_g << 8) | out_b;
-            }
-        }
+    unsafe {
+        simd_render::fill_rect_alpha_simd(fb, fb_w, fb_h, x, y, rw, rh, color);
     }
 }
 
 fn draw_rect(fb: &mut [u32], fb_w: usize, fb_h: usize,
              x: i32, y: i32, rw: i32, rh: i32, color: u32) {
-    fill_rect(fb, fb_w, fb_h, x, y, rw, 1, color);
-    fill_rect(fb, fb_w, fb_h, x, y + rh - 1, rw, 1, color);
-    fill_rect(fb, fb_w, fb_h, x, y, 1, rh, color);
-    fill_rect(fb, fb_w, fb_h, x + rw - 1, y, 1, rh, color);
+    unsafe {
+        simd_render::fill_rect_simd(fb, fb_w, fb_h, x, y, rw, 1, color);
+        simd_render::fill_rect_simd(fb, fb_w, fb_h, x, y + rh - 1, rw, 1, color);
+        simd_render::fill_rect_simd(fb, fb_w, fb_h, x, y, 1, rh, color);
+        simd_render::fill_rect_simd(fb, fb_w, fb_h, x + rw - 1, y, 1, rh, color);
+    }
 }
 
 /// Rellena un círculo [TC#21]: usando distancia al cuadrado para evitar sqrt
@@ -564,7 +505,7 @@ mod tests {
         let mut fb = vec![0u32; 400];
         fill_rect(&mut fb, 20, 20, 2, 2, 16, 16, 0xFF_FF_00_00);
         let filled = fb.iter().filter(|&&p| p == 0xFF_FF_00_00).count();
-        assert_eq!(filled, 256, "Loop unrolling debe rellenar 16x16=256 pixeles");
+        assert_eq!(filled, 256, "SIMD fill debe rellenar 16x16=256 pixeles");
     }
 
     #[test]

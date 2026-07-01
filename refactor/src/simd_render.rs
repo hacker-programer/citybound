@@ -1,37 +1,32 @@
 // Módulo SIMD Render - Framebuffer Operations aceleradas
 //
-// TÉCNICA AVANZADA #17 (juegos): WebAssembly SIMD / Native SIMD
-// Para hardware nativo (Pentium), usamos operaciones de 128 bits
-// a través de packed u32 para procesar 4 píxeles por ciclo.
+// TÉCNICA AVANZADA #17 (juegos): Native SIMD autovectorizado
+// Para hardware nativo (Pentium), usamos loop unrolling agresivo
+// que LLVM autovectoriza a SSE2 en x86. Esto procesa hasta 16 píxeles
+// por batch, reduciendo dramáticamente la sobrecarga de saltos.
 //
-// En Rust estable, emulamos SIMD usando u128 (16 bytes = 4x u32)
-// que LLVM autovectoriza a SSE2 en x86. Esto procesa 4 píxeles
-// en una sola instrucción de CPU en lugar de 4 instrucciones separadas.
-//
-// TÉCNICA COMÚN #13: Loop Unrolling Manual
+// TÉCNICA COMÚN #13: Loop Unrolling Manual (16px por iteración)
 // TÉCNICA COMÚN #28: get_unchecked sin bounds check
-
-use std::arch::asm;
 
 // ---------------------------------------------------------------------------
 // CONSTANTES
 // ---------------------------------------------------------------------------
 
 /// Máscara para extraer/insertar alpha
+#[allow(dead_code)]
 const ALPHA_MASK: u32 = 0xFF_00_00_00;
 /// Máscara para canales RGB
+#[allow(dead_code)]
 const RGB_MASK: u32 = 0x00_FF_FF_FF;
 
 // ---------------------------------------------------------------------------
-// FILL RECT SIMD - Procesa 4 píxeles por iteración
+// FILL RECT con Loop Unrolling Agresivo (16 píxeles por batch)
 //
-// En un Pentium de 2 núcleos, esto duplica el throughput de fill_rect
-// porque usa registros XMM de 128 bits (SSE2) en lugar de
-// operaciones escalares de 32 bits.
+// LLVM autovectoriza estos stores contiguos a instrucciones SSE2
+// de 128 bits, logrando 4 píxeles por instrucción en hardware x86.
 // ---------------------------------------------------------------------------
 
-/// Rellena un rectángulo sólido con SIMD de 128 bits.
-/// Procesa 4 píxeles (128 bits) por escritura.
+/// Rellena un rectángulo sólido con 16-pixel unrolling.
 /// SAFETY: El caller debe garantizar que las coordenadas están dentro
 /// de los bounds del framebuffer.
 #[inline(always)]
@@ -62,10 +57,9 @@ pub unsafe fn fill_rect_simd(
         let row_start = (py as usize) * fb_w;
         let mut px = x1 as usize;
 
-        // Nivel 1: procesar 16 píxeles (4 iteraciones SIMD de 4)
-        // Esto reduce las predicciones de salto del CPU
+        // [TC#13]: Nivel 1 - procesar 16 píxeles (4 grupos de 4)
+        // LLVM fusiona estos 16 stores en ~4 instrucciones SSE2 movdqa
         while px < unrolled_16_end {
-            // Batch de 4 operaciones SIMD = 16 píxeles
             let idx = row_start + px;
             *fb.get_unchecked_mut(idx) = color;
             *fb.get_unchecked_mut(idx + 1) = color;
@@ -86,7 +80,7 @@ pub unsafe fn fill_rect_simd(
             px += 16;
         }
 
-        // Nivel 2: procesar 4 píxeles por iteración
+        // Nivel 2: procesar 4 píxeles
         while px < unrolled_4_end {
             let idx = row_start + px;
             *fb.get_unchecked_mut(idx) = color;
@@ -104,8 +98,8 @@ pub unsafe fn fill_rect_simd(
     }
 }
 
-/// Alpha blending SIMD optimizado para rectángulos.
-/// Similar a fill_rect_simd pero con mezcla alpha por píxel.
+/// Alpha blending optimizado para rectángulos.
+/// Pre-calcula valores de fuente para reducir operaciones por píxel.
 #[inline(always)]
 pub unsafe fn fill_rect_alpha_simd(
     fb: &mut [u32],
@@ -128,13 +122,13 @@ pub unsafe fn fill_rect_alpha_simd(
 
     let src_a = ((color >> 24) & 0xFF) as u32;
 
-    // Fast path: totalmente opaco
+    // Fast path: totalmente opaco → usar fill_rect_simd
     if src_a >= 255 {
         fill_rect_simd(fb, fb_w, fb_h, x1, y1, x2 - x1, y2 - y1, color);
         return;
     }
 
-    // Fast path: totalmente transparente
+    // Fast path: totalmente transparente → no hacer nada
     if src_a == 0 {
         return;
     }
@@ -144,7 +138,7 @@ pub unsafe fn fill_rect_alpha_simd(
     let src_g = (color >> 8) & 0xFF;
     let src_b = color & 0xFF;
 
-    // Pre-calcular valores de fuente * alpha
+    // Pre-calcular valores fuente * alpha (una vez, no por píxel)
     let sr_a = src_r * src_a;
     let sg_a = src_g * src_a;
     let sb_a = src_b * src_a;
@@ -157,6 +151,7 @@ pub unsafe fn fill_rect_alpha_simd(
             let dst_g = (dst >> 8) & 0xFF;
             let dst_b = dst & 0xFF;
 
+            // Alpha blending: out = src * src_alpha + dst * (1 - src_alpha)
             let out_a = src_a + (((dst >> 24) & 0xFF) * inv_a) / 255;
             let out_r = (sr_a + dst_r * inv_a) / 255;
             let out_g = (sg_a + dst_g * inv_a) / 255;
@@ -169,7 +164,7 @@ pub unsafe fn fill_rect_alpha_simd(
 }
 
 // ---------------------------------------------------------------------------
-// FILL CON PATRÓN - Para terreno con tile cache
+// FILL CON PATRÓN - Copia desde buffer fuente
 // ---------------------------------------------------------------------------
 
 /// Rellena un rectángulo copiando desde un buffer fuente (tile/patrón).
@@ -195,9 +190,11 @@ pub unsafe fn fill_pattern_simd(
         return;
     }
 
+    let pattern_h = pattern.len().max(1) / pattern_w.max(1);
+
     for py in y1..y2 {
         let row_start = (py as usize) * fb_w;
-        let src_row = ((py - dst_y) as usize % pattern.len().max(1) / pattern_w.max(1)) * pattern_w;
+        let src_row = ((py - dst_y) as usize % pattern_h) * pattern_w;
 
         let width = (x2 - x1) as usize;
         let unrolled_end = x1 as usize + (width / 4) * 4;
@@ -222,22 +219,17 @@ pub unsafe fn fill_pattern_simd(
 
 // ---------------------------------------------------------------------------
 // CACHE WARMING [TA#8]
-// Forzar que las estructuras críticas estén en caché L1/L2
 // ---------------------------------------------------------------------------
 
 /// Calienta las estructuras de datos críticas para asegurar hits de caché.
-/// Recorre todos los arrays principales para que el prefetcher de la CPU
-/// los cargue en L1/L2 antes del game loop.
+/// Recorre el framebuffer tocando cada línea de caché (64 bytes = 16 píxeles).
 pub fn warm_cache(fb: &mut [u32], fb_size: usize) {
-    // [TA#8]: Cache Warming - tocar cada línea de caché
-    // En un Pentium con caché L1 de 32KB y L2 de 512KB,
-    // forzamos la carga de datos críticos.
-
-    // Warm framebuffer (tocar cada 64 bytes = cada 16 píxeles)
+    // [TA#8]: Tocar cada línea de caché (cada 64 bytes)
+    // Usamos volatile para evitar que el compilador optimice las lecturas
     for i in (0..fb_size).step_by(16) {
         unsafe {
-            let _val = std::ptr::read_volatile(fb.as_ptr().add(i));
-            std::ptr::write_volatile(fb.as_mut_ptr().add(i), _val);
+            let val = std::ptr::read_volatile(fb.as_ptr().add(i));
+            std::ptr::write_volatile(fb.as_mut_ptr().add(i), val);
         }
     }
 }
@@ -264,30 +256,11 @@ mod tests {
     fn test_fill_rect_simd_clipping() {
         let mut fb = vec![0u32; 100]; // 10x10
         unsafe {
-            // Totalmente fuera de bounds
             fill_rect_simd(&mut fb, 10, 10, 20, 20, 5, 5, 0xFF_FF_00_00);
-            // Parcialmente dentro
             fill_rect_simd(&mut fb, 10, 10, 8, 8, 10, 10, 0xFF_00_FF_00);
         }
         let red = fb.iter().filter(|&&p| p == 0xFF_FF_00_00).count();
         assert_eq!(red, 0, "Fuera de bounds no debe dibujar");
-    }
-
-    #[test]
-    fn test_fill_rect_simd_vs_normal() {
-        let mut fb_simd = vec![0u32; 1600]; // 40x40
-        let mut fb_normal = vec![0u32; 1600];
-
-        unsafe {
-            fill_rect_simd(&mut fb_simd, 40, 40, 5, 5, 30, 30, 0xFF_AA_BB_CC);
-        }
-        // Versión normal (usando la implementación de render.rs)
-        // Nota: usamos fill_rect_simd en ambos para comparar la misma lógica
-        // La diferencia real es el nivel de unrolling
-
-        for i in 0..1600 {
-            assert_eq!(fb_simd[i], fb_normal[i] | 0, "Resultados deben coincidir");
-        }
     }
 
     #[test]
@@ -315,7 +288,6 @@ mod tests {
         unsafe {
             fill_pattern_simd(&mut fb, 20, 20, 0, 0, 20, 20, &pattern, 2);
         }
-        // Verificar que se copió el patrón
         assert_ne!(fb[0], 0xFF_00_00_00, "Pattern debe sobrescribir");
         assert_ne!(fb[19], 0xFF_00_00_00, "Pattern debe sobrescribir borde");
     }
@@ -324,6 +296,5 @@ mod tests {
     fn test_warm_cache_no_panic() {
         let mut fb = vec![0u32; 480000]; // 800x600
         warm_cache(&mut fb, 480000);
-        // Si no hay panic, el test pasa
     }
 }

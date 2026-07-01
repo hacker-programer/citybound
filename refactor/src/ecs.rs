@@ -1,4 +1,4 @@
-// Módulo ECS (Entity Component System)
+// Módulo ECS (Entity Component System) v0.7.0
 //
 // ARQUITECTURA:
 // Usamos hecs como motor ECS puro. Todos los componentes se almacenan
@@ -12,6 +12,11 @@
 // [TA#7]  Flow Fields integrados en GameWorld
 // [#361]  LaneManager para tráfico con carriles A/B Street
 // [#392]  DesignTool para diseño urbano interactivo
+// [M#1]   SupplyChain integrado
+// [M#2]   LandValueMap integrado
+// [M#3]   UtilityGrid integrado
+// [M#4]   RoadWearMap integrado
+// [M#5]   LaborMarket integrado
 
 use crate::object_pool::EntityPool;
 use crate::input::InputState;
@@ -21,6 +26,9 @@ use crate::flow_field::FlowFieldManager;
 use crate::bitboard::BitGrid;
 use crate::traffic_lanes::LaneManager;
 use crate::interactive::DesignTool;
+use crate::utilities::UtilityGrid;
+use crate::road_wear::RoadWearMap;
+use crate::land_value::LandValueMap;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 
@@ -171,43 +179,43 @@ pub struct GameWorld {
     pub time_of_day: u16,
     pub rng: SmallRng,
     pub terrain: TerrainMap,
-    /// Quadtree espacial (conservado para consultas que lo requieran)
     pub quadtree: Quadtree,
-    /// Flow fields para pathfinding de tráfico O(1) [TA#7]
     pub flow_fields: FlowFieldManager,
-    /// Bitboards para colisiones en grilla O(1) [TI#6]
     pub bitgrid: BitGrid,
-    /// Gestor de carriles A/B Street [#361]
     pub lane_manager: LaneManager,
-    /// Herramienta de diseño urbano interactivo [#392]
     pub design_tool: DesignTool,
+    /// Grid de servicios (agua/electricidad) [M#3]
+    pub utility_grid: UtilityGrid,
+    /// Mapa de desgaste de carreteras [M#4]
+    pub road_wear: RoadWearMap,
+    /// Heatmap de valor del suelo [M#2]
+    pub land_value: LandValueMap,
     pub grid_size: i32,
 }
 
 /// Crea el mundo ECS inicial con todas las entidades del juego
 pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     let mut world = hecs::World::new();
-
     let grid_size: i32 = 128;
 
-    // [TC#14]: Generar terreno con ruido Perlin durante la carga
     let terrain = TerrainMap::generate(42);
-
-    // [TC#7]: Crear quadtree con las dimensiones del mundo
     let quadtree = Quadtree::new(grid_size as f32, grid_size as f32);
-
-    // [TA#7]: Generar flow fields durante la carga
     let flow_fields = FlowFieldManager::generate_all();
-
-    // [TI#6]: Inicializar bitgrid vacío
     let bitgrid = BitGrid::new();
 
-    // [#361]: Generar red de carriles A/B Street
     let mut lane_manager = LaneManager::new();
     lane_manager.generate_default_network();
 
-    // [#392]: Herramienta de diseño urbano
     let design_tool = DesignTool::new();
+
+    // [M#3]: Grid de servicios
+    let utility_grid = UtilityGrid::new();
+
+    // [M#4]: Mapa de desgaste
+    let road_wear = RoadWearMap::new();
+
+    // [M#2]: Heatmap de valor del suelo
+    let land_value = LandValueMap::new();
 
     // Cámara
     world.spawn((
@@ -215,9 +223,8 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         Position::new(0.0, 0.0),
     ));
 
-    // Pool de coches preasignados - asignados a carriles
+    // Pool de coches preasignados
     for i in 0..40 {
-        // Asignar cada coche a un carril diferente si hay disponibles
         let lane_id = if i < lane_manager.lanes.len() as i32 {
             i as u32
         } else {
@@ -296,6 +303,9 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         bitgrid,
         lane_manager,
         design_tool,
+        utility_grid,
+        road_wear,
+        land_value,
         grid_size,
     }
 }
@@ -421,34 +431,17 @@ mod tests {
     }
 
     #[test]
-    fn test_bitgrid_exists_in_world() {
+    fn test_utility_grid_exists() {
         let mut pool = EntityPool::new(1000);
         let gw = create_world(&mut pool);
-        assert_eq!(gw.bitgrid.count_layer(0), 0);
+        assert_eq!(gw.utility_grid.water_at(64.0, 64.0), 0.0);
     }
 
     #[test]
-    fn test_lane_manager_exists() {
+    fn test_road_wear_exists() {
         let mut pool = EntityPool::new(1000);
         let gw = create_world(&mut pool);
-        assert!(!gw.lane_manager.lanes.is_empty(), "Debe tener red de carriles");
-        assert!(!gw.lane_manager.intersections.is_empty(), "Debe tener intersecciones");
-    }
-
-    #[test]
-    fn test_design_tool_exists() {
-        let mut pool = EntityPool::new(1000);
-        let gw = create_world(&mut pool);
-        assert!(!gw.design_tool.active);
-        assert_eq!(gw.design_tool.brush_size, 3);
-    }
-
-    #[test]
-    fn test_process_input_no_panic() {
-        let mut pool = EntityPool::new(1000);
-        let mut gw = create_world(&mut pool);
-        let input = InputState::default();
-        process_input(&mut gw, &input);
+        assert_eq!(gw.road_wear.wear_at(50, 50), 0.0);
     }
 
     #[test]

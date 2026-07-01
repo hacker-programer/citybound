@@ -158,7 +158,7 @@ mod tests {
         assert!(!pool.is_alive(h1));
         assert!(pool.is_alive(h2));
 
-        // Adquirir de nuevo debe reciclar h1
+        // Adquirir de nuevo debe reciclar h1 (LIFO: último liberado = primero readquirido)
         let h3 = pool.acquire();
         assert_eq!(h3, h1);
     }
@@ -199,13 +199,21 @@ mod tests {
     #[test]
     fn test_pool_lifo_order() {
         let mut pool = EntityPool::new(10);
+        // Adquirir 5 handles (el free_list inicial está en [9,8,7,6,5,4,3,2,1,0])
+        // así que pop() da: 9, 8, 7, 6, 5
         let handles: Vec<_> = (0..5).map(|_| pool.acquire()).collect();
+        // handles = [PoolHandle(9), PoolHandle(8), PoolHandle(7), PoolHandle(6), PoolHandle(5)]
+
+        // Liberar en orden inverso al de adquisición: [5, 6, 7, 8, 9]
         for h in handles.iter().rev() {
             pool.release(*h);
         }
-        // Deben re-adquirirse en orden inverso
-        for h in handles.iter().rev() {
-            assert_eq!(pool.acquire(), *h);
+        // free_list queda: [5, 6, 7, 8, 9]
+
+        // Readquirir: LIFO -> [9, 8, 7, 6, 5] (mismo orden de adquisición original)
+        for h in handles.iter() {
+            assert_eq!(pool.acquire(), *h,
+                "LIFO debe restaurar el orden de adquisición original");
         }
     }
 }

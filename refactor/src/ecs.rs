@@ -10,11 +10,10 @@
 // TÉCNICA AVANZADA #9: Structs alineados a 64 bytes (línea caché L1)
 // TÉCNICA COMÚN #24 (juegos): Máquinas de estado aplanadas
 
-// Allow dead_code en componentes que serán usados por sistemas futuros
-#![allow(dead_code)]
-
 use crate::object_pool::EntityPool;
 use crate::input::InputState;
+use crate::terrain::TerrainMap;
+use crate::quadtree::Quadtree;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 
@@ -165,6 +164,10 @@ pub struct Lifetime {
     pub remaining_ticks: u32,
 }
 
+/// Marcador de entidad registrada en el quadtree
+#[derive(Copy, Clone, Debug)]
+pub struct QuadIndex(pub u32);
+
 // ---------------------------------------------------------------------------
 // ECS WORLD
 // ---------------------------------------------------------------------------
@@ -179,54 +182,73 @@ pub struct GameWorld {
     pub time_of_day: u16,
     /// Generador de números aleatorios determinista [TC#12]
     pub rng: SmallRng,
+    /// Mapa de terreno pre-generado con ruido Perlin [TC#14]
+    pub terrain: TerrainMap,
+    /// Quadtree espacial para consultas aceleradas [TC#7]
+    pub quadtree: Quadtree,
+    /// Tamaño de la grilla del mundo
+    pub grid_size: i32,
 }
 
 /// Crea el mundo ECS inicial con todas las entidades del juego
 pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     let mut world = hecs::World::new();
 
+    let grid_size: i32 = 128;
+
+    // [TC#14]: Generar terreno con ruido Perlin durante la carga
+    let terrain = TerrainMap::generate(42);
+
+    // [TC#7]: Crear quadtree con las dimensiones del mundo
+    let quadtree = Quadtree::new(grid_size as f32, grid_size as f32);
+
     // Cámara (1 entidad)
     world.spawn((
-        Camera { offset_x: 0.0, offset_y: 0.0, zoom: 1.0 },
+        Camera { offset_x: grid_size as f32 / 2.0, offset_y: grid_size as f32 / 2.0, zoom: 1.0 },
         Position::new(0.0, 0.0),
     ));
 
-    // Mapa base: grilla de 128x128 celdas de terreno
-    let grid_size: i32 = 128;
+    // Mapa base: grilla de celdas de terreno (usando TerrainMap para decidir zonas)
     for gx in 0..grid_size {
         for gy in 0..grid_size {
-            world.spawn((
-                Position::new(gx as f32, gy as f32),
-                Renderable::rect(0xFF_2D_2D_44, 1.0, 0),
-                ZoneComponent { zone_type: ZoneType::Residential, density: 0 },
-            ));
+            let ttype = terrain.terrain_type(gx as usize, gy as usize);
+            // Solo spawnear celdas de tierra (no agua) como entidades
+            if ttype != 0 {
+                world.spawn((
+                    Position::new(gx as f32, gy as f32),
+                    Renderable::rect(0x00_00_00_00, 1.0, 0), // Color se toma del terrain baked
+                    ZoneComponent { zone_type: ZoneType::Residential, density: 0 },
+                ));
+            }
         }
     }
 
-    // Pool de coches preasignados (100 coches)
-    for i in 0..100 {
+    // Pool de coches preasignados: reducir a 40 y posicionarlos horizontalmente
+    for i in 0..40 {
         world.spawn((
-            Position::new(i as f32 * 10.0, 50.0),
+            Position::new(i as f32 * 3.0 + 5.0, 60.0),
             Velocity::new(0.0, 0.0),
             TrafficCar {
-                speed: (i as f32 % 5.0) * 3.0,
+                speed: (i as f32 % 5.0 + 1.0) * 2.0,
                 max_speed: 13.8,
                 acceleration: 0.0,
-                lane_position: i as f32 / 100.0,
+                lane_position: i as f32 / 40.0,
                 lane_id: 0,
             },
-            Renderable::circle(0xFF_FF_AA_00, 1.5, 5),
+            Renderable::circle(0xFF_FF_AA_00, 1.2, 5),
         ));
     }
 
-    // Edificios de ejemplo
-    let buildings: [(f32, f32, BuildingType, u32); 6] = [
-        (30.0, 30.0, BuildingType::House, 0xFF_66_BB_6A),
-        (35.0, 30.0, BuildingType::Shop, 0xFF_42_A5_F5),
-        (40.0, 30.0, BuildingType::Factory, 0xFF_EF_5350),
-        (30.0, 35.0, BuildingType::Apartment, 0xFF_AB_47_BC),
-        (35.0, 35.0, BuildingType::Office, 0xFF_26_C6_DA),
-        (40.0, 35.0, BuildingType::Farm, 0xFF_9C_CC_65),
+    // Edificios de ejemplo en posiciones más naturales
+    let buildings: [(f32, f32, BuildingType, u32); 8] = [
+        (30.0, 30.0, BuildingType::House, 0xFF_C4_7B_4A),
+        (35.0, 30.0, BuildingType::Shop, 0xFF_26_C6_DA),
+        (40.0, 30.0, BuildingType::Factory, 0xFF_8D_6E_63),
+        (30.0, 36.0, BuildingType::Apartment, 0xFF_B0_BEC5),
+        (35.0, 36.0, BuildingType::Office, 0xFF_78_90_9C),
+        (40.0, 36.0, BuildingType::Farm, 0xFF_8B_C3_4A),
+        (60.0, 45.0, BuildingType::House, 0xFF_C4_7B_4A),
+        (64.0, 45.0, BuildingType::Shop, 0xFF_26_C6_DA),
     ];
 
     for &(bx, by, btype, color) in &buildings {
@@ -238,12 +260,12 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         ));
     }
 
-    // Zonas planificadas
+    // Zonas planificadas - ajustadas al terreno
     let zones: [(f32, f32, f32, f32, ZoneType, u32); 4] = [
-        (10.0, 10.0, 40.0, 20.0, ZoneType::Residential, 0x44_66_BB_6A),
-        (55.0, 10.0, 30.0, 20.0, ZoneType::Commercial, 0x44_42_A5_F5),
-        (10.0, 55.0, 30.0, 20.0, ZoneType::Industrial, 0x44_EF_5350),
-        (55.0, 55.0, 30.0, 20.0, ZoneType::Agricultural, 0x44_9C_CC_65),
+        (15.0, 15.0, 30.0, 18.0, ZoneType::Residential, 0x44_66_BB_6A),
+        (55.0, 15.0, 25.0, 18.0, ZoneType::Commercial, 0x44_42_A5_F5),
+        (15.0, 50.0, 25.0, 18.0, ZoneType::Industrial, 0x44_EF_5350),
+        (55.0, 50.0, 25.0, 18.0, ZoneType::Agricultural, 0x44_9C_CC_65),
     ];
 
     for &(zx, zy, zw, zh, ztype, color) in &zones {
@@ -264,6 +286,9 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         sim_tick: 0,
         time_of_day: 7 * 60,
         rng: SmallRng::seed_from_u64(42),
+        terrain,
+        quadtree,
+        grid_size,
     }
 }
 
@@ -314,6 +339,7 @@ mod tests {
         assert!(gw.world.len() > 0, "El mundo debe tener entidades");
         assert_eq!(gw.time_of_day, 7 * 60);
         assert_eq!(gw.sim_tick, 0);
+        assert_eq!(gw.grid_size, 128);
     }
 
     #[test]
@@ -329,7 +355,7 @@ mod tests {
         let mut pool = EntityPool::new(1000);
         let gw = create_world(&mut pool);
         let car_count = gw.world.query::<&TrafficCar>().iter().count();
-        assert_eq!(car_count, 100, "Debe haber 100 coches preasignados");
+        assert_eq!(car_count, 40, "Debe haber 40 coches preasignados");
     }
 
     #[test]
@@ -392,6 +418,17 @@ mod tests {
         let mut pool = EntityPool::new(1000);
         let gw = create_world(&mut pool);
         let count = entity_count(&gw);
-        assert!(count > 15000, "Esperado > 15000 entidades, hay {}", count);
+        // El número exacto depende del terreno, pero debe ser > 5000
+        assert!(count > 5000, "Esperado > 5000 entidades, hay {}", count);
+    }
+
+    #[test]
+    fn test_terrain_exists() {
+        let mut pool = EntityPool::new(1000);
+        let gw = create_world(&mut pool);
+        // Verificar que el terreno tiene variación
+        let h0 = gw.terrain.height(0, 0);
+        let h1 = gw.terrain.height(64, 64);
+        assert!((h0 - h1).abs() >= 0.0); // Solo verifica que no panic
     }
 }

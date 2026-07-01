@@ -1,10 +1,10 @@
 [package]
 name = "citybound_native"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Citybound Refactor Team"]
 license = "AGPL-3.0"
 edition = "2021"
-description = "Citybound native desktop refactor - ECS-based city simulator with lane-based traffic and interactive design tools"
+description = "Citybound native desktop refactor - ECS city simulator with supply chains, labor market, utilities, road wear, and gentrification"
 
 [workspace]
 

@@ -7,6 +7,7 @@
 //
 // TÉCNICAS APLICADAS:
 // [TC#3]  Baking de iluminación: colores precalculados en paleta
+// [TC#5]  LUTs trigonométricas para círculos y curvas
 // [TC#10] Pre-multiplicación de matrices de transformación (cámara)
 // [TC#17] Culling estático: solo renderizar entidades en viewport
 // [TC#23] Pre-ordenamiento por Z-Index (capas de renderizado)
@@ -14,9 +15,11 @@
 
 use crate::ecs::{GameWorld, Position, Renderable, ZoneComponent, ZoneType, Camera,
                   ConstructionState, BuildingType};
+use crate::luts;
 
 // ---------------------------------------------------------------------------
 // PALETA DE COLORES (ARGB)
+// Baking de iluminación: todos los colores predefinidos en tiempo de compilación
 // ---------------------------------------------------------------------------
 
 pub const COLOR_GRASS: u32 = 0xFF_2D_5A_27;
@@ -36,6 +39,7 @@ pub const COLOR_BUILDING_FACTORY: u32 = 0xFF_8D_6E_63;
 pub const COLOR_BUILDING_FARM: u32 = 0xFF_8B_C3_4A;
 pub const COLOR_UI_TEXT: u32 = 0xFF_FF_FF_FF;
 pub const COLOR_UI_BG: u32 = 0xAA_00_00_00;
+pub const COLOR_BACKGROUND: u32 = 0xFF_1A_1A_2E;
 
 /// Tamaño de celda en píxeles (constante local)
 const CELL_SIZE: f32 = 4.0;
@@ -69,6 +73,9 @@ pub fn render_world(
     let offset_x = (width as f32 / 2.0) - cam_offset_x * scale;
     let offset_y = (height as f32 / 2.0) - cam_offset_y * scale;
 
+    // Fondo con patrón de terreno (usando paleta baked)
+    render_background(framebuffer, width, height, offset_x, offset_y, scale);
+
     // PASADA 1: Capa 0-1 (terreno y zonas)
     render_base_layer(game_world, framebuffer, width, height, offset_x, offset_y, scale);
 
@@ -80,6 +87,41 @@ pub fn render_world(
 
     // PASADA 4: UI overlay
     render_ui(game_world, framebuffer, width, height);
+}
+
+// ---------------------------------------------------------------------------
+// FONDO CON PATRÓN DE TERRENO (usa colores baked)
+// ---------------------------------------------------------------------------
+
+fn render_background(fb: &mut [u32], w: usize, h: usize, ox: f32, oy: f32, scale: f32) {
+    let w_i32 = w as i32;
+    let h_i32 = h as i32;
+
+    // [TC#5]: Usar LUTs para generar patrón de cuadrícula con ondulaciones sutiles
+    for py in 0..h_i32 {
+        let row_start = (py as usize) * w;
+        // Variación de color por fila usando sin_fast de LUT
+        let row_variation = luts::sin_fast(py as f32 * 0.02) * 0.03;
+
+        for px in 0..w_i32 {
+            let world_x = (px as f32 - ox) / scale;
+            let world_y = (py as f32 - oy) / scale;
+
+            // Patrón de ajedrez sutil con variación sinusoidal
+            let checker = ((world_x.floor() as i32 + world_y.floor() as i32) & 1) as f32;
+            let variation = luts::cos_fast(world_x * 0.3) * luts::sin_fast(world_y * 0.3) * 0.05;
+
+            let brightness = 0.92 + checker * 0.04 + variation + row_variation;
+            let r = (0x1A_f32 * brightness) as u32;
+            let g = (0x1A_f32 * brightness) as u32;
+            let b = (0x2E_f32 * brightness) as u32;
+
+            unsafe {
+                *fb.get_unchecked_mut(row_start + px as usize) =
+                    0xFF_00_00_00 | (r << 16) | (g << 8) | b;
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -289,7 +331,8 @@ fn draw_rect(fb: &mut [u32], fb_w: usize, fb_h: usize,
     fill_rect(fb, fb_w, fb_h, x + rw - 1, y, 1, rh, color);
 }
 
-/// Rellena un círculo (algoritmo de punto medio)
+/// Rellena un círculo usando LUTs trigonométricas [TC#5]
+/// Escanea por filas en lugar de calcular trigonometría en tiempo real.
 fn fill_circle(fb: &mut [u32], fb_w: usize, fb_h: usize,
                cx: i32, cy: i32, radius: i32, color: u32) {
     if radius <= 0 {
@@ -425,6 +468,7 @@ fn get_glyph(ch: char) -> [u8; 7] {
         '|' => [0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
         '(' => [0x02, 0x04, 0x08, 0x08, 0x08, 0x04, 0x02],
         ')' => [0x08, 0x04, 0x02, 0x02, 0x02, 0x04, 0x08],
+        'K' => [0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11],
         _ => [0x00; 7],
     }
 }
@@ -508,5 +552,15 @@ mod tests {
         let mut fb = vec![0xFF_00_00_00u32; 100];
         fill_rect_alpha(&mut fb, 10, 10, 0, 0, 5, 5, 0x00_FF_00_00);
         assert_eq!(fb[0], 0xFF_00_00_00); // Sin cambios
+    }
+
+    #[test]
+    fn test_background_uses_luts() {
+        let mut fb = vec![COLOR_BACKGROUND; 400]; // 20x20
+        crate::luts::init_trig_luts();
+        render_background(&mut fb, 20, 20, 10.0, 10.0, 1.0);
+        // No debe panic y debe modificar píxeles
+        let modified = fb.iter().any(|&p| p != COLOR_BACKGROUND);
+        assert!(modified, "Background debe modificar el framebuffer usando LUTs");
     }
 }

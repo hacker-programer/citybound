@@ -116,7 +116,7 @@ impl FlowField {
                     // Calles laterales: flujo débil aleatorio
                     let mag = 0.15;
                     field.cells[idx] = FlowCell {
-                        angle: if gx < FLOW_GRID_SIZE as i32 / 2 { 0.0 } else { TAU / 2.0 },
+                        angle: if gx < FLOW_GRID_SIZE / 2 { 0.0 } else { TAU / 2.0 },
                         magnitude: mag,
                     };
                 } else {

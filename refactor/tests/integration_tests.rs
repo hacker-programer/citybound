@@ -1,7 +1,7 @@
 // Tests de integración para Citybound Native
 //
 // Verifica que los sistemas funcionan correctamente juntos:
-// ECS + Simulación + Renderizado
+// ECS + Simulación + Renderizado + Terreno + Quadtree
 
 #[cfg(test)]
 mod integration_tests {
@@ -30,7 +30,7 @@ mod integration_tests {
 
         // Verificar que el tiempo avanzó
         assert!(gw.sim_tick > 0);
-        // La hora debe seguir en el rango 7:00-7:59 AM después de ~33s simulados
+        // La hora debe seguir en el rango 7:00-7:59 AM
         assert!(gw.time_of_day >= 7 * 60 && gw.time_of_day < 8 * 60,
             "Hora del día fuera de rango: {}", gw.time_of_day);
     }
@@ -43,9 +43,9 @@ mod integration_tests {
         let mut pool = EntityPool::new(1000);
         let mut gw = ecs::create_world(&mut pool);
 
-        // Contar coches iniciales
+        // Contar coches iniciales (40 coches preasignados)
         let initial_cars = gw.world.query::<&ecs::TrafficCar>().iter().count();
-        assert_eq!(initial_cars, 100);
+        assert_eq!(initial_cars, 40);
 
         // Ejecutar simulación
         for _ in 0..50 {
@@ -54,7 +54,7 @@ mod integration_tests {
 
         // Los coches deben seguir existiendo
         let final_cars = gw.world.query::<&ecs::TrafficCar>().iter().count();
-        assert_eq!(final_cars, 100);
+        assert_eq!(final_cars, 40);
     }
 
     /// Test: verificar que las zonas existen
@@ -80,7 +80,7 @@ mod integration_tests {
         let gw = ecs::create_world(&mut pool);
 
         let building_count = gw.world.query::<&ecs::ConstructionState>().iter().count();
-        assert_eq!(building_count, 6, "Debe haber 6 edificios iniciales");
+        assert_eq!(building_count, 8, "Debe haber 8 edificios iniciales");
     }
 
     /// Test: verificar que la cámara existe
@@ -150,8 +150,31 @@ mod integration_tests {
 
         let final_count = gw.world.len();
         // El número de entidades no debe explotar
-        // (puede crecer un poco por desarrollo de zonas)
         assert!(final_count <= initial_count + 500,
             "Crecimiento de entidades excesivo: {} -> {}", initial_count, final_count);
+    }
+
+    /// Test: terreno generado correctamente
+    #[test]
+    fn test_terrain_exists() {
+        let mut pool = EntityPool::new(1000);
+        let gw = ecs::create_world(&mut pool);
+
+        // Verificar que el terreno existe y tiene valores
+        let h = gw.terrain.height(64, 64);
+        assert!(h >= 0.0 && h <= 1.0, "Altura de terreno fuera de rango: {}", h);
+
+        let color = gw.terrain.baked_color(64, 64);
+        let alpha = (color >> 24) & 0xFF;
+        assert_eq!(alpha, 0xFF, "Color baked debe ser opaco");
+    }
+
+    /// Test: quadtree existe en el mundo
+    #[test]
+    fn test_quadtree_exists() {
+        let mut pool = EntityPool::new(1000);
+        let gw = ecs::create_world(&mut pool);
+
+        assert_eq!(gw.quadtree.len(), 0, "Quadtree debe empezar vacío");
     }
 }

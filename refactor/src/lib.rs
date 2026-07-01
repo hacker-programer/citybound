@@ -17,6 +17,8 @@
 // - flow_field: Flow fields para pathfinding O(1) [TA#7]
 // - bitboard: Bitboards para colisiones en grilla [TI#6]
 // - audio: Sistema de audio procedural [TC#6]
+// - traffic_lanes: Tráfico con carriles A/B Street [Issue #361]
+// - interactive: Herramienta de diseño urbano [Issue #392]
 
 pub mod ecs;
 pub mod sim;
@@ -32,3 +34,5 @@ pub mod rng_pool;
 pub mod flow_field;
 pub mod bitboard;
 pub mod audio;
+pub mod traffic_lanes;
+pub mod interactive;

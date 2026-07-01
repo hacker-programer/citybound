@@ -13,15 +13,14 @@
 // [TC#21] Pre-cálculo de distancias al cuadrado en círculos
 // [TC#23] Pre-ordenamiento por Z-Index (capas de renderizado)
 // [TA#17] Acceso unchecked en bucles validados
-// NUEVO:  SIMD fill_rect (16 píxeles por batch) [simd_render.rs]
+// [#361]  Renderizado de red de carriles y congestión
 
 use crate::ecs::{GameWorld, Position, Renderable, ZoneComponent, ZoneType, Camera,
-                  ConstructionState, BuildingType};
+                  ConstructionState, BuildingType, TrafficCar};
 use crate::simd_render;
 
 // ---------------------------------------------------------------------------
 // PALETA DE COLORES (ARGB)
-// Baking de iluminación: todos los colores predefinidos en tiempo de compilación
 // ---------------------------------------------------------------------------
 
 pub const COLOR_GRASS: u32 = 0xFF_2D_5A_27;
@@ -33,6 +32,8 @@ pub const COLOR_ZONE_RESIDENTIAL: u32 = 0x44_66_BB_6A;
 pub const COLOR_ZONE_COMMERCIAL: u32 = 0x44_42_A5_F5;
 pub const COLOR_ZONE_INDUSTRIAL: u32 = 0x44_EF_5350;
 pub const COLOR_ZONE_AGRICULTURAL: u32 = 0x44_9C_CC_65;
+pub const COLOR_ZONE_ROAD: u32 = 0x44_55_55_55;
+pub const COLOR_ZONE_PARK: u32 = 0x44_4C_AF_50;
 pub const COLOR_BUILDING_HOUSE: u32 = 0xFF_C4_7B_4A;
 pub const COLOR_BUILDING_APARTMENT: u32 = 0xFF_B0_BEC5;
 pub const COLOR_BUILDING_SHOP: u32 = 0xFF_26_C6_DA;
@@ -42,8 +43,11 @@ pub const COLOR_BUILDING_FARM: u32 = 0xFF_8B_C3_4A;
 pub const COLOR_UI_TEXT: u32 = 0xFF_FF_FF_FF;
 pub const COLOR_UI_BG: u32 = 0xAA_00_00_00;
 pub const COLOR_BACKGROUND: u32 = 0xFF_1A_1A_2E;
+pub const COLOR_LANE_LINE: u32 = 0x88_FF_FF_FF;
+pub const COLOR_CONGESTION_LOW: u32 = 0x88_00_FF_00;
+pub const COLOR_CONGESTION_MED: u32 = 0x88_FF_FF_00;
+pub const COLOR_CONGESTION_HIGH: u32 = 0x88_FF_00_00;
 
-/// Tamaño de celda en píxeles (constante local)
 const CELL_SIZE: f32 = 4.0;
 
 // ---------------------------------------------------------------------------
@@ -57,7 +61,6 @@ pub fn render_world(
     width: usize,
     height: usize,
 ) {
-    // Obtener parámetros de cámara
     let mut cam_offset_x: f32 = 0.0;
     let mut cam_offset_y: f32 = 0.0;
     let mut cam_zoom: f32 = 1.0;
@@ -69,13 +72,15 @@ pub fn render_world(
         break;
     }
 
-    // [TC#10]: Pre-calcular transformación de cámara
     let scale = CELL_SIZE * cam_zoom;
     let offset_x = (width as f32 / 2.0) - cam_offset_x * scale;
     let offset_y = (height as f32 / 2.0) - cam_offset_y * scale;
 
-    // Fondo usando TerrainMap baked [TC#14]
+    // Fondo con TerrainMap baked [TC#14]
     render_background(game_world, framebuffer, width, height, offset_x, offset_y, scale);
+
+    // PASADA 0: Red de carriles [#361]
+    render_lane_network(game_world, framebuffer, width, height, offset_x, offset_y, scale);
 
     // PASADA 1: Capa 0-1 (terreno y zonas)
     render_base_layer(game_world, framebuffer, width, height, offset_x, offset_y, scale);
@@ -91,8 +96,94 @@ pub fn render_world(
 }
 
 // ---------------------------------------------------------------------------
+// RED DE CARRILES [#361]
+// ---------------------------------------------------------------------------
+
+fn render_lane_network(
+    gw: &GameWorld,
+    fb: &mut [u32],
+    w: usize,
+    h: usize,
+    ox: f32,
+    oy: f32,
+    scale: f32,
+) {
+    for lane in &gw.lane_manager.lanes {
+        // Convertir extremos a pantalla
+        let sx1 = (lane.start_x * scale + ox) as i32;
+        let sy1 = (lane.start_y * scale + oy) as i32;
+        let sx2 = (lane.end_x * scale + ox) as i32;
+        let sy2 = (lane.end_y * scale + oy) as i32;
+
+        // Color basado en congestión
+        let lane_color = if lane.congestion > 0.7 {
+            COLOR_CONGESTION_HIGH
+        } else if lane.congestion > 0.3 {
+            COLOR_CONGESTION_MED
+        } else {
+            COLOR_LANE_LINE
+        };
+
+        // Dibujar línea del carril
+        draw_line(fb, w, h, sx1, sy1, sx2, sy2, lane_color);
+    }
+
+    // Dibujar intersecciones
+    for intersection in &gw.lane_manager.intersections {
+        let ix = (intersection.x * scale + ox) as i32;
+        let iy = (intersection.y * scale + oy) as i32;
+        let phase_color = match intersection.phase {
+            crate::traffic_lanes::TrafficLightPhase::Green => 0xFF_00_FF_00,
+            crate::traffic_lanes::TrafficLightPhase::Yellow => 0xFF_FF_FF_00,
+            crate::traffic_lanes::TrafficLightPhase::Red => 0xFF_FF_00_00,
+        };
+
+        if scale > 0.8 {
+            // Solo dibujar intersecciones con zoom suficiente
+            unsafe {
+                simd_render::fill_rect_simd(fb, w, h, ix - 2, iy - 2, 5, 5, phase_color);
+            }
+        }
+    }
+}
+
+/// Algoritmo de línea de Bresenham
+fn draw_line(fb: &mut [u32], w: usize, h: usize,
+             x1: i32, y1: i32, x2: i32, y2: i32, color: u32) {
+    let dx = (x2 - x1).abs();
+    let dy = -(y2 - y1).abs();
+    let sx = if x1 < x2 { 1 } else { -1 };
+    let sy = if y1 < y2 { 1 } else { -1 };
+    let mut err = dx + dy;
+
+    let mut x = x1;
+    let mut y = y1;
+
+    loop {
+        if x >= 0 && x < w as i32 && y >= 0 && y < h as i32 {
+            unsafe {
+                *fb.get_unchecked_mut((y as usize) * w + x as usize) = color;
+            }
+        }
+
+        if x == x2 && y == y2 { break; }
+
+        let e2 = 2 * err;
+        if e2 >= dy {
+            if x == x2 { break; }
+            err += dy;
+            x += sx;
+        }
+        if e2 <= dx {
+            if y == y2 { break; }
+            err += dx;
+            y += sy;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // FONDO CON TERRENO BAKED [TC#14]
-// Usa el TerrainMap pre-generado para colores de terreno.
 // ---------------------------------------------------------------------------
 
 fn render_background(
@@ -118,10 +209,7 @@ fn render_background(
             if world_x >= 0.0 && world_x < grid_size && world_y >= 0.0 && world_y < grid_size {
                 let tx = world_x as usize;
                 let ty = world_y as usize;
-
-                // [TC#14]: Color baked del terreno - O(1) lookup
                 let color = gw.terrain.baked_color(tx, ty);
-
                 unsafe {
                     *fb.get_unchecked_mut(row_start + px as usize) = color;
                 }
@@ -161,13 +249,12 @@ fn render_base_layer(
                 ZoneType::Commercial => COLOR_ZONE_COMMERCIAL,
                 ZoneType::Industrial => COLOR_ZONE_INDUSTRIAL,
                 ZoneType::Agricultural => COLOR_ZONE_AGRICULTURAL,
-                ZoneType::Road => COLOR_ROAD,
-                ZoneType::Park => 0x44_4C_AF_50,
+                ZoneType::Road => COLOR_ZONE_ROAD,
+                ZoneType::Park => COLOR_ZONE_PARK,
             };
             let sx = (pos.x * scale + ox) as i32;
             let sy = (pos.y * scale + oy) as i32;
             let size = scale as i32;
-            // [SIMD]: Usar fill_rect SIMD para zonas
             unsafe {
                 simd_render::fill_rect_alpha_simd(fb, w, h, sx, sy, size, size, zone_color);
             }
@@ -198,7 +285,6 @@ fn render_building_layer(
         let sy = (pos.y * scale + oy) as i32;
         let size = (scale * 2.0) as i32;
         let blended = multiply_alpha(color, alpha);
-        // [SIMD]: fill_rect_alpha_simd para blending rápido
         unsafe {
             simd_render::fill_rect_alpha_simd(fb, w, h, sx, sy, size, size, blended);
         }
@@ -217,27 +303,65 @@ fn render_traffic_layer(
             draw_shape(fb, w, h, pos.x, pos.y, renderable, ox, oy, scale);
         }
     }
+
+    // Dibujar indicadores de congestión en carriles con zoom suficiente
+    if scale > 1.0 {
+        for lane in &gw.lane_manager.lanes {
+            if lane.vehicle_count > 2 {
+                // Dibujar marcador de congestión en el punto medio
+                let (mx, my) = lane.position_at(0.5);
+                let sx = (mx * scale + ox) as i32;
+                let sy = (my * scale + oy) as i32;
+                let cong_color = if lane.congestion > 0.7 {
+                    0xFF_FF_44_44
+                } else if lane.congestion > 0.3 {
+                    0xFF_FF_FF_44
+                } else {
+                    0xFF_44_FF_44
+                };
+                unsafe {
+                    simd_render::fill_rect_simd(fb, w, h, sx - 1, sy - 1, 3, 3, cong_color);
+                }
+            }
+        }
+    }
 }
 
 fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
     let w_i32 = w as i32;
     let h_i32 = h as i32;
 
-    // [SIMD]: Barra superior
     unsafe {
         simd_render::fill_rect_alpha_simd(fb, w, h, 0, 0, w_i32, 24, COLOR_UI_BG);
     }
 
-    let time_str = format!("Citybound Native | Hora: {} | Tick: {}",
-        crate::sim::formatted_time(gw.time_of_day), gw.sim_tick);
+    let mode_str = if gw.design_tool.active {
+        match gw.design_tool.mode {
+            crate::interactive::DesignMode::PaintZone => "MODO: PINTAR ZONAS",
+            crate::interactive::DesignMode::PlaceBuilding => "MODO: CONSTRUIR",
+            crate::interactive::DesignMode::Inspect => "MODO: INSPECCIONAR",
+            _ => "MODO: DISEÑO",
+        }
+    } else {
+        "MODO: SIMULACIÓN"
+    };
+
+    let time_str = format!("Citybound Native v0.6 | {} | Hora: {} | Tick: {}",
+        mode_str,
+        crate::sim::formatted_time(gw.time_of_day),
+        gw.sim_tick);
     draw_text(fb, w, h, 8, 4, &time_str, COLOR_UI_TEXT);
 
-    // [SIMD]: Barra inferior
     unsafe {
         simd_render::fill_rect_alpha_simd(fb, w, h, 0, h_i32 - 20, w_i32, 20, COLOR_UI_BG);
     }
-    draw_text(fb, w, h, 8, h_i32 - 16,
-        "WASD: Mover | PageUp/Down: Zoom | ESC: Salir", COLOR_UI_TEXT);
+
+    let help = if gw.design_tool.active {
+        "WASD: Mover | Click: Acción | [1-6]: Zona | [B]: Edificio | [Tab]: Salir diseño"
+    } else {
+        "WASD: Mover | PageUp/Down: Zoom | [Tab]: Diseño | ESC: Salir"
+    };
+    draw_text(fb, w, h, 8, h_i32 - 16, help, COLOR_UI_TEXT);
 
     // Minimapa
     let mm_x = w_i32 - 70;
@@ -263,7 +387,6 @@ fn draw_shape(fb: &mut [u32], w: usize, h: usize,
 
     match r.shape_type {
         0 => fill_circle(fb, w, h, sx, sy, size, color),
-        // [SIMD]: Usar SIMD fill para rectángulos
         1 => unsafe {
             simd_render::fill_rect_alpha_simd(fb, w, h, sx, sy, size, size, color);
         },
@@ -272,7 +395,6 @@ fn draw_shape(fb: &mut [u32], w: usize, h: usize,
     }
 }
 
-/// Rellena un rectángulo sólido (usa SIMD internamente)
 #[inline(always)]
 fn fill_rect(fb: &mut [u32], fb_w: usize, fb_h: usize,
              x: i32, y: i32, rw: i32, rh: i32, color: u32) {
@@ -281,7 +403,6 @@ fn fill_rect(fb: &mut [u32], fb_w: usize, fb_h: usize,
     }
 }
 
-/// Rellena un rectángulo con alpha blending (usa SIMD internamente)
 #[inline(always)]
 fn fill_rect_alpha(fb: &mut [u32], fb_w: usize, fb_h: usize,
                    x: i32, y: i32, rw: i32, rh: i32, color: u32) {
@@ -300,14 +421,11 @@ fn draw_rect(fb: &mut [u32], fb_w: usize, fb_h: usize,
     }
 }
 
-/// Rellena un círculo [TC#21]: usando distancia al cuadrado para evitar sqrt
 fn fill_circle(fb: &mut [u32], fb_w: usize, fb_h: usize,
                cx: i32, cy: i32, radius: i32, color: u32) {
     if radius <= 0 {
         return;
     }
-
-    // [TC#21]: Pre-calcular radio al cuadrado
     let r2 = radius * radius;
     let x1 = (cx - radius).max(0);
     let y1 = (cy - radius).max(0);
@@ -316,12 +434,11 @@ fn fill_circle(fb: &mut [u32], fb_w: usize, fb_h: usize,
 
     for py in y1..y2 {
         let dy = py - cy;
-        let dy2 = dy * dy; // [TC#21]: pre-calcular dy^2 por fila
+        let dy2 = dy * dy;
         let row_start = (py as usize) * fb_w;
 
         for px in x1..x2 {
             let dx = px - cx;
-            // [TC#21]: comparar contra r^2 sin sqrt
             if dx * dx + dy2 <= r2 {
                 unsafe {
                     *fb.get_unchecked_mut(row_start + px as usize) = color;
@@ -391,7 +508,6 @@ fn draw_char(fb: &mut [u32], fb_w: usize, fb_h: usize,
     }
 }
 
-/// Bitmap 5x7 para caracteres ASCII imprimibles
 fn get_glyph(ch: char) -> [u8; 7] {
     match ch {
         'A' => [0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11],
@@ -438,6 +554,8 @@ fn get_glyph(ch: char) -> [u8; 7] {
         '|' => [0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
         '(' => [0x02, 0x04, 0x08, 0x08, 0x08, 0x04, 0x02],
         ')' => [0x08, 0x04, 0x02, 0x02, 0x02, 0x04, 0x08],
+        '[' => [0x0E, 0x08, 0x08, 0x08, 0x08, 0x08, 0x0E],
+        ']' => [0x0E, 0x02, 0x02, 0x02, 0x02, 0x02, 0x0E],
         _ => [0x00; 7],
     }
 }
@@ -487,7 +605,7 @@ mod tests {
 
     #[test]
     fn test_glyph_all_chars() {
-        for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 :./-|()".chars() {
+        for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 :./-|()[]".chars() {
             let glyph = get_glyph(ch);
             assert_eq!(glyph.len(), 7, "Glyph for '{}' has wrong length", ch);
         }
@@ -528,6 +646,14 @@ mod tests {
         let mut fb = vec![0xFF_00_00_00u32; 100];
         fill_rect_alpha(&mut fb, 10, 10, 0, 0, 5, 5, 0x00_FF_00_00);
         assert_eq!(fb[0], 0xFF_00_00_00);
+    }
+
+    #[test]
+    fn test_draw_line_basic() {
+        let mut fb = vec![0xFF_00_00_00u32; 400];
+        draw_line(&mut fb, 20, 20, 2, 2, 18, 18, 0xFF_FF_00_00);
+        let drawn = fb.iter().filter(|&&p| p == 0xFF_FF_00_00).count();
+        assert!(drawn > 0, "draw_line debe dibujar al menos un pixel");
     }
 
     #[test]

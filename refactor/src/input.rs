@@ -1,0 +1,196 @@
+// Input handling optimizado para el juego
+//
+// TÉCNICA COMÚN #1 (aplicaciones): Debounce y Throttle Radical en Inputs
+// Los eventos de mouse/teclado se capturan una vez por frame,
+// no en cada evento del sistema operativo.
+//
+// TÉCNICA COMÚN #19 (aplicaciones): Event Delegation
+// Usamos bitfields para detectar múltiples teclas simultáneamente
+
+use minifb::{Key, MouseButton, MouseMode, Window};
+
+/// Estado de input para un frame
+#[derive(Clone, Debug, Default)]
+pub struct InputState {
+    /// Teclas presionadas en este frame (bitfield para hasta 128 teclas)
+    pub keys_down: u128,
+    /// Teclas que acaban de ser presionadas (flanco positivo)
+    pub keys_pressed: u128,
+    /// Teclas que acaban de ser soltadas (flanco negativo)
+    pub keys_released: u128,
+    /// Posición del mouse en coordenadas de ventana
+    pub mouse_x: f32,
+    pub mouse_y: f32,
+    /// Botones del mouse presionados
+    pub mouse_left: bool,
+    pub mouse_right: bool,
+    pub mouse_middle: bool,
+    /// Scroll vertical
+    pub scroll_delta: f32,
+    /// Si el mouse está dentro de la ventana
+    pub mouse_inside: bool,
+}
+
+// Mapeo de teclas comunes a índices de bitfield (máximo 128 teclas)
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum GameKey {
+    Escape = 0,
+    Space = 1,
+    Enter = 2,
+    Tab = 3,
+    Backspace = 4,
+    Delete = 5,
+    Left = 6,
+    Right = 7,
+    Up = 8,
+    Down = 9,
+    Shift = 10,
+    Control = 11,
+    Alt = 12,
+    Key1 = 13,
+    Key2 = 14,
+    Key3 = 15,
+    Key4 = 16,
+    Key5 = 17,
+    Key6 = 18,
+    Key7 = 19,
+    Key8 = 20,
+    Key9 = 21,
+    Key0 = 22,
+    A = 23, B = 24, C = 25, D = 26, E = 27,
+    F = 28, G = 29, H = 30, I = 31, J = 32,
+    K = 33, L = 34, M = 35, N = 36, O = 37,
+    P = 38, Q = 39, R = 40, S = 41, T = 42,
+    U = 43, V = 44, W = 45, X = 46, Y = 47, Z = 48,
+    Minus = 49,
+    Equals = 50,
+    PageUp = 51,
+    PageDown = 52,
+    Home = 53,
+    End = 54,
+    F1 = 55, F2 = 56, F3 = 57, F4 = 58, F5 = 59,
+}
+
+impl InputState {
+    /// Actualiza el estado de input desde la ventana (una vez por frame)
+    pub fn update(&mut self, window: &Window) {
+        let prev_keys = self.keys_down;
+
+        // Mouse
+        if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Clamp) {
+            self.mouse_x = mx;
+            self.mouse_y = my;
+            self.mouse_inside = true;
+        } else {
+            self.mouse_inside = false;
+        }
+
+        self.mouse_left = window.get_mouse_down(MouseButton::Left);
+        self.mouse_right = window.get_mouse_down(MouseButton::Right);
+        self.mouse_middle = window.get_mouse_down(MouseButton::Middle);
+
+        if let Some(scroll) = window.get_scroll_wheel() {
+            self.scroll_delta = scroll.1;
+        } else {
+            self.scroll_delta = 0.0;
+        }
+
+        // Construir bitfield de teclas
+        self.keys_down = 0;
+        for (key, game_key) in KEY_MAP.iter() {
+            if window.is_key_down(*key) {
+                self.keys_down |= 1u128 << (*game_key as u8);
+            }
+        }
+
+        // Detectar flancos
+        self.keys_pressed = self.keys_down & !prev_keys;
+        self.keys_released = !self.keys_down & prev_keys;
+    }
+
+    /// Tecla presionada (mantenida)
+    #[inline(always)]
+    pub fn is_key_down(&self, key: GameKey) -> bool {
+        (self.keys_down & (1u128 << (key as u8))) != 0
+    }
+
+    /// Tecla recién presionada en este frame (flanco)
+    #[inline(always)]
+    pub fn is_key_pressed(&self, key: GameKey) -> bool {
+        (self.keys_pressed & (1u128 << (key as u8))) != 0
+    }
+
+    /// Tecla recién soltada en este frame (flanco)
+    #[inline(always)]
+    pub fn is_key_released(&self, key: GameKey) -> bool {
+        (self.keys_released & (1u128 << (key as u8))) != 0
+    }
+}
+
+/// Mapa estático de teclas minifb 0.27 -> GameKey
+static KEY_MAP: &[(Key, GameKey)] = &[
+    (Key::Escape, GameKey::Escape),
+    (Key::Space, GameKey::Space),
+    (Key::Enter, GameKey::Enter),
+    (Key::Tab, GameKey::Tab),
+    (Key::Backspace, GameKey::Backspace),
+    (Key::Delete, GameKey::Delete),
+    (Key::Left, GameKey::Left),
+    (Key::Right, GameKey::Right),
+    (Key::Up, GameKey::Up),
+    (Key::Down, GameKey::Down),
+    (Key::LeftShift, GameKey::Shift),
+    (Key::RightShift, GameKey::Shift),
+    (Key::LeftCtrl, GameKey::Control),
+    (Key::RightCtrl, GameKey::Control),
+    (Key::LeftAlt, GameKey::Alt),
+    (Key::RightAlt, GameKey::Alt),
+    (Key::Key1, GameKey::Key1),
+    (Key::Key2, GameKey::Key2),
+    (Key::Key3, GameKey::Key3),
+    (Key::Key4, GameKey::Key4),
+    (Key::Key5, GameKey::Key5),
+    (Key::Key6, GameKey::Key6),
+    (Key::Key7, GameKey::Key7),
+    (Key::Key8, GameKey::Key8),
+    (Key::Key9, GameKey::Key9),
+    (Key::Key0, GameKey::Key0),
+    (Key::A, GameKey::A),
+    (Key::B, GameKey::B),
+    (Key::C, GameKey::C),
+    (Key::D, GameKey::D),
+    (Key::E, GameKey::E),
+    (Key::F, GameKey::F),
+    (Key::G, GameKey::G),
+    (Key::H, GameKey::H),
+    (Key::I, GameKey::I),
+    (Key::J, GameKey::J),
+    (Key::K, GameKey::K),
+    (Key::L, GameKey::L),
+    (Key::M, GameKey::M),
+    (Key::N, GameKey::N),
+    (Key::O, GameKey::O),
+    (Key::P, GameKey::P),
+    (Key::Q, GameKey::Q),
+    (Key::R, GameKey::R),
+    (Key::S, GameKey::S),
+    (Key::T, GameKey::T),
+    (Key::U, GameKey::U),
+    (Key::V, GameKey::V),
+    (Key::W, GameKey::W),
+    (Key::X, GameKey::X),
+    (Key::Y, GameKey::Y),
+    (Key::Z, GameKey::Z),
+    (Key::Minus, GameKey::Minus),
+    (Key::Equal, GameKey::Equals),
+    (Key::PageUp, GameKey::PageUp),
+    (Key::PageDown, GameKey::PageDown),
+    (Key::Home, GameKey::Home),
+    (Key::End, GameKey::End),
+    (Key::F1, GameKey::F1),
+    (Key::F2, GameKey::F2),
+    (Key::F3, GameKey::F3),
+    (Key::F4, GameKey::F4),
+    (Key::F5, GameKey::F5),
+];

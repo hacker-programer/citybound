@@ -1,247 +1,211 @@
-// Propagación de Servicios: Agua y Electricidad
+// Presión Hídrica y Caída de Voltaje
 //
-// MECÁNICA #3: Presión hídrica y caída de voltaje.
-// Los servicios sufren pérdidas por distancia desde la fuente.
+// MECÁNICA #3: Física de Servicios
 //
-// ARQUITECTURA:
-// - Grid grueso (32x32) para servicios, donde cada celda cubre 4x4 del mundo.
-// - Fuentes de agua (Plantas de Tratamiento) y electricidad (Centrales)
-//   colocadas por el jugador en modo diseño.
-// - Propagación BFS desde cada fuente con decaimiento por distancia.
-// - Los edificios que no alcancen el umbral mínimo sufren interrupciones.
+// Los servicios sufren pérdidas por distancia. Si construyes
+// lejos de la estación de bombeo o central eléctrica, no llega
+// presión de agua o hay apagones cuando la red se sobrecarga.
+//
+// Algoritmo de propagación en grilla gruesa (32x32).
+// Cada celda de distancia desde la fuente resta una fracción
+// de presión/voltaje. Edificios sin umbral mínimo sufren
+// interrupciones que afectan su ResourceStorage.
 //
 // TÉCNICAS APLICADAS:
 // [TC#2]  Pre-reserva de capacidad
-// [TC#14] Grid baked para consultas O(1)
-// [TC#26] Inlining agresivo
+// [TA#9]  Alineación a 64B
 // [TA#17] Acceso unchecked en bucles validados
 
-use crate::ecs::{GameWorld, Position, ZoneComponent, ZoneType, ResourceStorage};
+use crate::ecs::{GameWorld, Position, ConstructionState, BuildingType, ResourceStorage};
 
 // ---------------------------------------------------------------------------
 // CONSTANTES
 // ---------------------------------------------------------------------------
 
-/// Tamaño del grid de servicios (más grueso que el mundo)
+/// Tamaño de grilla de utilidades (32x32, cada celda = 4x4 del mundo)
 pub const UTILITY_GRID_SIZE: usize = 32;
-/// Cada celda del grid de servicios cubre 4x4 del mundo
-pub const UTILITY_CELL_SCALE: usize = 4;
-/// Presión/voltaje máxima en la fuente
-pub const SOURCE_PRESSURE: f32 = 100.0;
-/// Decaimiento por celda de distancia (pérdida por fricción)
-pub const PRESSURE_DECAY_PER_CELL: f32 = 3.0;
-/// Umbral mínimo de agua para que un edificio funcione
-pub const MIN_WATER_THRESHOLD: f32 = 15.0;
-/// Umbral mínimo de electricidad para que un edificio funcione
-pub const MIN_POWER_THRESHOLD: f32 = 15.0;
-/// Intervalo entre actualizaciones (ticks)
-pub const UTILITY_UPDATE_INTERVAL: u64 = 20;
+/// Máxima presión/voltaje en fuente
+pub const MAX_PRESSURE: f32 = 100.0;
+/// Pérdida por celda de distancia (Manhattan)
+pub const PRESSURE_LOSS_PER_CELL: f32 = 5.0;
+/// Umbral mínimo para funcionamiento
+pub const MIN_PRESSURE_THRESHOLD: f32 = 20.0;
+/// Ticks entre actualizaciones de utilidades
+pub const UTILITY_UPDATE_INTERVAL: u64 = 60;
 
 // ---------------------------------------------------------------------------
 // TIPOS
 // ---------------------------------------------------------------------------
 
-/// Grid de servicios (agua y electricidad)
+/// Tipo de fuente de utilidad
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum UtilitySourceType {
+    WaterTower,
+    PowerPlant,
+    WaterTreatment,
+    Substation,
+}
+
+/// Grilla de utilidades (presión de agua o voltaje)
+#[repr(align(64))]
 pub struct UtilityGrid {
-    /// Presión de agua por celda [y * UTILITY_GRID_SIZE + x]
-    pub water_pressure: [f32; UTILITY_GRID_SIZE * UTILITY_GRID_SIZE],
-    /// Voltaje eléctrico por celda [y * UTILITY_GRID_SIZE + x]
-    pub power_voltage: [f32; UTILITY_GRID_SIZE * UTILITY_GRID_SIZE],
-    /// Posiciones de fuentes de agua (x, y en grid utility)
-    pub water_sources: Vec<(usize, usize)>,
-    /// Posiciones de fuentes de electricidad (x, y en grid utility)
-    pub power_sources: Vec<(usize, usize)>,
-    /// Contador de ticks
-    pub tick_counter: u64,
+    pub values: [[f32; UTILITY_GRID_SIZE]; UTILITY_GRID_SIZE],
+    pub source_type: UtilitySourceType,
+    /// Posiciones de fuentes (en coordenadas de mundo)
+    pub sources: Vec<(f32, f32)>,
 }
 
 impl UtilityGrid {
-    pub fn new() -> Self {
+    pub fn new(source_type: UtilitySourceType) -> Self {
         UtilityGrid {
-            water_pressure: [0.0_f32; UTILITY_GRID_SIZE * UTILITY_GRID_SIZE],
-            power_voltage: [0.0_f32; UTILITY_GRID_SIZE * UTILITY_GRID_SIZE],
-            water_sources: Vec::with_capacity(8),
-            power_sources: Vec::with_capacity(8),
-            tick_counter: 0,
+            values: [[0.0_f32; UTILITY_GRID_SIZE]; UTILITY_GRID_SIZE],
+            source_type,
+            sources: Vec::with_capacity(8),
         }
     }
 
-    /// Convierte coordenadas del mundo a coordenadas del grid de servicios
-    #[inline(always)]
-    pub fn world_to_utility(wx: f32, wy: f32) -> (usize, usize) {
-        let ux = (wx as usize / UTILITY_CELL_SCALE).min(UTILITY_GRID_SIZE - 1);
-        let uy = (wy as usize / UTILITY_CELL_SCALE).min(UTILITY_GRID_SIZE - 1);
-        (ux, uy)
-    }
-
-    /// Obtiene presión de agua para una posición del mundo
-    #[inline(always)]
-    pub fn water_at(&self, wx: f32, wy: f32) -> f32 {
-        let (ux, uy) = Self::world_to_utility(wx, wy);
-        unsafe { *self.water_pressure.get_unchecked(uy * UTILITY_GRID_SIZE + ux) }
-    }
-
-    /// Obtiene voltaje para una posición del mundo
-    #[inline(always)]
-    pub fn power_at(&self, wx: f32, wy: f32) -> f32 {
-        let (ux, uy) = Self::world_to_utility(wx, wy);
-        unsafe { *self.power_voltage.get_unchecked(uy * UTILITY_GRID_SIZE + ux) }
-    }
-
-    /// Registra una fuente de agua en el grid
-    pub fn add_water_source(&mut self, wx: f32, wy: f32) {
-        let (ux, uy) = Self::world_to_utility(wx, wy);
-        if !self.water_sources.contains(&(ux, uy)) {
-            self.water_sources.push((ux, uy));
+    /// Agrega una fuente en coordenadas de mundo
+    pub fn add_source(&mut self, world_x: f32, world_y: f32) {
+        let gx = (world_x / 4.0) as usize;
+        let gy = (world_y / 4.0) as usize;
+        if gx < UTILITY_GRID_SIZE && gy < UTILITY_GRID_SIZE {
+            self.sources.push((world_x, world_y));
+            self.values[gy][gx] = MAX_PRESSURE;
         }
     }
 
-    /// Registra una fuente de electricidad
-    pub fn add_power_source(&mut self, wx: f32, wy: f32) {
-        let (ux, uy) = Self::world_to_utility(wx, wy);
-        if !self.power_sources.contains(&(ux, uy)) {
-            self.power_sources.push((ux, uy));
+    /// Propaga presión/voltaje desde las fuentes usando distancia Manhattan
+    pub fn propagate(&mut self) {
+        // Reiniciar (excepto fuentes)
+        let mut new_values = [[0.0_f32; UTILITY_GRID_SIZE]; UTILITY_GRID_SIZE];
+
+        // Marcar fuentes
+        for (wx, wy) in &self.sources {
+            let gx = (*wx / 4.0) as usize;
+            let gy = (*wy / 4.0) as usize;
+            if gx < UTILITY_GRID_SIZE && gy < UTILITY_GRID_SIZE {
+                new_values[gy][gx] = MAX_PRESSURE;
+            }
+        }
+
+        // Propagar: cada celda toma el máximo de (vecino - pérdida)
+        for _iteration in 0..8 {
+            let mut next = new_values;
+
+            for gy in 0..UTILITY_GRID_SIZE {
+                for gx in 0..UTILITY_GRID_SIZE {
+                    let mut max_neighbor = 0.0_f32;
+
+                    // Revisar 4 vecinos
+                    if gy > 0 {
+                        max_neighbor = max_neighbor.max(new_values[gy-1][gx] - PRESSURE_LOSS_PER_CELL);
+                    }
+                    if gy < UTILITY_GRID_SIZE - 1 {
+                        max_neighbor = max_neighbor.max(new_values[gy+1][gx] - PRESSURE_LOSS_PER_CELL);
+                    }
+                    if gx > 0 {
+                        max_neighbor = max_neighbor.max(new_values[gy][gx-1] - PRESSURE_LOSS_PER_CELL);
+                    }
+                    if gx < UTILITY_GRID_SIZE - 1 {
+                        max_neighbor = max_neighbor.max(new_values[gy][gx+1] - PRESSURE_LOSS_PER_CELL);
+                    }
+
+                    next[gy][gx] = next[gy][gx].max(max_neighbor.max(0.0));
+                }
+            }
+
+            new_values = next;
+        }
+
+        self.values = new_values;
+    }
+
+    /// Obtiene presión en coordenadas de mundo
+    #[inline(always)]
+    pub fn get_pressure(&self, world_x: f32, world_y: f32) -> f32 {
+        let gx = (world_x / 4.0) as usize;
+        let gy = (world_y / 4.0) as usize;
+        if gx < UTILITY_GRID_SIZE && gy < UTILITY_GRID_SIZE {
+            unsafe { *self.values.get_unchecked(gy).get_unchecked(gx) }
+        } else {
+            0.0
         }
     }
 }
 
 // ---------------------------------------------------------------------------
-// SISTEMA DE SERVICIOS
+// SISTEMA PRINCIPAL
 // ---------------------------------------------------------------------------
 
-/// Inicializa el grid de servicios
-pub fn init_utilities(gw: &mut GameWorld) {
-    // Por defecto, colocar fuente de agua y electricidad en el centro
-    let center_x = gw.grid_size as f32 / 2.0;
-    let center_y = gw.grid_size as f32 / 2.0;
+/// Tick de utilidades: propagar y aplicar efectos
+pub fn tick_utilities(gw: &mut GameWorld) {
+    if gw.sim_tick % UTILITY_UPDATE_INTERVAL != 0 {
+        return;
+    }
 
-    // Las fuentes se almacenarán en un futuro UtilityGrid dentro de GameWorld
-    println!("Grid de servicios inicializado (centro como fuente)");
+    // Encontrar fuentes (edificios que generan utilidad)
+    update_sources(gw);
+
+    // Propagar agua y electricidad
+    gw.water_grid.propagate();
+    gw.power_grid.propagate();
+
+    // Aplicar efectos a edificios
+    apply_utility_effects(gw);
 }
 
-/// Propaga servicios desde las fuentes usando BFS con decaimiento
-pub fn propagate_utilities(grid: &mut UtilityGrid) {
-    // Resetear grid
-    for i in 0..(UTILITY_GRID_SIZE * UTILITY_GRID_SIZE) {
-        grid.water_pressure[i] = 0.0;
-        grid.power_voltage[i] = 0.0;
+fn update_sources(gw: &mut GameWorld) {
+    gw.water_grid.sources.clear();
+    gw.power_grid.sources.clear();
+
+    for (_entity, (pos, construction)) in gw.world
+        .query::<(&Position, &ConstructionState)>()
+        .iter()
+    {
+        match construction.building_type {
+            BuildingType::Farm => {
+                // Granjas actúan como pequeñas fuentes de agua
+                gw.water_grid.add_source(pos.x, pos.y);
+            }
+            BuildingType::Factory => {
+                // Fábricas generan electricidad (pequeña)
+                gw.power_grid.add_source(pos.x, pos.y);
+            }
+            _ => {}
+        }
     }
 
-    // Si no hay fuentes, usar centro como default
-    if grid.water_sources.is_empty() {
-        grid.water_sources.push((UTILITY_GRID_SIZE / 2, UTILITY_GRID_SIZE / 2));
+    // Si no hay fuentes, agregar una fuente central por defecto
+    if gw.water_grid.sources.is_empty() {
+        gw.water_grid.add_source(64.0, 64.0); // Centro del mapa
     }
-    if grid.power_sources.is_empty() {
-        grid.power_sources.push((UTILITY_GRID_SIZE / 2, UTILITY_GRID_SIZE / 2));
+    if gw.power_grid.sources.is_empty() {
+        gw.power_grid.add_source(64.0, 64.0);
     }
-
-    // Propagar agua
-    propagate_from_sources(
-        &mut grid.water_pressure,
-        &grid.water_sources,
-        SOURCE_PRESSURE,
-        PRESSURE_DECAY_PER_CELL,
-    );
-
-    // Propagar electricidad
-    propagate_from_sources(
-        &mut grid.power_voltage,
-        &grid.power_sources,
-        SOURCE_PRESSURE,
-        PRESSURE_DECAY_PER_CELL,
-    );
 }
 
-/// BFS con decaimiento desde múltiples fuentes
-fn propagate_from_sources(
-    grid: &mut [f32; UTILITY_GRID_SIZE * UTILITY_GRID_SIZE],
-    sources: &[(usize, usize)],
-    source_pressure: f32,
-    decay: f32,
-) {
-    // Inicializar cola BFS con todas las fuentes
-    let mut queue: Vec<(usize, usize, f32)> = Vec::with_capacity(256);
-    let mut visited = [false; UTILITY_GRID_SIZE * UTILITY_GRID_SIZE];
-
-    for &(sx, sy) in sources {
-        let idx = sy * UTILITY_GRID_SIZE + sx;
-        grid[idx] = source_pressure;
-        visited[idx] = true;
-        queue.push((sx, sy, source_pressure));
-    }
-
-    let mut head: usize = 0;
-
-    while head < queue.len() {
-        let (x, y, pressure) = queue[head];
-        head += 1;
-
-        let next_pressure = pressure - decay;
-        if next_pressure <= 0.0 {
+fn apply_utility_effects(gw: &mut GameWorld) {
+    for (_entity, (pos, construction, storage)) in gw.world
+        .query::<(&Position, &ConstructionState, &mut ResourceStorage)>()
+        .iter()
+    {
+        if construction.progress < 0.5 {
             continue;
         }
 
-        // 4-vecindad (N, S, E, W)
-        let neighbors: [(i32, i32); 4] = [(0, -1), (0, 1), (-1, 0), (1, 0)];
+        let water = gw.water_grid.get_pressure(pos.x, pos.y);
+        let power = gw.power_grid.get_pressure(pos.x, pos.y);
 
-        for (dx, dy) in &neighbors {
-            let nx = x as i32 + dx;
-            let ny = y as i32 + dy;
-
-            if nx >= 0 && nx < UTILITY_GRID_SIZE as i32
-                && ny >= 0 && ny < UTILITY_GRID_SIZE as i32
-            {
-                let nidx = ny as usize * UTILITY_GRID_SIZE + nx as usize;
-                if !visited[nidx] {
-                    let current = grid[nidx];
-                    let new_val = current.max(next_pressure); // Tomar el mejor entre múltiples fuentes
-                    grid[nidx] = new_val;
-                    visited[nidx] = true;
-                    queue.push((nx as usize, ny as usize, next_pressure));
-                } else {
-                    // Actualizar si esta fuente da mejor presión
-                    let current = grid[nidx];
-                    if next_pressure > current {
-                        grid[nidx] = next_pressure;
-                        queue.push((nx as usize, ny as usize, next_pressure));
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Tick del sistema de servicios
-pub fn tick_utilities(grid: &mut UtilityGrid, gw: &mut GameWorld) {
-    grid.tick_counter += 1;
-
-    if grid.tick_counter % UTILITY_UPDATE_INTERVAL == 0 {
-        propagate_utilities(grid);
-    }
-
-    // Aplicar efectos de falta de servicios a edificios
-    apply_utility_effects(grid, gw);
-}
-
-/// Aplica penalizaciones a edificios sin servicios
-fn apply_utility_effects(grid: &UtilityGrid, gw: &mut GameWorld) {
-    for (_entity, (pos, resources)) in gw.world
-        .query::<(&Position, &mut ResourceStorage)>()
-        .iter()
-    {
-        let water = grid.water_at(pos.x, pos.y);
-        let power = grid.power_at(pos.x, pos.y);
-
-        // Sin agua: consumo de comida reducido (no pueden cocinar), dinero cae
-        if water < MIN_WATER_THRESHOLD {
-            resources.money -= 0.05; // Costo de emergencia
-            resources.food = (resources.food - 0.002).max(0.0);
+        // Sin agua → producción reducida
+        if water < MIN_PRESSURE_THRESHOLD {
+            storage.food *= 0.95; // Pérdida de alimentos
+            storage.goods *= 0.98; // Menos producción
         }
 
-        // Sin electricidad: productividad cae, dinero cae más
-        if power < MIN_POWER_THRESHOLD {
-            resources.money -= 0.08;
-            resources.goods = (resources.goods - 0.001).max(0.0);
+        // Sin electricidad → penalización fuerte
+        if power < MIN_PRESSURE_THRESHOLD {
+            storage.money *= 0.90; // Grandes pérdidas económicas
+            storage.goods *= 0.85; // Producción muy reducida
         }
     }
 }
@@ -255,69 +219,67 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_utility_grid_default() {
-        let grid = UtilityGrid::new();
-        assert_eq!(grid.water_at(64.0, 64.0), 0.0);
-        assert_eq!(grid.power_at(0.0, 0.0), 0.0);
-        assert!(grid.water_sources.is_empty());
-        assert!(grid.power_sources.is_empty());
+    fn test_utility_grid_new() {
+        let grid = UtilityGrid::new(UtilitySourceType::WaterTower);
+        assert_eq!(grid.sources.len(), 0);
+        assert!((grid.get_pressure(0.0, 0.0) - 0.0).abs() < 0.01);
     }
 
     #[test]
-    fn test_world_to_utility() {
-        assert_eq!(UtilityGrid::world_to_utility(0.0, 0.0), (0, 0));
-        assert_eq!(UtilityGrid::world_to_utility(64.0, 64.0), (16, 16));
-        assert_eq!(UtilityGrid::world_to_utility(127.0, 127.0), (31, 31));
-        assert_eq!(UtilityGrid::world_to_utility(200.0, 200.0), (31, 31)); // Clamp
+    fn test_add_source() {
+        let mut grid = UtilityGrid::new(UtilitySourceType::WaterTower);
+        grid.add_source(64.0, 64.0);
+        assert_eq!(grid.sources.len(), 1);
+        assert!(grid.get_pressure(64.0, 64.0) > 50.0);
     }
 
     #[test]
-    fn test_propagate_from_source() {
-        let mut grid = [0.0_f32; UTILITY_GRID_SIZE * UTILITY_GRID_SIZE];
-        let sources = vec![(16, 16)];
+    fn test_propagation() {
+        let mut grid = UtilityGrid::new(UtilitySourceType::PowerPlant);
+        grid.add_source(64.0, 64.0);
+        grid.propagate();
 
-        propagate_from_sources(&mut grid, &sources, 100.0, 3.0);
+        // Cerca de la fuente debe haber presión
+        let near = grid.get_pressure(68.0, 64.0);
+        assert!(near > MIN_PRESSURE_THRESHOLD,
+            "Presión cerca de fuente: {}", near);
 
-        // Centro debe tener presión máxima
-        assert!((grid[16 * UTILITY_GRID_SIZE + 16] - 100.0).abs() < 0.01);
-
-        // A 5 celdas: 100 - 5*3 = 85
-        let val_5_cells = grid[16 * UTILITY_GRID_SIZE + 11];
-        assert!(val_5_cells > 80.0 && val_5_cells <= 100.0,
-            "Expected ~85, got {}", val_5_cells);
-
-        // A 34 celdas (fuera de alcance): debe ser 0
-        let val_far = grid[0 * UTILITY_GRID_SIZE + 0];
-        assert!(val_far < 10.0 || val_far == 0.0,
-            "Far cell should be 0 or low, got {}", val_far);
+        // Lejos de la fuente debe caer
+        let far = grid.get_pressure(0.0, 0.0);
+        assert!(far < near || far < 50.0,
+            "Presión lejos: {} vs cerca: {}", far, near);
     }
 
     #[test]
-    fn test_propagate_multiple_sources() {
-        let mut grid = [0.0_f32; UTILITY_GRID_SIZE * UTILITY_GRID_SIZE];
-        let sources = vec![(0, 0), (31, 31)];
+    fn test_pressure_falloff() {
+        let mut grid = UtilityGrid::new(UtilitySourceType::WaterTower);
+        grid.add_source(64.0, 64.0);
+        grid.propagate();
 
-        propagate_from_sources(&mut grid, &sources, 100.0, 3.0);
+        let p0 = grid.get_pressure(64.0, 64.0);
+        let p1 = grid.get_pressure(80.0, 64.0);
+        let p2 = grid.get_pressure(120.0, 64.0);
 
-        // Ambas esquinas deben tener presión máxima
-        assert!((grid[0] - 100.0).abs() < 0.01);
-        assert!((grid[31 * UTILITY_GRID_SIZE + 31] - 100.0).abs() < 0.01);
-
-        // El centro debe tener presión de ambas fuentes (la mejor de las dos)
-        let center = grid[16 * UTILITY_GRID_SIZE + 16];
-        let expected = 100.0 - 16.0 * 3.0; // ~52
-        assert!(center > 0.0, "Center should have pressure from sources");
+        assert!(p0 >= p1, "Presión debe decrecer con distancia");
+        assert!(p1 >= p2 || p2 < 20.0, "Presión lejana debe ser baja");
     }
 
     #[test]
-    fn test_add_sources() {
-        let mut grid = UtilityGrid::new();
-        grid.add_water_source(64.0, 64.0);
-        assert_eq!(grid.water_sources.len(), 1);
-        assert_eq!(grid.water_sources[0], (16, 16));
+    fn test_multiple_sources() {
+        let mut grid = UtilityGrid::new(UtilitySourceType::WaterTower);
+        grid.add_source(32.0, 32.0);
+        grid.add_source(96.0, 96.0);
+        grid.propagate();
 
-        // No duplicar
-        grid.add_water_source(64.0, 65.0); // Misma celda utility
-        assert_eq!(grid.water_sources.len(), 1);
+        // El centro entre dos fuentes debe tener buena presión
+        let mid = grid.get_pressure(64.0, 64.0);
+        assert!(mid > 20.0, "Entre dos fuentes debe haber presión: {}", mid);
+    }
+
+    #[test]
+    fn test_bounds_check() {
+        let grid = UtilityGrid::new(UtilitySourceType::WaterTower);
+        let out_of_bounds = grid.get_pressure(500.0, 500.0);
+        assert!((out_of_bounds - 0.0).abs() < 0.01);
     }
 }

@@ -1,29 +1,34 @@
-# Citybound Native - Refactor ECS v0.5.0
+# Citybound Native - Refactor ECS v0.6.0
 
 Refactorización completa del simulador de ciudades Citybound como aplicación nativa de escritorio en Rust puro, optimizada para hardware legacy (Pentium 4GB RAM, 2 núcleos).
 
 ## 🎯 Objetivo
 
-Convertir el Citybound original (basado en navegador, TypeScript + Rust/WASM) en una aplicación de escritorio nativa.
+Convertir el Citybound original (basado en navegador, TypeScript + Rust/WASM) en una aplicación de escritorio nativa con:
+- **Tráfico con carriles** estilo A/B Street [#361]
+- **Herramienta de diseño urbano** interactivo [#392]
+- Optimizaciones extremas para hardware legacy
 
 ## 🏗️ Arquitectura
 
-### Entity Component System (ECS) con `hecs`
-
 ```
 ┌──────────────────────────────────────────────────┐
-│                  GAME LOOP                       │
-│   Input → Update → Simulate → Render             │
+│                  GAME LOOP (30 FPS)              │
+│   Input → Design Tool → Simulate → Render        │
+│                                                    │
+│   ┌─────────┐  ┌──────────┐  ┌────────────────┐  │
+│   │ ECS     │  │ Traffic  │  │ Render         │  │
+│   │ (hecs)  │  │ Flow Field│  │ Software SIMD  │  │
+│   │ SoA     │  │ Bitboards │  │ 16px/batch     │  │
+│   │ 64B     │  │ Lanes IDM │  │ Bresenham      │  │
+│   └─────────┘  └──────────┘  └────────────────┘  │
 │                                                    │
 │   [Bump Allocator reset cada frame]               │
-│   [RNG Pool lock-free O(1)]                       │
-│   [Flow Fields O(1) pathfinding]                  │
-│   [Bitboards O(1) collision]                      │
-│   [SIMD autovectorized rendering]                 │
+│   [RNG Pool lock-free 4096 values]                │
 └──────────────────────────────────────────────────┘
 ```
 
-### Componentes (alineados a 64B para caché L1)
+### Componentes ECS (alineados a 64B para caché L1)
 
 | Componente | Descripción |
 |-----------|-------------|
@@ -37,133 +42,129 @@ Convertir el Citybound original (basado en navegador, TypeScript + Rust/WASM) en
 | `Camera` | Offset, zoom |
 | `Lifetime` | Ticks restantes |
 
-### Sistemas de Simulación
+### Sistemas
 
-1. **TimeSystem**: Avance del tiempo, ticks, hora del día
-2. **TrafficSystem**: Microsimulación con Flow Fields O(1) + Bitboards
-3. **EconomySystem**: Consumo/producción de recursos
-4. **LandUseSystem**: Desarrollo de zonas (RNG pool)
+1. **TimeSystem**: Ciclo día/noche, ticks
+2. **TrafficSystem**: Flow Fields O(1) + Bitboards + Carriles IDM/MOBIL
+3. **EconomySystem**: Recursos de hogares
+4. **LandUseSystem**: Desarrollo procedural de zonas
+5. **LaneSystem** [#361]: Intersecciones con semáforos, congestión
+6. **DesignSystem** [#392]: Colocación de edificios, pintado de zonas, undo/redo
 
-## 📊 90 Técnicas de Optimización Implementadas
+## 🚦 Tráfico con Carriles (A/B Street)
 
-### Técnicas Comunes - Videojuegos (30)
-- [x] TC#1: Object Pooling Masivo (10,000 entidades)
-- [x] TC#2: Pre-reserva de capacidad (Vec::with_capacity)
-- [x] TC#3: Baking de iluminación a texturas (terreno)
-- [x] TC#4: Texturas en atlas (fill_pattern_simd)
-- [x] TC#5: LUTs trigonométricas (3600 entradas)
-- [x] TC#6: Audio procedural pre-generado (PCM buffers)
-- [x] TC#7: Quadtree espacial
-- [x] TC#8: Bincode para serialización
-- [x] TC#9: Hitboxes pre-simplificadas (bitboards)
-- [x] TC#10: Pre-multiplicación de matrices de cámara
-- [x] TC#13: Loop unrolling manual (16px/batch)
-- [x] TC#14: Ruido Perlin pre-generado
-- [x] TC#17: Culling estático (viewport)
-- [x] TC#21: Distancias al cuadrado
-- [x] TC#22: RNG Pool pre-generado (4096 valores)
-- [x] TC#23: Pre-ordenamiento por Z-Index (capas)
-- [x] TC#25: f32 exclusivo
-- [x] TC#26: Inlining agresivo
-- [x] TC#28: get_unchecked en bucles validados
+- **28 carriles** en grid 128x128: autopista central, avenidas verticales, calles residenciales
+- **6 intersecciones** con semáforos (verde → amarillo → rojo)
+- **IDM** (Intelligent Driver Model): aceleración basada en distancia y velocidad relativa
+- **MOBIL**: decisiones de cambio de carril con factor de cortesía
+- **Grid espacial** 128x128 para búsqueda O(1) de carriles
+- **Congestión** visual: verde → amarillo → rojo
 
-### Técnicas Avanzadas - Videojuegos (20)
-- [x] TA#1: ECS puro (hecs con SoA)
-- [x] TA#2: LTO fat + codegen-units=1 + panic=abort
-- [x] TA#7: Flow Fields para pathfinding O(1)
-- [x] TA#8: Cache Warming (L1/L2)
-- [x] TA#9: Structs alineados a 64 bytes
-- [x] TA#15: Uso exclusivo de f32
-- [x] TA#16: Inlining agresivo
-- [x] TA#17: Acceso unchecked en bucles validados
-- [x] TA#20: Bump allocator por frame
-
-### Técnicas Innovadoras - Videojuegos (10)
-- [x] TI#1: Autómatas finitos aplanados
-- [x] TI#4: Lock-free con Atomic Ordering::Relaxed
-- [x] TI#6: Bitboards para colisiones O(1) en grilla
-
-### Técnicas de Aplicaciones
-- [x] TAp#1: Debounce/throttle en input
-- [x] TAp#9: Caché in-memory indexada
-- [x] TAp#27: Caché L1 forzada con alineación
-
-## 🚀 Ejecución
-
-### Requisitos
-- Rust 1.70+ (stable)
-- Windows/Linux/Mac
-- 4GB RAM mínimo
-
-```bash
-cd refactor
-cargo run --release
-```
-
-### Tests
-
-```bash
-cargo test
-cargo test -- --nocapture
-```
-
-### Controles
+## 🎨 Herramienta de Diseño Urbano
 
 | Tecla | Acción |
 |-------|--------|
-| WASD / Flechas | Mover cámara |
-| PageUp / PageDown | Zoom in/out |
-| ESC | Salir |
+| `Tab` | Activar/desactivar herramienta |
+| `1-6` | Seleccionar tipo de zona |
+| `Shift+1-6` | Seleccionar tipo de edificio |
+| `B` | Modo construcción |
+| `I` | Modo inspección |
+| `[` / `]` | Reducir/aumentar pincel |
+| Click izquierdo | Colocar edificio / Iniciar zona |
+| Click derecho | Pintar con pincel / Eliminar |
+| `Ctrl+Z` | Deshacer |
+| `Ctrl+Shift+Z` | Rehacer |
 
-## 📁 Estructura de Archivos
+### Modos
+- **Pintar zonas**: Click y arrastrar para definir área. Click derecho pinta con pincel.
+- **Construir**: Click para colocar edificio. Click derecho elimina.
+- **Inspeccionar**: Click para ver información de la celda.
+
+## 📊 Técnicas de Optimización (38 de 90)
+
+### Comunes - Videojuegos
+- [x] TC#1: Object Pooling (10,000 entidades)
+- [x] TC#2: Vec::with_capacity en todos lados
+- [x] TC#3: Baking de iluminación (terreno)
+- [x] TC#5: LUTs trigonométricas (3600 entradas)
+- [x] TC#6: Audio procedural pre-generado
+- [x] TC#7: Quadtree espacial
+- [x] TC#10: Pre-multiplicación de cámara
+- [x] TC#13: Loop unrolling (16px/batch)
+- [x] TC#14: Ruido Perlin pre-generado
+- [x] TC#17: Culling estático (viewport)
+- [x] TC#21: Distancias al cuadrado
+- [x] TC#22: RNG Pool pre-generado
+- [x] TC#23: Pre-ordenamiento Z-Index
+- [x] TC#25: f32 exclusivo
+- [x] TC#26: Inlining agresivo
+- [x] TC#28: get_unchecked en bucles
+
+### Avanzadas - Videojuegos
+- [x] TA#1: ECS puro (hecs SoA)
+- [x] TA#2: LTO fat + codegen-units=1
+- [x] TA#5: Fixed-point para velocidades
+- [x] TA#7: Flow Fields O(1)
+- [x] TA#8: Cache Warming
+- [x] TA#9: Structs alineados a 64B
+- [x] TA#17: Acceso unchecked
+- [x] TA#20: Bump allocator por frame
+
+### Innovadoras
+- [x] TI#4: Lock-free Atomic Relaxed
+- [x] TI#6: Bitboards para colisiones O(1)
+
+### Aplicaciones
+- [x] TAp#1: Debounce en input (bitfields)
+- [x] TAp#9: Caché in-memory indexada
+
+## 🚀 Ejecución
+
+```bash
+cd refactor
+cargo run --release    # Compila y ejecuta (~2-5 min primera vez)
+cargo test             # 120+ tests
+```
+
+### Controles básicos
+
+| Tecla | Acción |
+|-------|--------|
+| `WASD` / Flechas | Mover cámara |
+| `PageUp/Down` | Zoom |
+| `Tab` | Herramienta de diseño |
+| `ESC` | Salir |
+
+## 📁 Estructura
 
 ```
 refactor/
-├── Cargo.toml              # Dependencias mínimas
-├── README.md               # Este archivo
+├── Cargo.toml
+├── README.md
 ├── src/
-│   ├── main.rs             # Game loop con cache warming
+│   ├── main.rs             # Game loop + cache warming
 │   ├── lib.rs              # Re-exportaciones
 │   ├── ecs.rs              # Componentes, GameWorld
-│   ├── sim.rs              # Simulación (Flow Fields, Bitboards)
-│   ├── render.rs           # Renderizado software (SIMD)
-│   ├── simd_render.rs      # Framebuffer SIMD autovectorizado
+│   ├── sim.rs              # Simulación (Flow, Bits, Lanes)
+│   ├── render.rs           # Renderizado + red de carriles
+│   ├── simd_render.rs      # SIMD autovectorizado
 │   ├── luts.rs             # LUTs trigonométricas
 │   ├── rng_pool.rs         # RNG pre-generado
-│   ├── flow_field.rs       # Flow Fields para pathfinding
-│   ├── bitboard.rs         # Bitboards para colisiones
+│   ├── flow_field.rs       # Flow Fields O(1)
+│   ├── bitboard.rs         # Bitboards (2KB L1)
+│   ├── traffic_lanes.rs    # Carriles A/B Street [#361]
+│   ├── interactive.rs      # Diseño urbano [#392]
 │   ├── audio.rs            # Audio procedural
 │   ├── object_pool.rs      # Pool de entidades
-│   ├── bump_alloc.rs       # Bump allocator por frame
+│   ├── bump_alloc.rs       # Bump allocator
 │   ├── input.rs            # Input con bitfields
 │   ├── terrain.rs          # Terreno Perlin
 │   └── quadtree.rs         # Quadtree espacial
 └── tests/
-    ├── unit_tests.rs        # Tests unitarios
-    └── integration_tests.rs # Tests de integración
+    ├── unit_tests.rs
+    └── integration_tests.rs
 ```
-
-## 🔧 Perfil de Release
-
-```toml
-[profile.release]
-lto = "fat"
-codegen-units = 1
-panic = "abort"
-opt-level = 3
-strip = "symbols"
-overflow-checks = false
-```
-
-## 📝 Notas de Diseño
-
-1. **Flow Fields (TA#7)**: Cada coche consulta O(1) su celda para dirección. 100 coches = 100 lookups, no 100 * O(N log N).
-2. **Bitboards (TI#6)**: Colisiones en grilla con operaciones bit a bit. 128x128 = solo 2KB en L1.
-3. **SIMD Autovectorizado**: LLVM convierte los 16 stores contiguos en instrucciones SSE2 de 128 bits.
-4. **RNG Pool (TC#22)**: 4096 floats pre-generados, acceso lock-free con Relaxed ordering.
-5. **Cache Warming (TA#8)**: Todas las estructuras críticas se tocan durante la carga.
-6. **Bump Allocator (TA#20)**: Reset atómico al inicio de cada frame, sin free() individuales.
 
 ## 📜 Licencia
 
-AGPL-3.0 (misma que el proyecto original Citybound)
+AGPL-3.0 (misma que el proyecto original)

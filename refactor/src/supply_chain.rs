@@ -489,8 +489,8 @@ mod tests {
 
         tick_shop_consumption(&mut gw);
 
-        let timer = gw.world.query::<&SupplyTimer>()
-            .iter()
+        let mut query = gw.world.query::<&SupplyTimer>();
+        let timer = query.iter()
             .find(|(_, s)| s.ticks_without_supply == 0);
         assert!(timer.is_some(), "Supply timer debe resetearse con bienes");
     }

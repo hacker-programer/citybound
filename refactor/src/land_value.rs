@@ -289,7 +289,7 @@ fn apply_gentrification(gw: &mut GameWorld) {
     }
 
     for (x, y) in to_degrade {
-        // Degradar edificio: reducir progreso (se vuelve ruinoso)
+        let mut to_abandon: Vec<(f32, f32)> = Vec::new();
         for (_entity, (_pos, construction, _storage)) in gw.world
             .query::<(&Position, &mut ConstructionState, &ResourceStorage)>()
             .iter()
@@ -300,14 +300,16 @@ fn apply_gentrification(gw: &mut GameWorld) {
                 construction.progress -= 0.05;
                 if construction.progress < 0.1 {
                     construction.progress = 0.0;
-                    // Marcar como abandonado
-                    gw.world.spawn((
-                        Position::new(x, y),
-                        crate::supply_chain::AbandonedBuilding { abandoned_ticks: 0 },
-                        Renderable::rect(0xFF_66_44_44, 3.0, 3),
-                    ));
+                    to_abandon.push((x, y));
                 }
             }
+        }
+        for (ax, ay) in to_abandon {
+            gw.world.spawn((
+                Position::new(ax, ay),
+                crate::supply_chain::AbandonedBuilding { abandoned_ticks: 0 },
+                Renderable::rect(0xFF_66_44_44, 3.0, 3),
+            ));
         }
     }
 }
@@ -345,10 +347,10 @@ pub fn pollution_color(value: f32) -> u32 {
     if normalized < 0.3 {
         0x00_00_00_00 // Transparente
     } else if normalized < 0.6 {
-        let alpha = ((normalized - 0.3) * 3.33 * 0x66) as u32;
+        let alpha = ((normalized - 0.3) * 3.33_f32 * 0x66_f32) as u32;
         (alpha << 24) | 0x00_AA_AA_00 // Amarillo sucio
     } else {
-        let alpha = ((normalized - 0.6) * 2.5 * 0x88) as u32;
+        let alpha = ((normalized - 0.6) * 2.5_f32 * 0x88_f32) as u32;
         (alpha << 24) | 0x00_FF_44_00 // Rojo contaminación
     }
 }

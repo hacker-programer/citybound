@@ -5,13 +5,14 @@
 //
 // SUBSISTEMAS:
 // - time: Avance del tiempo, hora del día, ticks
-// - traffic: Microsimulación de tráfico (versión simplificada)
+// - traffic: Microsimulación de tráfico usando Quadtree [TC#7]
 // - economy: Economía de hogares y recursos
 // - land_use: Zonificación y desarrollo de terrenos
 
 use crate::ecs::{GameWorld, Position, Velocity, TrafficCar, ZoneComponent, ZoneType,
                   ResourceStorage, ConstructionState, Lifetime, BuildingType};
 use crate::ecs::Renderable;
+use crate::quadtree::AABB;
 
 // ---------------------------------------------------------------------------
 // INICIALIZACIÓN DE SIMULACIÓN
@@ -33,7 +34,7 @@ pub fn tick(game_world: &mut GameWorld, dt: f32) {
     // 1. Avanzar tiempo
     tick_time(game_world);
 
-    // 2. Actualizar tráfico
+    // 2. Actualizar tráfico con quadtree [TC#7]
     tick_traffic(game_world, dt);
 
     // 3. Actualizar economía
@@ -76,54 +77,71 @@ pub fn formatted_time(time_of_day: u16) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// SISTEMA DE TRÁFICO (Microsimulación simplificada)
+// SISTEMA DE TRÁFICO (Microsimulación con Quadtree)
 //
-// Implementa una versión simplificada del motor de microtráfico original.
-// Los coches aceleran/desaceleran basado en el coche de adelante.
-// La lógica de cambio de carril y pathfinding se simplifica
-// para ajustarse al hardware objetivo (Pentium 4GB).
+// TÉCNICA COMÚN #7: Árboles de Colisión - Quadtree
+// Usamos el quadtree para encontrar coches vecinos en O(log N)
+// en lugar de iterar sobre todos los coches en O(N).
+//
+// TÉCNICA COMÚN #21: Pre-cálculo de distancias al cuadrado
+// Comparamos distancias² para evitar sqrt() en cada comprobación.
 // ---------------------------------------------------------------------------
 
-/// Distancia mínima entre coches (en celdas)
-const MIN_CAR_DISTANCE: f32 = 2.0;
+/// Distancia mínima entre coches al cuadrado [TC#21]
+const MIN_CAR_DISTANCE_SQ: f32 = 4.0; // 2.0²
 /// Aceleración máxima (m/s²)
 const MAX_ACCELERATION: f32 = 3.0;
 /// Desaceleración máxima (m/s²)
 const MAX_DECELERATION: f32 = 6.0;
+/// Radio de búsqueda de vecinos para quadtree al cuadrado [TC#21]
+const NEIGHBOR_SEARCH_RADIUS_SQ: f32 = 100.0; // 10.0²
 
 fn tick_traffic(game_world: &mut GameWorld, dt: f32) {
-    // Técnica: recolectar posiciones de coches para detección de colisiones
-    let mut car_positions: Vec<(f32, f32)> = Vec::with_capacity(128);
+    // Reconstruir quadtree con posiciones actuales de coches
+    game_world.quadtree.clear();
 
-    // Primera pasada: recolectar posiciones
-    for (_entity, (pos, _car)) in game_world.world.query::<(&Position, &TrafficCar)>().iter() {
-        car_positions.push((pos.x, pos.y));
+    // Registrar todos los coches en el quadtree
+    let mut car_handles: Vec<(hecs::Entity, crate::quadtree::QuadEntity)> = Vec::with_capacity(64);
+
+    for (entity, (pos, _car)) in game_world.world.query::<(&Position, &TrafficCar)>().iter() {
+        let bounds = AABB::new(pos.x - 0.5, pos.y - 0.5, 1.0, 1.0);
+        let qh = game_world.quadtree.insert(bounds);
+        car_handles.push((entity, qh));
     }
 
-    // [TC#23]: Pre-ordenar por posición para detección de coche delantero
-    car_positions.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-
-    // Segunda pasada: aplicar física de tráfico
-    // Usamos query mutable sobre Position, Velocity, y TrafficCar
-    for (_entity, (pos, vel, car)) in game_world.world
+    // Para cada coche, buscar vecinos con quadtree y ajustar velocidad
+    for (entity, (pos, vel, car)) in game_world.world
         .query::<(&mut Position, &mut Velocity, &mut TrafficCar)>()
         .iter()
     {
-        // Buscar coche delantero (el más cercano con x mayor)
-        let mut distance_to_next: f32 = f32::MAX;
+        // [TC#21]: distancia mínima al cuadrado para evitar sqrt
+        let mut closest_dist_sq: f32 = f32::MAX;
 
-        for &(cx, _cy) in &car_positions {
-            let dx = cx - pos.x;
-            if dx > 0.0 && dx < distance_to_next {
-                distance_to_next = dx;
-            }
-        }
+        // Usar quadtree para encontrar coches cercanos [TC#7]
+        game_world.quadtree.query_radius(
+            pos.x, pos.y,
+            NEIGHBOR_SEARCH_RADIUS_SQ,
+            &mut |qh| {
+                if let Some(bounds) = game_world.quadtree.get_bounds(qh) {
+                    let dx = bounds.x - pos.x;
+                    let dy = bounds.y - pos.y;
+                    let dist_sq = dx * dx + dy * dy; // [TC#21]: sin sqrt
+                    if dist_sq > 0.001 && dist_sq < closest_dist_sq {
+                        closest_dist_sq = dist_sq;
+                    }
+                }
+            },
+        );
 
-        // Calcular aceleración deseada (modelo simplificado)
-        let safe_distance = car.speed * 2.0 + MIN_CAR_DISTANCE;
-        let desired_accel: f32 = if distance_to_next < safe_distance {
+        // [TC#21]: comparar contra distancia mínima al cuadrado
+        let safe_distance_sq = {
+            let sd = car.speed * 2.0 + 2.0; // Distancia segura = velocidad * 2 + mínima
+            sd * sd
+        };
+
+        let desired_accel: f32 = if closest_dist_sq < safe_distance_sq && closest_dist_sq > 0.001 {
             // Frenar proporcionalmente a la urgencia
-            let urgency = (safe_distance - distance_to_next) / safe_distance;
+            let urgency = (safe_distance_sq - closest_dist_sq) / safe_distance_sq;
             -MAX_DECELERATION * urgency.min(1.0)
         } else if car.speed < car.max_speed {
             // Acelerar suavemente hacia velocidad máxima
@@ -136,14 +154,12 @@ fn tick_traffic(game_world: &mut GameWorld, dt: f32) {
         car.acceleration = desired_accel.clamp(-MAX_DECELERATION, MAX_ACCELERATION);
         car.speed = (car.speed + car.acceleration * dt).clamp(0.0, car.max_speed);
 
-        // Actualizar posición horizontal (eje X para tráfico simplificado)
+        // Actualizar posición horizontal
         pos.x += car.speed * dt;
-        // Wrap-around para simulación continua
-        if pos.x > 127.0 {
-            pos.x = 0.0;
+        if pos.x > game_world.grid_size as f32 - 1.0 {
+            pos.x = 1.0;
         }
 
-        // Sincronizar velocidad con el componente Velocity
         vel.dx = car.speed;
         vel.dy = 0.0;
     }
@@ -171,8 +187,6 @@ fn tick_economy(game_world: &mut GameWorld, dt: f32) {
 // ---------------------------------------------------------------------------
 
 fn tick_land_use(game_world: &mut GameWorld) {
-    // Desarrollo de zonas: cada tick, algunas zonas pueden desarrollar edificios
-
     let mut to_spawn: Vec<(f32, f32, ZoneType)> = Vec::with_capacity(16);
 
     for (_entity, (pos, zone)) in game_world.world
@@ -180,14 +194,12 @@ fn tick_land_use(game_world: &mut GameWorld) {
         .iter()
     {
         if zone.density > 0 {
-            // Probabilidad baja de desarrollo por tick (~0.01%)
             if fast_random(pos.x as u64 + pos.y as u64 + game_world.sim_tick) < 0.0001 {
                 to_spawn.push((pos.x, pos.y, zone.zone_type));
             }
         }
     }
 
-    // Spawnear nuevos edificios
     for (x, y, ztype) in to_spawn {
         let (color, btype) = match ztype {
             ZoneType::Residential => (0xFF_66_BB_6A, BuildingType::House),
@@ -257,7 +269,6 @@ mod tests {
         assert_eq!(gw.time_of_day, 7 * 60);
         assert_eq!(gw.sim_tick, 0);
 
-        // 180 ticks = 60 segundos simulados (a 3 ticks/s)
         for _ in 0..180 {
             tick_time(&mut gw);
         }
@@ -278,16 +289,14 @@ mod tests {
         let mut gw = ecs::create_world(&mut pool);
 
         let car_count_before = gw.world.query::<&TrafficCar>().iter().count();
-        assert_eq!(car_count_before, 100);
+        assert_eq!(car_count_before, 40);
 
-        // Ejecutar varios ticks de tráfico
         for _ in 0..10 {
             tick_traffic(&mut gw, 0.1);
         }
 
-        // Los coches deben seguir existiendo
         let car_count_after = gw.world.query::<&TrafficCar>().iter().count();
-        assert_eq!(car_count_after, 100);
+        assert_eq!(car_count_after, 40);
     }
 
     #[test]
@@ -310,19 +319,16 @@ mod tests {
         let mut pool = EntityPool::new(1000);
         let mut gw = ecs::create_world(&mut pool);
 
-        // Ejecutar economía
         tick_economy(&mut gw, 0.1);
 
-        // Debe haber recursos actualizados sin panic
         let resource_count = gw.world.query::<&ResourceStorage>().iter().count();
-        assert!(resource_count >= 6, "Debe haber al menos los 6 edificios iniciales");
+        assert!(resource_count >= 8, "Debe haber al menos los 8 edificios iniciales");
     }
 
     #[test]
     fn test_tick_land_use_no_panic() {
         let mut pool = EntityPool::new(1000);
         let mut gw = ecs::create_world(&mut pool);
-        // No debe panic
         tick_land_use(&mut gw);
     }
 
@@ -330,7 +336,6 @@ mod tests {
     fn test_tick_lifetimes_no_panic() {
         let mut pool = EntityPool::new(1000);
         let mut gw = ecs::create_world(&mut pool);
-        // No debe panic incluso sin entidades con Lifetime
         tick_lifetimes(&mut gw);
     }
 
@@ -341,10 +346,8 @@ mod tests {
 
         let initial_count = gw.world.len();
 
-        // Tick completo
         tick(&mut gw, 0.1);
 
-        // No debe haber perdido entidades masivamente
         assert!(gw.world.len() >= initial_count);
     }
 }

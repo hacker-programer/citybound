@@ -191,16 +191,10 @@ impl AudioPlayer {
 
         // Intentar iniciar thread de audio con cpal
         std::thread::spawn(move || {
-            match cpal::default_host() {
-                Ok(host) => {
-                    if let Ok(Some(device)) = host.default_output_device() {
-                        if let Ok(config) = device.default_output_config() {
-                            let _ = run_audio_thread(device, config, queue_clone);
-                        }
-                    }
-                }
-                Err(_) => {
-                    // Fallback silencioso: sin dispositivo de audio
+            let host = cpal::default_host();
+            if let Ok(Some(device)) = host.default_output_device() {
+                if let Ok(config) = device.default_output_config() {
+                    let _ = run_audio_thread(device, config, queue_clone);
                 }
             }
         });

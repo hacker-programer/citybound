@@ -233,8 +233,7 @@ impl DesignTool {
     }
 
     /// Deshacer última acción
-            match &action {
-    /// Deshacer última acción
+    pub fn undo(&mut self, game_world: &mut GameWorld) {
     pub fn undo(&mut self, game_world: &mut GameWorld) {
         if let Some(action) = self.undo_stack.pop_back() {
             match &action {

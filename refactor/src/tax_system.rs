@@ -157,7 +157,6 @@ impl MunicipalFinance {
         let base_tax = land_value * self.tax_policy.land_value_tax_rate;
 
         // Modificadores por tipo de edificio
-        // Modificadores por tipo de edificio
         let modifier = match building_type {
             BuildingType::House => 1.0,
             BuildingType::Apartment => 1.5,      // Más unidades = más valor
@@ -170,11 +169,13 @@ impl MunicipalFinance {
             BuildingType::Police => 0.4,         // Servicio público — tasa reducida
         };
 
+        base_tax * modifier
+    }
+}
+
 // ---------------------------------------------------------------------------
 // SISTEMA DE RECAUDACIÓN
 // ---------------------------------------------------------------------------
-
-/// Recauda impuestos de todos los edificios de la ciudad
 pub fn collect_taxes(
     gw: &mut GameWorld,
     land_values: &[f32; 128 * 128],

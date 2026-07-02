@@ -16,14 +16,8 @@
 // - Ambiente ciudad (ruido blanco)
 
 use crate::luts;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::{Arc, Mutex};
-
-// ---------------------------------------------------------------------------
-// TIPOS DE AUDIO
-// ---------------------------------------------------------------------------
-
-/// Buffer de audio PCM mono, f32, sample rate 44100 Hz
-pub struct AudioBuffer {
     pub samples: Vec<f32>,
     pub sample_rate: u32,
 }

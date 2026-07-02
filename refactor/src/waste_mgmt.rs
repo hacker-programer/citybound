@@ -248,7 +248,6 @@ impl WasteManager {
             .collect();
 
         for items in waste_streams {
-        for items in waste_streams {
             for item in items {
                 match item.waste_type {
                     WasteType::Organic => organic_total += item.amount_kg,
@@ -258,6 +257,7 @@ impl WasteManager {
                 }
             }
         }
+
         // Enviar reciclables a plantas
         let mut recycled = 0.0_f32;
         for plant in self.recycling_plants.iter_mut() {
@@ -267,6 +267,10 @@ impl WasteManager {
             recycled += to_process;
         }
         self.total_recycling_revenue += recycled * 0.15;
+
+        let remaining_organic = organic_total;
+        let remaining_recyclable = (recyclable_total - recycled).max(0.0);
+        let remaining_toxic = toxic_total;
 
         // El resto va al vertedero más cercano
         // Depositar en vertederos (round-robin simple)
@@ -304,10 +308,6 @@ impl WasteManager {
             self.environmental_fines += self.uncollected_waste * 0.5;
         }
     }
-
-    /// Actualiza vertederos cada tick
-    pub fn tick(&mut self, dt: f32) {
-        for landfill in self.landfills.iter_mut() {
             landfill.tick(dt);
         }
 

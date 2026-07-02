@@ -85,12 +85,10 @@ impl SaveData {
 
         SaveData {
             version: SAVE_VERSION,
-            sim_tick: gw.sim_tick,
-            time_of_day: gw.time_of_day,
             finance_treasury: gw.finance.treasury,
-            finance_tax_rate_residential: gw.finance.tax_rate_residential,
-            finance_tax_rate_commercial: gw.finance.tax_rate_commercial,
-            finance_tax_rate_industrial: gw.finance.tax_rate_industrial,
+            finance_land_value_tax_rate: gw.finance.tax_policy.land_value_tax_rate,
+            finance_corporate_tax_rate: gw.finance.tax_policy.corporate_tax_rate,
+            finance_sales_tax_rate: gw.finance.tax_policy.sales_tax_rate,
             politics_approval: gw.politics.global_approval,
             buildings,
             zones,

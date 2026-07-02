@@ -255,13 +255,21 @@ impl WasteManager {
                     WasteType::Toxic => toxic_total += item.amount_kg,
                     WasteType::General => general_total += item.amount_kg,
                 }
+                }
             }
         }
-        // El resto va al vertedero más cercano
-        let remaining_organic = organic_total;
-        let remaining_recyclable = recyclable_total - recycled;
-        let remaining_toxic = toxic_total;
 
+        // Enviar reciclables a plantas
+        let mut recycled = 0.0_f32;
+        for plant in self.recycling_plants.iter_mut() {
+            let to_process = recyclable_total.min(plant.processing_capacity);
+            plant.processed_this_tick = to_process;
+            plant.total_revenue += to_process * plant.revenue_per_kg;
+            recycled += to_process;
+        }
+        self.total_recycling_revenue += recycled * 0.15;
+
+        // El resto va al vertedero más cercano
         // Depositar en vertederos (round-robin simple)
         if !self.landfills.is_empty() {
             let landfill_count = self.landfills.len();

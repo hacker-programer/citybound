@@ -234,6 +234,10 @@ impl DesignTool {
 
     /// Deshacer última acción
             match &action {
+    /// Deshacer última acción
+    pub fn undo(&mut self, game_world: &mut GameWorld) {
+        if let Some(action) = self.undo_stack.pop_back() {
+            match &action {
                 DesignAction::PlaceBuilding { x, y, entity_id, .. } => {
                     // Eliminar la entidad del edificio
                     if let Some(_id) = entity_id {

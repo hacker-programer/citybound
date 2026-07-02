@@ -220,16 +220,12 @@ impl DesignTool {
             BuildingType::School => BuildingType::Police,
             BuildingType::Police => BuildingType::House,
         };
-            BuildingType::Police => BuildingType::House,
-        };
     }
 
     /// Aumenta el tamaño del pincel
+    pub fn increase_brush(&mut self) {
+        self.brush_size = (self.brush_size + 1).min(MAX_BRUSH_SIZE);
     }
-
-    /// Reduce el tamaño del pincel
-    pub fn decrease_brush(&mut self) {
-        self.brush_size = (self.brush_size - 1).max(MIN_BRUSH_SIZE);
     }
 
     /// Deshacer última acción

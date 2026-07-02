@@ -221,11 +221,14 @@ impl ParkingManager {
             if dist < 5.0 && capacity.park() {
                 return true; // Estacionado en edificio
             }
+            }
         }
-        for (i, seg) in self.street_segments.iter().enumerate() {
-            if seg.is_full() { continue; }
 
-            // Verificar restricciones HOA
+        // 2. Intentar en calle cercana
+        let mut best_segment: Option<usize> = None;
+        let mut best_dist = f32::MAX;
+
+        for (i, seg) in self.street_segments.iter().enumerate() {
             if seg.hoa_zone && is_commercial {
                 // Zona HOA puede no permitir vehículos comerciales
                 for (_hx, _hy, _hr, rules) in &self.hoa_zones {

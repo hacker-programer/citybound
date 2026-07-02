@@ -221,7 +221,6 @@ impl ParkingManager {
             if dist < 5.0 && capacity.park() {
                 return true; // Estacionado en edificio
             }
-            }
         }
 
         // 2. Intentar en calle cercana

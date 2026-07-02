@@ -311,12 +311,29 @@ impl WasteManager {
             landfill.tick(dt);
     }
 
+    /// Actualiza estado de vertederos y contaminación (llamado cada tick)
+    pub fn update(&mut self, dt: f32) {
+        for landfill in self.landfills.iter_mut() {
+            landfill.tick(dt);
+        }
+
+        // Contaminación de napas decae muy lentamente (décadas)
+        self.groundwater_contamination = (self.groundwater_contamination - 0.0001 * dt).max(0.0);
+
+        // Basura sin recolectar atrae plagas (aumenta lentamente si no se gestiona)
+        if self.uncollected_waste > 0.0 {
+            self.uncollected_waste += 0.1 * dt;
+        }
+    }
+
     /// Verifica riesgo de explosión en vertederos
+    pub fn check_explosion_risks(&self) -> Vec<(f32, f32, f32)> {
+        self.landfills.iter()
+            .filter(|l| l.explosion_risk)
+            .map(|l| (l.x, l.y, l.methane_level))
             .collect()
     }
 }
-
-// ---------------------------------------------------------------------------
 // TESTS
 // ---------------------------------------------------------------------------
 

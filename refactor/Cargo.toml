@@ -1,10 +1,10 @@
 [package]
 name = "citybound_native"
-version = "0.8.0"
+version = "0.10.0"
 authors = ["Citybound Refactor Team"]
 license = "AGPL-3.0"
 edition = "2021"
-description = "Citybound native desktop refactor - Realistic city builder with supply chains, land value, utilities, road wear, and labor market"
+description = "Citybound native desktop refactor - Realistic city builder with supply chains, land value, utilities, road wear, labor market, and more"
 
 [workspace]
 
@@ -30,6 +30,8 @@ rand = { version = "0.8", default-features = false, features = ["small_rng"] }
 arrayvec = { version = "0.7", default-features = false }
 bytemuck = { version = "1", features = ["derive"] }
 smallvec = "1"
+rayon = "1.9"
+cpal = "0.15"
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 # SSE2/AVX intrinsics are in std, no extra deps needed

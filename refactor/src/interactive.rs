@@ -215,9 +215,11 @@ impl DesignTool {
             BuildingType::Shop => BuildingType::Office,
             BuildingType::Office => BuildingType::Factory,
             BuildingType::Factory => BuildingType::Farm,
-            BuildingType::Farm => BuildingType::House,
+            BuildingType::Farm => BuildingType::Hospital,
+            BuildingType::Hospital => BuildingType::School,
+            BuildingType::School => BuildingType::Police,
+            BuildingType::Police => BuildingType::House,
         };
-    }
 
     /// Aumenta el tamaño del pincel
     pub fn increase_brush(&mut self) {

@@ -793,11 +793,14 @@ fn get_camera_params(gw: &GameWorld) -> (f32, f32, f32) {
 fn building_color(btype: BuildingType) -> u32 {
     match btype {
         BuildingType::House => 0xFF_C4_7B_4A,
-        BuildingType::Apartment => 0xFF_B0_BEC5,
-        BuildingType::Shop => 0xFF_26_C6_DA,
-        BuildingType::Office => 0xFF_78_90_9C,
-        BuildingType::Factory => 0xFF_8D_6E_63,
-        BuildingType::Farm => 0xFF_8B_C3_4A,
+        BuildingType::Hospital => 0xFF_F4_43_36,  // Rojo médico
+        BuildingType::School => 0xFF_FF_C1_07,    // Amarillo institucional
+        BuildingType::Police => 0xFF_21_21_21,     // Azul policial oscuro
+    }
+}
+
+#[inline(always)]
+fn zone_color
     }
 }
 

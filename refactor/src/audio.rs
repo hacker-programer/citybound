@@ -110,8 +110,6 @@ impl AudioEngine {
 
     /// Reproducir un efecto de sonido one-shot
     pub fn play(&self, event: AudioEvent) {
-        // Para efectos one-shot, usamos un stream temporal
-        // En producción, esto usaría un mixer, pero para la demo es suficiente
         match event {
             AudioEvent::AmbientOn => self.set_ambient(true),
             AudioEvent::AmbientOff => self.set_ambient(false),
@@ -206,7 +204,7 @@ fn generate_sine_wave(freq: f32, duration_secs: f32, sample_rate: u32) -> AudioB
     for i in 0..num_samples {
         let t = i as f32 / sample_rate as f32;
         let phase = 2.0 * std::f32::consts::PI * freq * t;
-        let sample = luts::fast_sin(phase) * 0.3; // Volumen al 30%
+        let sample = luts::sin_fast(phase) * 0.3; // Volumen al 30%
         // Envelope ADSR simplificado
         let envelope = if i < num_samples / 10 {
             // Attack
@@ -240,7 +238,7 @@ fn generate_sweep(
         let progress = t / duration_secs;
         let freq = start_freq + (end_freq - start_freq) * progress;
         let phase = 2.0 * std::f32::consts::PI * freq * t;
-        let sample = luts::fast_sin(phase) * 0.25;
+        let sample = luts::sin_fast(phase) * 0.25;
         let envelope = 1.0 - progress; // Fade out
         samples.push(sample * envelope);
     }
@@ -271,10 +269,13 @@ fn generate_square_wave(freq: f32, duration_secs: f32, sample_rate: u32) -> Audi
 fn generate_noise(duration_secs: f32, sample_rate: u32) -> AudioBuffer {
     let num_samples = (sample_rate as f32 * duration_secs) as usize;
     let mut samples = Vec::with_capacity(num_samples);
-    let mut rng = fastrand::Rng::new();
+
+    // [TC#22] RNG pool: usamos rand::SmallRng pre-inicializado
+    use rand::{Rng, SeedableRng};
+    let mut rng = rand::rngs::SmallRng::seed_from_u64(42);
 
     for _ in 0..num_samples {
-        samples.push((rng.f32() * 2.0 - 1.0) * 0.05); // Ruido blanco bajo
+        samples.push((rng.gen::<f32>() * 2.0 - 1.0) * 0.05); // Ruido blanco bajo
     }
 
     AudioBuffer {

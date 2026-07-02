@@ -1,9 +1,8 @@
-// Módulo ECS - Entity Component System v0.9.0
+// Módulo ECS - Entity Component System v0.10.0 [FASE 7]
 //
-// FASE 6: Spatial Hashing + Query Fusion + RenderCache
-// - SpatialGrid: búsqueda O(1) de entidades por celda espacial
-// - RenderCache: pre-sort estático por capa (elimina sort en render)
-// - Entidades pre-ordenadas por capa de renderizado
+// FASE 7: Nuevos tipos de edificios (Hospital, Escuela, Policía)
+// - RenderCache integrado con rebuild_from_world
+// - Spatial Hashing + Query Fusion
 //
 // GameWorld con todos los sistemas integrados:
 // [#361] LaneManager - Tráfico con carriles
@@ -76,8 +75,12 @@ pub struct ResourceStorage { pub money: f32, pub food: f32, pub goods: f32 }
 #[repr(align(64))]
 pub struct ConstructionState { pub progress: f32, pub building_type: BuildingType }
 
+/// [FASE 7]: Nuevos tipos de edificios públicos
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum BuildingType { House, Apartment, Shop, Office, Factory, Farm }
+pub enum BuildingType { 
+    House, Apartment, Shop, Office, Factory, Farm,
+    Hospital, School, Police,  // [FASE 7]
+}
 
 #[derive(Copy, Clone, Debug)]
 #[repr(align(64))]
@@ -195,7 +198,7 @@ impl<'a> Iterator for SpatialQueryIter<'a> {
 pub struct GameWorld {
     pub world: hecs::World,
     pub spatial_grid: SpatialGrid,
-    pub render_cache: RenderCache,       // [FASE 6] Pre-sort estático
+    pub render_cache: RenderCache,
     pub pool: EntityPool,
     pub sim_tick: u64,
     pub time_of_day: u16,
@@ -283,19 +286,27 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         ));
     }
 
-    // Edificios de ejemplo
-    let buildings: [(f32, f32, BuildingType, u32); 8] = [
-        (30.0, 30.0, BuildingType::House, 0xFF_C4_7B_4A),
-        (35.0, 30.0, BuildingType::Shop, 0xFF_26_C6_DA),
-        (40.0, 30.0, BuildingType::Factory, 0xFF_8D_6E_63),
-        (30.0, 36.0, BuildingType::Apartment, 0xFF_B0_BEC5),
-        (35.0, 36.0, BuildingType::Office, 0xFF_78_90_9C),
-        (40.0, 36.0, BuildingType::Farm, 0xFF_8B_C3_4A),
-        (60.0, 45.0, BuildingType::House, 0xFF_C4_7B_4A),
-        (64.0, 45.0, BuildingType::Shop, 0xFF_26_C6_DA),
+    // [FASE 7]: Edificios iniciales con nuevos tipos
+    let buildings: [(f32, f32, BuildingType); 14] = [
+        (30.0, 30.0, BuildingType::House),
+        (35.0, 30.0, BuildingType::Shop),
+        (40.0, 30.0, BuildingType::Factory),
+        (30.0, 36.0, BuildingType::Apartment),
+        (35.0, 36.0, BuildingType::Office),
+        (40.0, 36.0, BuildingType::Farm),
+        (60.0, 45.0, BuildingType::House),
+        (64.0, 45.0, BuildingType::Shop),
+        // [FASE 7]: Edificios públicos
+        (50.0, 60.0, BuildingType::Hospital),
+        (55.0, 60.0, BuildingType::School),
+        (60.0, 60.0, BuildingType::Police),
+        (80.0, 25.0, BuildingType::Hospital),
+        (85.0, 25.0, BuildingType::School),
+        (90.0, 25.0, BuildingType::Police),
     ];
 
-    for &(bx, by, btype, color) in &buildings {
+    for &(bx, by, btype) in &buildings {
+        let color = crate::render_cache::building_color(btype);
         world.spawn((
             Position::new(bx, by),
             Renderable::rect(color, 3.0, 3),
@@ -305,14 +316,15 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     }
 
     // Zonas
-    let zones: [(f32, f32, f32, f32, ZoneType, u32); 4] = [
-        (15.0, 15.0, 30.0, 18.0, ZoneType::Residential, 0x44_66_BB_6A),
-        (55.0, 15.0, 25.0, 18.0, ZoneType::Commercial, 0x44_42_A5_F5),
-        (15.0, 50.0, 25.0, 18.0, ZoneType::Industrial, 0x44_EF_5350),
-        (55.0, 50.0, 25.0, 18.0, ZoneType::Agricultural, 0x44_9C_CC_65),
+    let zones: [(f32, f32, f32, f32, ZoneType); 4] = [
+        (15.0, 15.0, 30.0, 18.0, ZoneType::Residential),
+        (55.0, 15.0, 25.0, 18.0, ZoneType::Commercial),
+        (15.0, 50.0, 25.0, 18.0, ZoneType::Industrial),
+        (55.0, 50.0, 25.0, 18.0, ZoneType::Agricultural),
     ];
 
-    for &(zx, zy, zw, zh, ztype, color) in &zones {
+    for &(zx, zy, zw, zh, ztype) in &zones {
+        let color = crate::render_cache::zone_color(ztype);
         for dx in 0..zw as i32 {
             for dy in 0..zh as i32 {
                 world.spawn((
@@ -326,6 +338,10 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
 
     let mut spatial_grid = SpatialGrid::new();
     spatial_grid.rebuild(&world);
+
+    // [FASE 7]: Inicializar RenderCache
+    let mut render_cache = RenderCache::new();
+    render_cache.rebuild_from_world(&world);
 
     GameWorld {
         world,
@@ -409,6 +425,21 @@ mod tests {
     }
 
     #[test]
+    fn test_new_building_types_exist() {
+        let mut pool = EntityPool::new(1000);
+        let gw = create_world(&mut pool);
+        let has_hospital = gw.world.query::<&ConstructionState>().iter()
+            .any(|(_, cs)| cs.building_type == BuildingType::Hospital);
+        let has_school = gw.world.query::<&ConstructionState>().iter()
+            .any(|(_, cs)| cs.building_type == BuildingType::School);
+        let has_police = gw.world.query::<&ConstructionState>().iter()
+            .any(|(_, cs)| cs.building_type == BuildingType::Police);
+        assert!(has_hospital, "Debe haber hospital");
+        assert!(has_school, "Debe haber escuela");
+        assert!(has_police, "Debe haber policía");
+    }
+
+    #[test]
     fn test_finance_exists() {
         let mut pool = EntityPool::new(1000);
         let gw = create_world(&mut pool);
@@ -444,9 +475,9 @@ mod tests {
     }
 
     #[test]
-    fn test_render_cache_exists() {
+    fn test_render_cache_filled() {
         let mut pool = EntityPool::new(1000);
         let gw = create_world(&mut pool);
-        assert_eq!(gw.render_cache.total_entries(), 0); // Empty until filled
+        assert!(gw.render_cache.total_entries() > 0, "RenderCache debe llenarse en create_world");
     }
 }

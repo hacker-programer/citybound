@@ -1,4 +1,4 @@
-// Citybound Native - Biblioteca central v0.7.0
+// Citybound Native - Biblioteca central v0.9.0
 //
 // Re-exporta todos los módulos públicos para uso en main.rs y tests.
 //
@@ -6,6 +6,7 @@
 // - ecs: Entity Component System (hecs)
 // - sim: Sistemas de simulación (tiempo, tráfico, economía, suelo)
 // - render: Renderizado software al framebuffer (con SIMD)
+// - render_cache: Pre-sort estático de entidades por capa [FASE 6]
 // - luts: Look-up tables trigonométricas precalculadas
 // - object_pool: Pool de entidades preasignadas
 // - bump_alloc: Bump allocator por frame
@@ -33,6 +34,7 @@
 pub mod ecs;
 pub mod sim;
 pub mod render;
+pub mod render_cache;
 pub mod luts;
 pub mod object_pool;
 pub mod bump_alloc;

@@ -227,9 +227,12 @@ impl DesignTool {
         self.brush_size = (self.brush_size + 1).min(MAX_BRUSH_SIZE);
     }
 
+    /// Reduce el tamaño del pincel
+    pub fn decrease_brush(&mut self) {
+        self.brush_size = (self.brush_size - 1).max(MIN_BRUSH_SIZE);
+    }
+
     /// Deshacer última acción
-    pub fn undo(&mut self, game_world: &mut GameWorld) {
-        if let Some(action) = self.undo_stack.pop_back() {
             match &action {
                 DesignAction::PlaceBuilding { x, y, entity_id, .. } => {
                     // Eliminar la entidad del edificio

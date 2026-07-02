@@ -451,19 +451,14 @@ impl DesignTool {
             });
         }
     }
-}
+    }
 }
 
 // ---------------------------------------------------------------------------
-// PROCESAMIENTO DE INPUT
-// PROCESAMIENTO DE INPUT
-// PROCESAMIENTO DE INPUT
 // PROCESAMIENTO DE INPUT
 // ---------------------------------------------------------------------------
 
 /// Procesa input para la herramienta de diseño
-pub fn process_design_input(
-    tool: &mut DesignTool,
     gw: &mut GameWorld,
     input: &InputState,
     window_width: usize,

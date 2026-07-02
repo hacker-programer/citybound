@@ -310,6 +310,7 @@ impl WasteManager {
     }
 
     /// Actualiza estado de vertederos y contaminación (llamado cada tick)
+    pub fn update(&mut self, dt: f32) {
         for landfill in self.landfills.iter_mut() {
             landfill.tick(dt);
         }

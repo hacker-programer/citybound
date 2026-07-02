@@ -222,7 +222,6 @@ impl WasteManager {
             crate::ecs::BuildingType::School => vec![
                 WasteItem { waste_type: WasteType::Organic, amount_kg: 3.0 },
                 WasteItem { waste_type: WasteType::Recyclable, amount_kg: 2.5 },
-                WasteItem { waste_type: WasteType::General, amount_kg: 1.5 },
             ],
             crate::ecs::BuildingType::Police => vec![
                 WasteItem { waste_type: WasteType::General, amount_kg: 1.0 },
@@ -230,19 +229,16 @@ impl WasteManager {
             ],
         }
     }
+
+    /// Procesa la recolección de residuos (llamado cada N ticks)
+    pub fn collect_waste(
+        &mut self,
+        gw: &GameWorld,
+    ) {
+        let mut organic_total: f32 = 0.0;
+        let mut recyclable_total: f32 = 0.0;
+        let mut toxic_total: f32 = 0.0;
         let mut general_total: f32 = 0.0;
-
-        // Generar residuos de cada edificio
-        let waste_streams: Vec<Vec<WasteItem>> = gw.world
-            .query::<&crate::ecs::ConstructionState>()
-            .iter()
-            .map(|(_e, cs)| self.generate_building_waste(cs.building_type))
-            .collect();
-
-        for items in waste_streams {
-            for item in items {
-                match item.waste_type {
-                    WasteType::Organic => organic_total += item.amount_kg,
                     WasteType::Recyclable => recyclable_total += item.amount_kg,
                     WasteType::Toxic => toxic_total += item.amount_kg,
                     WasteType::General => general_total += item.amount_kg,

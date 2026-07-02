@@ -179,7 +179,6 @@ impl WasteManager {
             environmental_fines: 0.0,
         }
     }
-
     /// Genera residuos para un edificio según su tipo
     pub fn generate_building_waste(
         &self,
@@ -202,8 +201,6 @@ impl WasteManager {
                 WasteItem { waste_type: WasteType::General, amount_kg: 2.0 },
             ],
             crate::ecs::BuildingType::Office => vec![
-            crate::ecs::BuildingType::Farm => vec![
-            crate::ecs::BuildingType::Office => vec![
                 WasteItem { waste_type: WasteType::Recyclable, amount_kg: 3.0 },
                 WasteItem { waste_type: WasteType::General, amount_kg: 1.0 },
             ],
@@ -212,6 +209,11 @@ impl WasteManager {
                 WasteItem { waste_type: WasteType::Recyclable, amount_kg: 5.0 },
                 WasteItem { waste_type: WasteType::General, amount_kg: 3.0 },
             ],
+            crate::ecs::BuildingType::Farm => vec![
+                WasteItem { waste_type: WasteType::Organic, amount_kg: 8.0 },
+                WasteItem { waste_type: WasteType::General, amount_kg: 0.5 },
+            ],
+            crate::ecs::BuildingType::Hospital => vec![
                 WasteItem { waste_type: WasteType::Toxic, amount_kg: 1.5 },
                 WasteItem { waste_type: WasteType::Recyclable, amount_kg: 3.0 },
                 WasteItem { waste_type: WasteType::General, amount_kg: 4.0 },
@@ -227,25 +229,7 @@ impl WasteManager {
                 WasteItem { waste_type: WasteType::Recyclable, amount_kg: 0.5 },
             ],
         }
-                WasteItem { waste_type: WasteType::Toxic, amount_kg: 2.0 },
-                WasteItem { waste_type: WasteType::Recyclable, amount_kg: 5.0 },
-                WasteItem { waste_type: WasteType::General, amount_kg: 3.0 },
-            ],
-            crate::ecs::BuildingType::Farm => vec![
-                WasteItem { waste_type: WasteType::Organic, amount_kg: 8.0 },
-                WasteItem { waste_type: WasteType::General, amount_kg: 0.5 },
-            ],
-        }
     }
-
-    /// Procesa la recolección de residuos (llamado cada N ticks)
-    pub fn collect_waste(
-        &mut self,
-        gw: &GameWorld,
-    ) {
-        let mut organic_total: f32 = 0.0;
-        let mut recyclable_total: f32 = 0.0;
-        let mut toxic_total: f32 = 0.0;
         let mut general_total: f32 = 0.0;
 
         // Generar residuos de cada edificio

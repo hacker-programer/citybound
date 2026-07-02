@@ -336,10 +336,12 @@ pub fn recommended_parking(building_type: crate::ecs::BuildingType) -> u16 {
         crate::ecs::BuildingType::House => 2,
         crate::ecs::BuildingType::Apartment => 30,
         crate::ecs::BuildingType::Shop => 20,
-        crate::ecs::BuildingType::Office => 50,
-        crate::ecs::BuildingType::Factory => 15,
         crate::ecs::BuildingType::Farm => 0,
+        crate::ecs::BuildingType::Hospital => 60,
+        crate::ecs::BuildingType::School => 40,
+        crate::ecs::BuildingType::Police => 15,
     }
+}
 }
 
 // ---------------------------------------------------------------------------

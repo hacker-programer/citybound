@@ -457,6 +457,7 @@ impl DesignTool {
 // ---------------------------------------------------------------------------
 // PROCESAMIENTO DE INPUT
 // PROCESAMIENTO DE INPUT
+// PROCESAMIENTO DE INPUT
 // ---------------------------------------------------------------------------
 
 /// Procesa input para la herramienta de diseño

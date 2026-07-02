@@ -308,11 +308,8 @@ impl WasteManager {
             self.environmental_fines += self.uncollected_waste * 0.5;
         }
     }
-            landfill.tick(dt);
-    }
 
     /// Actualiza estado de vertederos y contaminación (llamado cada tick)
-    pub fn update(&mut self, dt: f32) {
         for landfill in self.landfills.iter_mut() {
             landfill.tick(dt);
         }

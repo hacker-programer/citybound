@@ -1,15 +1,19 @@
-// Citybound Native v0.9.0 ó Punto de entrada principal
+// Citybound Native v0.10.0 ‚Äî Punto de entrada principal
 //
-// FASE 6 OPTIMIZACIONES:
-// - Double buffering con swap de punteros (sin memcpy)
-// - Zero-allocation title (buffer stack)
-// - Spatial grid rebuild 1x/frame
-// - SIMD real SSE2 en render
+// FASE 7: FEATURES COMPLETAS
+// - RenderCache integrado en pipeline
+// - Audio procedural con cpal (real)
+// - Save/Load con bincode
+// - Panel de estad√≠sticas
+// - Rayon para paralelismo
+// - MOBIL lane changes reales
+// - Ciclo d√≠a/noche con color grading
+// - M√°s edificios: Hospital, Escuela, Polic√≠a, Parque
 //
 // ARQUITECTURA:
 // - ECS puro con hecs + SpatialGrid
 // - Framebuffer software rendering con SSE2
-// - Flow Fields + Bitboards + Lanes (tr·fico A/B Street)
+// - Flow Fields + Bitboards + Lanes (tr√°fico A/B Street)
 // - Design Tool interactivo
 // - 10 sistemas de realismo [M#1..M#10]
 
@@ -33,21 +37,30 @@ fn main() {
         std::process::abort();
     }));
 
-    println!("Citybound Native v0.9.0 ó City Builder Realista [Fase 6: Optimizado]");
-    println!("10 sistemas | SIMD SSE2 | SpatialGrid | Zero-alloc | DoubleBuffer");
+    println!("Citybound Native v0.10.0 ‚Äî City Builder Realista [Fase 7: Features]");
+    println!("RenderCache | Audio cpal | Save/Load | Stats | Rayon | MOBIL | Dia/Noche");
 
     // ===== FASE DE CARGA =====
     luts::init_trig_luts();
     rng_pool::init_rng_pool(42);
     bump_alloc::init_frame_allocator();
-    let _audio = audio::AudioPlayer::init();
+    let mut audio_player = audio::AudioPlayer::init();
+    audio_player.play_ambient();
 
     let mut pool = object_pool::EntityPool::new(1000);
     let mut world = ecs::create_world(&mut pool);
     sim::init_simulation(&mut world);
 
+    // Intentar cargar partida guardada
+    if let Ok(saved) = persistence::load_game("save.dat") {
+        println!("Partida cargada: tick {}, tesoro ${:.0}", saved.sim_tick, saved.finance_treasury);
+        world.sim_tick = saved.sim_tick;
+        world.time_of_day = saved.time_of_day;
+        world.finance.treasury = saved.finance_treasury;
+    }
+
     // ===== CACHE WARMING [TA#8] =====
-    println!("Calentando cachÈ...");
+    println!("Calentando cach√©...");
     rng_pool::warm_rng_cache();
 
     for y in (0..terrain::TERRAIN_SIZE).step_by(8) {
@@ -62,22 +75,17 @@ fn main() {
         }
     }
 
-    for _ in 0..10 {
-        let _ = world.land_value_map.get(64, 64);
-        let _ = world.pollution_map.get(64, 64);
-        let _ = world.road_wear.get(64, 64);
-        let _ = world.water_grid.get_pressure(64.0, 64.0);
-        let _ = world.power_grid.get_pressure(64.0, 64.0);
-    }
+    // Rebuild render cache inicial
+    world.render_cache.rebuild_from_world(&world.world);
 
-    println!("CachÈ caliente. {} carriles, {} intersecciones.",
+    println!("Cach√© caliente. {} carriles, {} intersecciones.",
         world.lane_manager.lanes.len(), world.lane_manager.intersections.len());
     println!("Tesoro inicial: ${:.0}", world.finance.treasury);
-    println!("[Tab] DiseÒo | [WASD] Mover | [ESC] Salir");
+    println!("[Tab] Dise√±o | [WASD] Mover | [F5] Guardar | [F9] Cargar | [ESC] Salir");
 
     // ===== VENTANA =====
     let mut window = Window::new(
-        "Citybound Native v0.9.0 ó City Builder (ESC para salir)",
+        "Citybound Native v0.10 ‚Äî City Builder (ESC para salir)",
         WINDOW_WIDTH, WINDOW_HEIGHT,
         WindowOptions {
             scale: Scale::X2,
@@ -109,13 +117,30 @@ fn main() {
     let mut ticks_since_tax: u64 = 0;
     let mut ticks_since_waste: u64 = 0;
 
-    // Buffer stack para tÌtulo (zero-allocation)
+    // Buffer stack para t√≠tulo (zero-allocation)
     let mut title_buf: [u8; 256] = [0; 256];
 
     // ===== BUCLE PRINCIPAL =====
     while window.is_open() && !window.is_key_down(Key::Escape) {
         bump_alloc::reset_frame();
         input_state.update(&window);
+
+        // F5: Guardar partida
+        if input_state.is_key_pressed(input::GameKey::F5) {
+            let save_data = persistence::SaveData::from_world(&world);
+            if persistence::save_game(&save_data, "save.dat").is_ok() {
+                println!("Partida guardada.");
+            }
+        }
+        // F9: Cargar partida
+        if input_state.is_key_pressed(input::GameKey::F9) {
+            if let Ok(saved) = persistence::load_game("save.dat") {
+                world.sim_tick = saved.sim_tick;
+                world.time_of_day = saved.time_of_day;
+                world.finance.treasury = saved.finance_treasury;
+                println!("Partida cargada: tick {}", saved.sim_tick);
+            }
+        }
 
         interactive::process_design_input(
             &mut world.design_tool, &mut world, &input_state,
@@ -141,7 +166,7 @@ fn main() {
             sim::tick(&mut world, dt);
             accumulator -= tick_dur;
 
-            // Sistemas periÛdicos
+            // Sistemas peri√≥dicos
             ticks_since_tax += 1;
             if ticks_since_tax >= tax_system::TAX_COLLECTION_INTERVAL {
                 ticks_since_tax = 0;
@@ -175,15 +200,28 @@ fn main() {
         // [FASE 6]: Rebuild spatial grid una vez por frame
         world.spatial_grid.rebuild(&world.world);
 
+        // [FASE 7]: Actualizar RenderCache (incremental)
+        if world.render_cache.dirty {
+            world.render_cache.rebuild_from_world(&world.world);
+        }
+
         // ===== RENDER al backbuffer =====
         let backbuffer: &mut [u32] = unsafe { &mut *back_ptr };
         backbuffer.fill(0xFF_1A_1A_2E);
-        render::render_world(&world, backbuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        // [FASE 7]: Usar RenderCache
+        render::render_world_cached(&world, backbuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        // [FASE 7]: Overlay de d√≠a/noche
+        climate::apply_day_night_overlay(backbuffer, WINDOW_WIDTH, WINDOW_HEIGHT, world.time_of_day);
 
         interactive::render_design_overlay(
             &world.design_tool, backbuffer,
             WINDOW_WIDTH, WINDOW_HEIGHT, &world,
         );
+
+        // [FASE 7]: Panel de estad√≠sticas
+        render::render_stats_panel(&world, backbuffer, WINDOW_WIDTH, WINDOW_HEIGHT, current_fps);
 
         // ===== SWAP: enviar backbuffer a pantalla sin memcpy =====
         {
@@ -195,7 +233,7 @@ fn main() {
         // Swap punteros (sin copiar datos)
         std::mem::swap(&mut front_ptr, &mut back_ptr);
 
-        // ===== ESTADÕSTICAS (zero-alloc) =====
+        // ===== ESTAD√çSTICAS (zero-alloc) =====
         frame_count += 1;
         if fps_timer.elapsed() >= Duration::from_secs(1) {
             current_fps = frame_count as u32;
@@ -207,18 +245,24 @@ fn main() {
             let treasury = world.finance.treasury;
             let circling = world.parking_mgr.circling_cars as usize;
             let approval = world.politics.global_approval;
+            let pop = world.world.query::<&ecs::ConstructionState>().iter().count();
 
             // Zero-allocation title
-            let title = write_fps_title(&mut title_buf, current_fps, cars, trucks, treasury, circling, approval);
+            let title = write_fps_title(&mut title_buf, current_fps, cars, trucks, treasury, circling, approval, pop);
             window.set_title(title);
         }
     }
 
-    println!("SimulaciÛn terminada. FPS: {}, Ticks: {}, Tesoro: ${:.0}",
-        current_fps, world.sim_tick, world.finance.treasury);
+    // Auto-guardar al salir
+    let save_data = persistence::SaveData::from_world(&world);
+    let _ = persistence::save_game(&save_data, "save.dat");
+
+    println!("Simulaci√≥n terminada. FPS: {}, Ticks: {}, Tesoro: ${:.0}, Poblaci√≥n: {}",
+        current_fps, world.sim_tick, world.finance.treasury,
+        world.world.query::<&ecs::ConstructionState>().iter().count());
 }
 
-/// Zero-allocation: escribe el tÌtulo en buffer de stack
+/// Zero-allocation: escribe el t√≠tulo en buffer de stack
 fn write_fps_title<'a>(
     buf: &'a mut [u8],
     fps: u32,
@@ -227,16 +271,18 @@ fn write_fps_title<'a>(
     treasury: f32,
     circling: usize,
     approval: f32,
+    pop: usize,
 ) -> &'a str {
-    let prefix = b"CB v0.9 ";
+    let prefix = b"CB v0.10 ";
     let mut pos = prefix.len();
     buf[..pos].copy_from_slice(prefix);
 
-    // FPS
+    // FPS + poblaci√≥n
     pos += write_u32(buf, pos, fps);
-
+    buf[pos] = b'f'; pos += 1;
     buf[pos] = b' '; pos += 1;
-    buf[pos] = b'F'; pos += 1;
+    pos += write_usize(buf, pos, pop);
+    buf[pos] = b'p'; pos += 1;
     buf[pos] = b' '; pos += 1;
 
     // Cars
@@ -255,11 +301,6 @@ fn write_fps_title<'a>(
     buf[pos] = b'$'; pos += 1;
     pos += write_u32(buf, pos, tki);
     buf[pos] = b'k'; pos += 1;
-    buf[pos] = b' '; pos += 1;
-
-    // Circling
-    pos += write_usize(buf, pos, circling);
-    buf[pos] = b'c'; pos += 1;
     buf[pos] = b' '; pos += 1;
 
     // Approval

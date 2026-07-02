@@ -204,10 +204,9 @@ impl ParkingManager {
             crate::ecs::BuildingType::Farm => ParkingCapacity::new(ParkingType::None, 0),
             crate::ecs::BuildingType::Hospital => ParkingCapacity::new(ParkingType::Underground, 50),
             crate::ecs::BuildingType::School => ParkingCapacity::new(ParkingType::SurfaceLot, 30),
+            crate::ecs::BuildingType::Hospital => ParkingCapacity::new(ParkingType::Underground, 50),
+            crate::ecs::BuildingType::School => ParkingCapacity::new(ParkingType::SurfaceLot, 30),
             crate::ecs::BuildingType::Police => ParkingCapacity::new(ParkingType::GaragePrivate, 12),
-        };
-    /// Retorna true si encontró lugar, false si debe seguir circulando
-    pub fn find_parking(&mut self, x: f32, y: f32, is_commercial: bool) -> bool {
         };
 
         self.building_parking.push((x, y, capacity));
@@ -215,13 +214,14 @@ impl ParkingManager {
 
     /// Busca estacionamiento para un coche que llega a destino
     /// Retorna true si encontró lugar, false si debe seguir circulando
+    pub fn find_parking(&mut self, x: f32, y: f32, is_commercial: bool) -> bool {
+        // 1. Intentar en el edificio destino
+        for (bx, by, capacity) in self.building_parking.iter_mut() {
+            let dist = ((x - *bx) * (x - *bx) + (y - *by) * (y - *by)).sqrt();
+            if dist < 5.0 && capacity.park() {
+                return true; // Estacionado en edificio
             }
         }
-
-        // 2. Intentar en calle cercana
-        let mut best_segment: Option<usize> = None;
-        let mut best_dist = f32::MAX;
-
         for (i, seg) in self.street_segments.iter().enumerate() {
             if seg.is_full() { continue; }
 

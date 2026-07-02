@@ -241,7 +241,7 @@ impl BuildingAppearance {
                 decorative_roof: true,
                 has_balconies: false,
                 visual_state: BuildingVisualState::Normal,
-                detail_level: 0,
+                visual_state: BuildingVisualState::Normal,
                 detail_level: 0,
             },
             BuildingType::Hospital => BuildingAppearance {

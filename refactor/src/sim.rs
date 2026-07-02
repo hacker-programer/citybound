@@ -215,7 +215,7 @@ fn tick_parallel_systems(gw: &mut GameWorld, dt: f32) {
         gw.pollution_map.diffuse_and_decay();
     }
 
-    road_wear::tick_road_wear(gw);
+    crate::road_wear::tick_road_wear(gw);
 }
 
 // ---------------------------------------------------------------------------
@@ -266,7 +266,7 @@ fn tick_lifetimes(gw: &mut GameWorld) {
 }
 
 // Re-export para main.rs
-pub use crate::road_wear::tick_road_wear as road_wear_tick;
+
 
 // ---------------------------------------------------------------------------
 // TESTS

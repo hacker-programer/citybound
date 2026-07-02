@@ -177,7 +177,6 @@ impl MunicipalFinance {
 /// Recauda impuestos de todos los edificios de la ciudad
 pub fn collect_taxes(
     gw: &mut GameWorld,
-    finance: &mut MunicipalFinance,
     land_values: &[f32; 128 * 128],
 ) {
     let mut land_value_revenue: f32 = 0.0;
@@ -197,36 +196,36 @@ pub fn collect_taxes(
 
     for (_x, _y, btype, land_value) in taxpayers {
         // Land value tax
-        let lvt = finance.calculate_land_value_tax(land_value, btype);
+        let lvt = gw.finance.calculate_land_value_tax(land_value, btype);
         land_value_revenue += lvt;
 
         // Corporate tax (sobre ganancias simuladas del edificio)
         let corp_income = land_value * 0.05; // Ingreso estimado
-        let corp_tax = corp_income * finance.tax_policy.corporate_tax_rate;
+        let corp_tax = corp_income * gw.finance.tax_policy.corporate_tax_rate;
         corporate_revenue += corp_tax;
 
         // Sales tax (sobre consumo estimado)
         let consumption = land_value * 0.03;
-        let sales_tax = consumption * finance.tax_policy.sales_tax_rate;
+        let sales_tax = consumption * gw.finance.tax_policy.sales_tax_rate;
         sales_revenue += sales_tax;
     }
 
-    finance.current_revenue = land_value_revenue + corporate_revenue + sales_revenue;
-    finance.treasury += finance.current_revenue;
+    gw.finance.current_revenue = land_value_revenue + corporate_revenue + sales_revenue;
+    gw.finance.treasury += gw.finance.current_revenue;
 
     // Actualizar historial
-    finance.revenue_history[finance.revenue_history_idx] = finance.current_revenue;
-    finance.revenue_history_idx = (finance.revenue_history_idx + 1) % 12;
+    gw.finance.revenue_history[gw.finance.revenue_history_idx] = gw.finance.current_revenue;
+    gw.finance.revenue_history_idx = (gw.finance.revenue_history_idx + 1) % 12;
 
     // Pagar intereses de bonos
-    for bond in finance.active_bonds.iter_mut() {
+    for bond in gw.finance.active_bonds.iter_mut() {
         let interest_payment = bond.principal * bond.interest_rate / 12.0;
         bond.accrued_interest += interest_payment;
-        finance.treasury -= interest_payment;
+        gw.finance.treasury -= interest_payment;
     }
 
     // Actualizar rating crediticio basado en salud financiera
-    update_credit_rating(finance);
+    update_credit_rating(&mut gw.finance);
 }
 
 /// Actualiza el rating crediticio según la salud financiera

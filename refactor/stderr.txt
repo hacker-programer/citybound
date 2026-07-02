@@ -1,0 +1,194 @@
+warning: unused import: `crate::ecs::Position`
+  --> src\quadtree.rs:11:5
+   |
+11 | use crate::ecs::Position;
+   |     ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::bitboard::BitGrid`
+  --> src\land_value.rs:22:5
+   |
+22 | use crate::bitboard::BitGrid;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::flow_field::FlowCell`
+  --> src\road_wear.rs:21:5
+   |
+21 | use crate::flow_field::FlowCell;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `ZoneComponent` and `ZoneType`
+  --> src\tax_system.rs:16:39
+   |
+16 | use crate::ecs::{GameWorld, Position, ZoneComponent, ZoneType, ResourceStorage, ConstructionState, BuildingType};
+   |                                       ^^^^^^^^^^^^^  ^^^^^^^^
+
+warning: unused import: `Position`
+  --> src\waste_mgmt.rs:16:29
+   |
+16 | use crate::ecs::{GameWorld, Position};
+   |                             ^^^^^^^^
+
+warning: unused imports: `BuildingType`, `GameWorld`, `Position`, `ResourceStorage`, and `ZoneType`
+  --> src\politics.rs:15:18
+   |
+15 | use crate::ecs::{GameWorld, Position, ZoneType, BuildingType, ResourceStorage};
+   |                  ^^^^^^^^^  ^^^^^^^^  ^^^^^^^^  ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+
+warning: unused variable: `x1`
+   --> src\interactive.rs:285:43
+    |
+285 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                           ^^ help: try ignoring the field: `x1: _`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `y1`
+   --> src\interactive.rs:285:47
+    |
+285 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                               ^^ help: try ignoring the field: `y1: _`
+
+warning: unused variable: `x2`
+   --> src\interactive.rs:285:51
+    |
+285 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                                   ^^ help: try ignoring the field: `x2: _`
+
+warning: unused variable: `y2`
+   --> src\interactive.rs:285:55
+    |
+285 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                                       ^^ help: try ignoring the field: `y2: _`
+
+warning: unused variable: `entity`
+   --> src\interactive.rs:605:22
+    |
+605 |                 for (entity, (pos, zone)) in gw.world
+    |                      ^^^^^^ help: if this is intentional, prefix it with an underscore: `_entity`
+
+warning: unused variable: `resources`
+   --> src\tax_system.rs:190:45
+    |
+190 |         .map(|(_entity, (pos, construction, resources))| {
+    |                                             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_resources`
+
+warning: field `min_y` is never read
+   --> src\ecs.rs:183:5
+    |
+180 | pub struct SpatialQueryIter<'a> {
+    |            ---------------- field in this struct
+...
+183 |     min_y: usize, max_y: usize,
+    |     ^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: the type `[[Vec<u64>; 16]; 16]` does not permit zero-initialization
+   --> src\ecs.rs:115:22
+    |
+115 |             unsafe { std::mem::zeroed() };
+    |                      ^^^^^^^^^^^^^^^^^^
+    |                      |
+    |                      this code causes undefined behavior when executed
+    |                      help: use `MaybeUninit<T>` instead, and only call `assume_init` after initialization is done
+    |
+    = note: `std::ptr::Unique<u8>` must be non-null
+    = note: because `std::ptr::NonNull<u8>` must be non-null
+    = note: `#[warn(invalid_value)]` on by default
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> src\ecs.rs:160:23
+    |
+160 |     pub fn query_near(&self, x: f32, y: f32, radius: f32) -> SpatialQueryIter {
+    |                       ^^^^^ the lifetime is elided here      ^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+    = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+    |
+160 |     pub fn query_near(&self, x: f32, y: f32, radius: f32) -> SpatialQueryIter<'_> {
+    |                                                                              ++++
+
+warning: creating a shared reference to mutable static
+  --> src\rng_pool.rs:79:10
+   |
+79 |         *RNG_POOL.data.get_unchecked(idx)
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ shared reference to mutable static
+   |
+   = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+   = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+   = note: `#[warn(static_mut_refs)]` (part of `#[warn(rust_2024_compatibility)]`) on by default
+
+warning: creating a shared reference to mutable static
+   --> src\rng_pool.rs:131:48
+    |
+131 |             let _val = std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i));
+    |                                                ^^^^^^^^^^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+
+warning: creating a shared reference to mutable static
+   --> src\rng_pool.rs:132:37
+    |
+132 |             std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 4));
+    |                                     ^^^^^^^^^^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+
+warning: creating a shared reference to mutable static
+   --> src\rng_pool.rs:133:37
+    |
+133 |             std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 8));
+    |                                     ^^^^^^^^^^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+
+warning: creating a shared reference to mutable static
+   --> src\rng_pool.rs:134:37
+    |
+134 |             std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 12));
+    |                                     ^^^^^^^^^^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+
+warning: the type `[[Vec<u32>; 128]; 128]` does not permit zero-initialization
+   --> src\traffic_lanes.rs:298:52
+    |
+298 |             let mut grid: [[Vec<u32>; 128]; 128] = std::mem::zeroed();
+    |                                                    ^^^^^^^^^^^^^^^^^^
+    |                                                    |
+    |                                                    this code causes undefined behavior when executed
+    |                                                    help: use `MaybeUninit<T>` instead, and only call `assume_init` after initialization is done
+    |
+    = note: `std::ptr::Unique<u8>` must be non-null
+    = note: because `std::ptr::NonNull<u8>` must be non-null
+
+warning: `citybound_native` (lib) generated 21 warnings (run `cargo fix --lib -p citybound_native` to apply 13 suggestions)
+    Checking citybound_native v0.8.0 (C:\Users\Fa\Desktop\IAF\citybound\refactor)
+error[E0308]: mismatched types
+   --> src\main.rs:212:94
+    |
+212 |             let title = write_fps_title(&mut title_buf, current_fps, cars, trucks, treasury, circling, approval);
+    |                         --------------- arguments to this function are incorrect             ^^^^^^^^ expected `usize`, found `u32`
+    |
+note: function defined here
+   --> src\main.rs:222:4
+    |
+222 | fn write_fps_title<'a>(
+    |    ^^^^^^^^^^^^^^^
+...
+228 |     circling: usize,
+    |     ---------------
+help: you can convert a `u32` to a `usize` and panic if the converted value doesn't fit
+    |
+212 |             let title = write_fps_title(&mut title_buf, current_fps, cars, trucks, treasury, circling.try_into().unwrap(), approval);
+    |                                                                                                      ++++++++++++++++++++
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `citybound_native` (bin "citybound_native") due to 1 previous error

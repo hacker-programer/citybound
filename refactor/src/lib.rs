@@ -1,23 +1,23 @@
-// Citybound Native - Biblioteca central v0.9.0
+// Citybound Native - Biblioteca central v0.10.0 [FASE 7]
 //
 // Re-exporta todos los módulos públicos para uso en main.rs y tests.
 //
 // Arquitectura:
 // - ecs: Entity Component System (hecs)
 // - sim: Sistemas de simulación (tiempo, tráfico, economía, suelo)
-// - render: Renderizado software al framebuffer (con SIMD)
-// - render_cache: Pre-sort estático de entidades por capa [FASE 6]
+// - render: Renderizado software al framebuffer (con SIMD) + RenderCache
+// - render_cache: Pre-sort estático de entidades por capa
 // - luts: Look-up tables trigonométricas precalculadas
 // - object_pool: Pool de entidades preasignadas
 // - bump_alloc: Bump allocator por frame
 // - input: Manejo de input con debounce
 // - terrain: Mapa de terreno con ruido Perlin pre-generado
 // - quadtree: Quadtree espacial
-// - simd_render: Framebuffer SIMD autovectorizado
+// - simd_render: Framebuffer SIMD autovectorizado [SSE2]
 // - rng_pool: RNG pre-generado [TC#22]
 // - flow_field: Flow fields para pathfinding O(1) [TA#7]
 // - bitboard: Bitboards para colisiones en grilla [TI#6]
-// - audio: Audio procedural [TC#6]
+// - audio: Audio procedural con cpal [FASE 7]
 // - traffic_lanes: Tráfico con carriles A/B Street [#361]
 // - interactive: Herramienta de diseño urbano [#392]
 // - supply_chain: Cadena de suministro física [M#1]
@@ -30,6 +30,8 @@
 // - waste_mgmt: Clasificación de basura [M#8]
 // - customization: Personalización visual de edificios [M#9]
 // - politics: NIMBY, sindicatos, elecciones [M#10]
+// - climate: Ciclo día/noche con color grading [FASE 7]
+// - persistence: Save/Load con bincode [FASE 7]
 
 pub mod ecs;
 pub mod sim;
@@ -58,3 +60,5 @@ pub mod parking;
 pub mod waste_mgmt;
 pub mod customization;
 pub mod politics;
+pub mod climate;
+pub mod persistence;

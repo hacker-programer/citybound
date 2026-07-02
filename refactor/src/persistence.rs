@@ -101,12 +101,11 @@ impl SaveData {
         gw.sim_tick = self.sim_tick;
         gw.time_of_day = self.time_of_day;
         gw.finance.treasury = self.finance_treasury;
-        gw.finance.tax_rate_residential = self.finance_tax_rate_residential;
-        gw.finance.tax_rate_commercial = self.finance_tax_rate_commercial;
-        gw.finance.tax_rate_industrial = self.finance_tax_rate_industrial;
+        gw.finance.treasury = self.finance_treasury;
+        gw.finance.tax_policy.land_value_tax_rate = self.finance_land_value_tax_rate;
+        gw.finance.tax_policy.corporate_tax_rate = self.finance_corporate_tax_rate;
+        gw.finance.tax_policy.sales_tax_rate = self.finance_sales_tax_rate;
         gw.politics.global_approval = self.politics_approval;
-
-        // Restaurar congestión de carriles
         for (i, &cong) in self.lane_congestion.iter().enumerate() {
             if i < gw.lane_manager.lanes.len() {
                 gw.lane_manager.lanes[i].congestion = cong;

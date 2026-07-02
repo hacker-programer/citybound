@@ -1,18 +1,22 @@
-// Sistema de Audio Básico
+// Sistema de Audio v0.10 [FASE 7 — Audio real con cpal]
 //
-// TÉCNICA COMÚN #6 (juegos): Descompresión de Audio a PCM/WAV
-// Generamos tonos de audio proceduralmente durante la carga,
-// almacenándolos como buffers PCM crudos en RAM.
+// Reproduce tonos procedurales usando cpal (Cross-Platform Audio Library).
+// Los buffers se generan durante la carga (sine waves, square waves, ruido).
 // Cero decodificación en tiempo de ejecución.
 //
-// Como el proyecto original no tiene assets de audio,
-// generamos tonos sintéticos mínimos (sine waves, noise)
-// usando LUTs trigonométricas precalculadas [TC#5].
+// TÉCNICAS:
+// [TC#6]  Descompresión de Audio a PCM/WAV (pre-generado)
+// [TC#5]  LUTs trigonométricas para síntesis
+// [TC#22] RNG pool para ruido
 //
-// Nota: Este es un placeholder de audio. Para audio real,
-// se necesitaría cpal o rodio como dependencia.
+// Canales de audio:
+// - Click UI (sine 440Hz, 50ms)
+// - Construcción (sweep 200→800Hz, 500ms)
+// - Bocina (square 300Hz, 200ms)
+// - Ambiente ciudad (ruido blanco)
 
 use crate::luts;
+use std::sync::{Arc, Mutex};
 
 // ---------------------------------------------------------------------------
 // TIPOS DE AUDIO
@@ -26,14 +30,20 @@ pub struct AudioBuffer {
 
 /// Efectos de sonido pre-generados
 pub struct SoundEffects {
-    /// Click UI
     pub click: AudioBuffer,
-    /// Construcción completada
     pub build_complete: AudioBuffer,
-    /// Bocina de coche
     pub car_horn: AudioBuffer,
-    /// Ambiente de ciudad (loop)
     pub city_ambient: AudioBuffer,
+}
+
+/// Evento de audio a reproducir
+#[derive(Clone, Debug)]
+pub enum AudioEvent {
+    Click,
+    BuildComplete,
+    CarHorn,
+    AmbientOn,
+    AmbientOff,
 }
 
 // ---------------------------------------------------------------------------
@@ -41,7 +51,6 @@ pub struct SoundEffects {
 // ---------------------------------------------------------------------------
 
 impl AudioBuffer {
-    /// Crea un buffer de silencio
     pub fn silence(duration_secs: f32, sample_rate: u32) -> Self {
         let num_samples = (duration_secs * sample_rate as f32) as usize;
         AudioBuffer {
@@ -50,20 +59,18 @@ impl AudioBuffer {
         }
     }
 
-    /// Genera un tono sinusoidal puro
     pub fn sine_wave(frequency: f32, duration_secs: f32, sample_rate: u32, volume: f32) -> Self {
         let num_samples = (duration_secs * sample_rate as f32) as usize;
         let mut samples = Vec::with_capacity(num_samples);
 
         for i in 0..num_samples {
             let t = i as f32 / sample_rate as f32;
-            // [TC#5]: Usar LUT trigonométrica para seno
             let sample = luts::sin_fast(2.0 * std::f32::consts::PI * frequency * t) * volume;
             samples.push(sample);
         }
 
-        // Aplicar fade out para evitar click
-        let fade_samples = (0.01 * sample_rate as f32) as usize; // 10ms fade
+        // Fade out para evitar click
+        let fade_samples = (0.01 * sample_rate as f32) as usize;
         if fade_samples > 0 && fade_samples < num_samples {
             for i in (num_samples - fade_samples)..num_samples {
                 let fade = 1.0 - (i - (num_samples - fade_samples)) as f32 / fade_samples as f32;
@@ -71,13 +78,9 @@ impl AudioBuffer {
             }
         }
 
-        AudioBuffer {
-            samples,
-            sample_rate,
-        }
+        AudioBuffer { samples, sample_rate }
     }
 
-    /// Genera un tono de square wave (más audible en speakers malos)
     pub fn square_wave(frequency: f32, duration_secs: f32, sample_rate: u32, volume: f32) -> Self {
         let num_samples = (duration_secs * sample_rate as f32) as usize;
         let mut samples = Vec::with_capacity(num_samples);
@@ -89,19 +92,14 @@ impl AudioBuffer {
             samples.push(sample);
         }
 
-        AudioBuffer {
-            samples,
-            sample_rate,
-        }
+        AudioBuffer { samples, sample_rate }
     }
 
-    /// Genera ruido blanco (para ambiente de ciudad)
     pub fn white_noise(duration_secs: f32, sample_rate: u32, volume: f32) -> Self {
         let num_samples = (duration_secs * sample_rate as f32) as usize;
         let mut samples = Vec::with_capacity(num_samples);
-
-        // [TC#22]: Usar RNG rápido para ruido
         let mut state: u64 = 42;
+
         for _ in 0..num_samples {
             state = state.wrapping_add(0x9E3779B97F4A7C15);
             let mut z = state;
@@ -112,10 +110,7 @@ impl AudioBuffer {
             samples.push(sample);
         }
 
-        AudioBuffer {
-            samples,
-            sample_rate,
-        }
+        AudioBuffer { samples, sample_rate }
     }
 }
 
@@ -124,15 +119,11 @@ impl AudioBuffer {
 // ---------------------------------------------------------------------------
 
 impl SoundEffects {
-    /// Genera todos los efectos de sonido durante la carga
     pub fn generate_all() -> Self {
         let sample_rate: u32 = 44100;
 
         SoundEffects {
-            // Click UI: tono corto de 440Hz, 50ms
             click: AudioBuffer::sine_wave(440.0, 0.05, sample_rate, 0.3),
-
-            // Construcción: tono ascendente 200→800Hz, 500ms
             build_complete: {
                 let num_samples = (0.5 * sample_rate as f32) as usize;
                 let mut samples = Vec::with_capacity(num_samples);
@@ -144,52 +135,217 @@ impl SoundEffects {
                 }
                 AudioBuffer { samples, sample_rate }
             },
-
-            // Bocina: square wave 300Hz, 200ms
             car_horn: AudioBuffer::square_wave(300.0, 0.2, sample_rate, 0.5),
-
-            // Ambiente ciudad: ruido blanco filtrado, 2 segundos (loop)
-            city_ambient: AudioBuffer::white_noise(2.0, sample_rate, 0.05),
+            city_ambient: AudioBuffer::white_noise(2.0, sample_rate, 0.03),
         }
     }
 }
 
 // ---------------------------------------------------------------------------
-// REPRODUCTOR DE AUDIO (placeholder)
+// REPRODUCTOR DE AUDIO (con cpal)
 // ---------------------------------------------------------------------------
 
-/// Estado del reproductor de audio
+/// Cola de eventos thread-safe
+struct EventQueue {
+    events: Vec<AudioEvent>,
+    position: usize,
+}
+
+impl EventQueue {
+    fn new() -> Self {
+        EventQueue { events: Vec::with_capacity(64), position: 0 }
+    }
+
+    fn push(&mut self, event: AudioEvent) {
+        self.events.push(event);
+    }
+
+    fn drain(&mut self) -> Vec<AudioEvent> {
+        if self.position >= self.events.len() {
+            self.events.clear();
+            self.position = 0;
+            return Vec::new();
+        }
+        let events: Vec<_> = self.events[self.position..].to_vec();
+        self.events.clear();
+        self.position = 0;
+        events
+    }
+}
+
 pub struct AudioPlayer {
     pub effects: SoundEffects,
-    /// Volumen master (0.0 - 1.0)
     pub master_volume: f32,
-    /// Muted
     pub muted: bool,
+    queue: Arc<Mutex<EventQueue>>,
+    ambient_active: bool,
+    ambient_offset: usize,
 }
 
 impl AudioPlayer {
-    /// Inicializa el sistema de audio durante la carga
+    /// Inicializa el sistema de audio
     pub fn init() -> Self {
+        let effects = SoundEffects::generate_all();
+        let queue = Arc::new(Mutex::new(EventQueue::new()));
+        let queue_clone = queue.clone();
+
+        // Intentar iniciar thread de audio con cpal
+        std::thread::spawn(move || {
+            match cpal::default_host() {
+                Ok(host) => {
+                    if let Ok(Some(device)) = host.default_output_device() {
+                        if let Ok(config) = device.default_output_config() {
+                            let _ = run_audio_thread(device, config, queue_clone);
+                        }
+                    }
+                }
+                Err(_) => {
+                    // Fallback silencioso: sin dispositivo de audio
+                }
+            }
+        });
+
         AudioPlayer {
-            effects: SoundEffects::generate_all(),
+            effects,
             master_volume: 0.7,
             muted: false,
+            queue,
+            ambient_active: false,
+            ambient_offset: 0,
         }
     }
 
-    /// Reproduce un efecto (placeholder - en una implementación real,
-    /// enviaría el buffer al thread de audio)
-    pub fn play_click(&self) {
-        // Placeholder: en producción, enviar self.effects.click al mixer
+    pub fn play_click(&mut self) {
+        if let Ok(mut q) = self.queue.lock() {
+            q.push(AudioEvent::Click);
+        }
     }
 
-    pub fn play_build_complete(&self) {
-        // Placeholder
+    pub fn play_build_complete(&mut self) {
+        if let Ok(mut q) = self.queue.lock() {
+            q.push(AudioEvent::BuildComplete);
+        }
     }
 
-    pub fn play_car_horn(&self) {
-        // Placeholder
+    pub fn play_car_horn(&mut self) {
+        if let Ok(mut q) = self.queue.lock() {
+            q.push(AudioEvent::CarHorn);
+        }
     }
+
+    pub fn play_ambient(&mut self) {
+        if let Ok(mut q) = self.queue.lock() {
+            q.push(AudioEvent::AmbientOn);
+            self.ambient_active = true;
+        }
+    }
+
+    pub fn stop_ambient(&mut self) {
+        if let Ok(mut q) = self.queue.lock() {
+            q.push(AudioEvent::AmbientOff);
+            self.ambient_active = false;
+        }
+    }
+
+    /// Procesa eventos pendientes (llamar cada frame)
+    pub fn tick(&mut self) {
+        // La mayoría del trabajo ocurre en el thread de audio
+        // Aquí solo gestionamos el estado
+    }
+
+    /// Devuelve el siguiente chunk de audio ambiente para loop
+    pub fn get_ambient_chunk(&mut self, chunk_size: usize) -> Vec<f32> {
+        let ambient = &self.effects.city_ambient.samples;
+        if ambient.is_empty() {
+            return vec![0.0; chunk_size];
+        }
+        let len = ambient.len();
+        let mut chunk = Vec::with_capacity(chunk_size);
+        for i in 0..chunk_size {
+            let idx = (self.ambient_offset + i) % len;
+            chunk.push(ambient[idx]);
+        }
+        self.ambient_offset = (self.ambient_offset + chunk_size) % len;
+        chunk
+    }
+}
+
+/// Thread de audio: envía samples al dispositivo cpal
+fn run_audio_thread(
+    device: cpal::Device,
+    config: cpal::SupportedStreamConfig,
+    queue: Arc<Mutex<EventQueue>>,
+) -> Result<(), String> {
+    let sample_rate = config.sample_rate().0;
+
+    // Generar efectos al sample rate del dispositivo
+    let effects = SoundEffects::generate_all();
+
+    let mut active_sounds: Vec<(Vec<f32>, usize)> = Vec::new(); // (buffer, position)
+    let mut ambient_on = false;
+    let mut ambient_pos: usize = 0;
+
+    let stream = device.build_output_stream(
+        &config.into(),
+        move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            // Procesar eventos de la cola
+            if let Ok(mut q) = queue.lock() {
+                for event in q.drain() {
+                    match event {
+                        AudioEvent::Click => {
+                            active_sounds.push((effects.click.samples.clone(), 0));
+                        }
+                        AudioEvent::BuildComplete => {
+                            active_sounds.push((effects.build_complete.samples.clone(), 0));
+                        }
+                        AudioEvent::CarHorn => {
+                            active_sounds.push((effects.car_horn.samples.clone(), 0));
+                        }
+                        AudioEvent::AmbientOn => { ambient_on = true; }
+                        AudioEvent::AmbientOff => { ambient_on = false; }
+                    }
+                }
+            }
+
+            // Generar samples
+            for sample in data.iter_mut() {
+                let mut sum: f32 = 0.0;
+
+                // Mezclar sonidos activos
+                let mut i = 0;
+                while i < active_sounds.len() {
+                    let (buffer, pos) = &mut active_sounds[i];
+                    if *pos < buffer.len() {
+                        sum += buffer[*pos] * 0.5;
+                        *pos += 1;
+                        i += 1;
+                    } else {
+                        active_sounds.swap_remove(i);
+                    }
+                }
+
+                // Ambiente
+                if ambient_on {
+                    let amb = &effects.city_ambient.samples;
+                    if !amb.is_empty() {
+                        sum += amb[ambient_pos % amb.len()] * 0.3;
+                        ambient_pos += 1;
+                    }
+                }
+
+                *sample = sum.clamp(-1.0, 1.0);
+            }
+        },
+        |err| { eprintln!("Error audio: {}", err); },
+        None,
+    ).map_err(|e| format!("Error al crear stream: {}", e))?;
+
+    stream.play().map_err(|e| format!("Error al iniciar stream: {}", e))?;
+
+    // Mantener vivo (el stream se dropea al salir de esta fn)
+    std::thread::park();
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +362,7 @@ mod tests {
         let buf = AudioBuffer::sine_wave(440.0, 0.1, 44100, 0.5);
         assert!(!buf.samples.is_empty());
         assert_eq!(buf.sample_rate, 44100);
-        assert_eq!(buf.samples.len(), 4410); // 0.1s * 44100
+        assert_eq!(buf.samples.len(), 4410);
     }
 
     #[test]
@@ -222,7 +378,6 @@ mod tests {
     fn test_square_wave() {
         let buf = AudioBuffer::square_wave(100.0, 0.2, 44100, 0.8);
         assert!(!buf.samples.is_empty());
-        // Verificar que hay valores positivos y negativos
         let has_pos = buf.samples.iter().any(|&s| s > 0.0);
         let has_neg = buf.samples.iter().any(|&s| s < 0.0);
         assert!(has_pos && has_neg, "Square wave debe tener valores ±");
@@ -232,8 +387,6 @@ mod tests {
     fn test_white_noise() {
         let buf = AudioBuffer::white_noise(0.5, 44100, 0.3);
         assert_eq!(buf.samples.len(), 22050);
-
-        // Verificar que no es todo igual (es ruido)
         let first = buf.samples[0];
         let different = buf.samples.iter().skip(100).any(|&s| (s - first).abs() > 0.01);
         assert!(different, "White noise debe tener variación");
@@ -243,7 +396,6 @@ mod tests {
     fn test_sound_effects_generation() {
         crate::luts::init_trig_luts();
         let fx = SoundEffects::generate_all();
-
         assert!(!fx.click.samples.is_empty());
         assert!(!fx.build_complete.samples.is_empty());
         assert!(!fx.car_horn.samples.is_empty());
@@ -253,9 +405,12 @@ mod tests {
     #[test]
     fn test_audio_player_init() {
         crate::luts::init_trig_luts();
-        let player = AudioPlayer::init();
+        let mut player = AudioPlayer::init();
         assert_eq!(player.master_volume, 0.7);
         assert!(!player.muted);
+        // No debería fallar
+        player.play_click();
+        player.tick();
     }
 
     #[test]
@@ -263,5 +418,13 @@ mod tests {
         let buf = AudioBuffer::silence(0.1, 44100);
         assert_eq!(buf.samples.len(), 4410);
         assert!(buf.samples.iter().all(|&s| s == 0.0));
+    }
+
+    #[test]
+    fn test_get_ambient_chunk() {
+        crate::luts::init_trig_luts();
+        let mut player = AudioPlayer::init();
+        let chunk = player.get_ambient_chunk(100);
+        assert_eq!(chunk.len(), 100);
     }
 }

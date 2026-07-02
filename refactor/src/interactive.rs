@@ -226,7 +226,6 @@ impl DesignTool {
     pub fn increase_brush(&mut self) {
         self.brush_size = (self.brush_size + 1).min(MAX_BRUSH_SIZE);
     }
-    }
 
     /// Deshacer última acción
     pub fn undo(&mut self, game_world: &mut GameWorld) {

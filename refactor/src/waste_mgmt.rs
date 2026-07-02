@@ -239,23 +239,24 @@ impl WasteManager {
         let mut recyclable_total: f32 = 0.0;
         let mut toxic_total: f32 = 0.0;
         let mut general_total: f32 = 0.0;
+
+        // Generar residuos de cada edificio
+        let waste_streams: Vec<Vec<WasteItem>> = gw.world
+            .query::<&crate::ecs::ConstructionState>()
+            .iter()
+            .map(|(_e, cs)| self.generate_building_waste(cs.building_type))
+            .collect();
+
+        for items in waste_streams {
+            for item in items {
+                match item.waste_type {
+                    WasteType::Organic => organic_total += item.amount_kg,
                     WasteType::Recyclable => recyclable_total += item.amount_kg,
                     WasteType::Toxic => toxic_total += item.amount_kg,
                     WasteType::General => general_total += item.amount_kg,
                 }
             }
         }
-
-        // Enviar reciclables a plantas
-        let mut recycled = 0.0_f32;
-        for plant in self.recycling_plants.iter_mut() {
-            let to_process = recyclable_total.min(plant.processing_capacity);
-            plant.processed_this_tick = to_process;
-            plant.total_revenue += to_process * plant.revenue_per_kg;
-            recycled += to_process;
-        }
-        self.total_recycling_revenue += recycled * 0.15;
-
         // El resto va al vertedero más cercano
         let remaining_organic = organic_total;
         let remaining_recyclable = recyclable_total - recycled;

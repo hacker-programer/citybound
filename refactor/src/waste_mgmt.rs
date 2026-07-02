@@ -248,6 +248,7 @@ impl WasteManager {
             .collect();
 
         for items in waste_streams {
+        for items in waste_streams {
             for item in items {
                 match item.waste_type {
                     WasteType::Organic => organic_total += item.amount_kg,
@@ -255,10 +256,8 @@ impl WasteManager {
                     WasteType::Toxic => toxic_total += item.amount_kg,
                     WasteType::General => general_total += item.amount_kg,
                 }
-                }
             }
         }
-
         // Enviar reciclables a plantas
         let mut recycled = 0.0_f32;
         for plant in self.recycling_plants.iter_mut() {

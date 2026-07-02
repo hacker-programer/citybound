@@ -161,9 +161,11 @@ impl MunicipalFinance {
             BuildingType::House => 1.0,
             BuildingType::Apartment => 1.5,      // Más unidades = más valor
             BuildingType::Shop => 2.0,           // Comercial paga más
-            BuildingType::Office => 2.5,
-            BuildingType::Factory => 1.8,
             BuildingType::Farm => 0.5,           // Agrícola tiene exención parcial
+            BuildingType::Hospital => 0.3,       // Servicio público — tasa reducida
+            BuildingType::School => 0.3,         // Servicio público — tasa reducida
+            BuildingType::Police => 0.4,         // Servicio público — tasa reducida
+        };
         };
 
         base_tax * modifier

@@ -208,11 +208,13 @@ impl ParkingManager {
         };
     /// Retorna true si encontró lugar, false si debe seguir circulando
     pub fn find_parking(&mut self, x: f32, y: f32, is_commercial: bool) -> bool {
-        // 1. Intentar en el edificio destino
-        for (bx, by, capacity) in self.building_parking.iter_mut() {
-            let dist = ((x - *bx) * (x - *bx) + (y - *by) * (y - *by)).sqrt();
-            if dist < 5.0 && capacity.park() {
-                return true; // Estacionado en edificio
+        };
+
+        self.building_parking.push((x, y, capacity));
+    }
+
+    /// Busca estacionamiento para un coche que llega a destino
+    /// Retorna true si encontró lugar, false si debe seguir circulando
             }
         }
 

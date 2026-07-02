@@ -1,4 +1,4 @@
-ï»¿// Citybound Native v0.8.0 â€” Punto de entrada principal
+// Citybound Native v0.9.0 — Punto de entrada principal
 //
 // FASE 6 OPTIMIZACIONES:
 // - Double buffering con swap de punteros (sin memcpy)
@@ -9,7 +9,7 @@
 // ARQUITECTURA:
 // - ECS puro con hecs + SpatialGrid
 // - Framebuffer software rendering con SSE2
-// - Flow Fields + Bitboards + Lanes (trÃ¡fico A/B Street)
+// - Flow Fields + Bitboards + Lanes (tráfico A/B Street)
 // - Design Tool interactivo
 // - 10 sistemas de realismo [M#1..M#10]
 
@@ -33,7 +33,7 @@ fn main() {
         std::process::abort();
     }));
 
-    println!("Citybound Native v0.8.0 â€” City Builder Realista [Fase 6: Optimizado]");
+    println!("Citybound Native v0.9.0 — City Builder Realista [Fase 6: Optimizado]");
     println!("10 sistemas | SIMD SSE2 | SpatialGrid | Zero-alloc | DoubleBuffer");
 
     // ===== FASE DE CARGA =====
@@ -47,7 +47,7 @@ fn main() {
     sim::init_simulation(&mut world);
 
     // ===== CACHE WARMING [TA#8] =====
-    println!("Calentando cachÃ©...");
+    println!("Calentando caché...");
     rng_pool::warm_rng_cache();
 
     for y in (0..terrain::TERRAIN_SIZE).step_by(8) {
@@ -70,14 +70,14 @@ fn main() {
         let _ = world.power_grid.get_pressure(64.0, 64.0);
     }
 
-    println!("CachÃ© caliente. {} carriles, {} intersecciones.",
+    println!("Caché caliente. {} carriles, {} intersecciones.",
         world.lane_manager.lanes.len(), world.lane_manager.intersections.len());
     println!("Tesoro inicial: ${:.0}", world.finance.treasury);
-    println!("[Tab] DiseÃ±o | [WASD] Mover | [ESC] Salir");
+    println!("[Tab] Diseño | [WASD] Mover | [ESC] Salir");
 
     // ===== VENTANA =====
     let mut window = Window::new(
-        "Citybound Native v0.8.0 â€” City Builder (ESC para salir)",
+        "Citybound Native v0.9.0 — City Builder (ESC para salir)",
         WINDOW_WIDTH, WINDOW_HEIGHT,
         WindowOptions {
             scale: Scale::X2,
@@ -109,7 +109,7 @@ fn main() {
     let mut ticks_since_tax: u64 = 0;
     let mut ticks_since_waste: u64 = 0;
 
-    // Buffer stack para tÃ­tulo (zero-allocation)
+    // Buffer stack para título (zero-allocation)
     let mut title_buf: [u8; 256] = [0; 256];
 
     // ===== BUCLE PRINCIPAL =====
@@ -141,7 +141,7 @@ fn main() {
             sim::tick(&mut world, dt);
             accumulator -= tick_dur;
 
-            // Sistemas periÃ³dicos
+            // Sistemas periódicos
             ticks_since_tax += 1;
             if ticks_since_tax >= tax_system::TAX_COLLECTION_INTERVAL {
                 ticks_since_tax = 0;
@@ -195,7 +195,7 @@ fn main() {
         // Swap punteros (sin copiar datos)
         std::mem::swap(&mut front_ptr, &mut back_ptr);
 
-        // ===== ESTADÃSTICAS (zero-alloc) =====
+        // ===== ESTADÍSTICAS (zero-alloc) =====
         frame_count += 1;
         if fps_timer.elapsed() >= Duration::from_secs(1) {
             current_fps = frame_count as u32;
@@ -205,7 +205,7 @@ fn main() {
             let cars = world.world.query::<&ecs::TrafficCar>().iter().count();
             let trucks = world.world.query::<&supply_chain::CargoTruck>().iter().count();
             let treasury = world.finance.treasury;
-            let circling = world.parking_mgr.circling_cars;
+            let circling = world.parking_mgr.circling_cars as usize;
             let approval = world.politics.global_approval;
 
             // Zero-allocation title
@@ -214,11 +214,11 @@ fn main() {
         }
     }
 
-    println!("SimulaciÃ³n terminada. FPS: {}, Ticks: {}, Tesoro: ${:.0}",
+    println!("Simulación terminada. FPS: {}, Ticks: {}, Tesoro: ${:.0}",
         current_fps, world.sim_tick, world.finance.treasury);
 }
 
-/// Zero-allocation: escribe el tÃ­tulo en buffer de stack
+/// Zero-allocation: escribe el título en buffer de stack
 fn write_fps_title<'a>(
     buf: &'a mut [u8],
     fps: u32,
@@ -228,7 +228,7 @@ fn write_fps_title<'a>(
     circling: usize,
     approval: f32,
 ) -> &'a str {
-    let prefix = b"CB v0.8 ";
+    let prefix = b"CB v0.9 ";
     let mut pos = prefix.len();
     buf[..pos].copy_from_slice(prefix);
 

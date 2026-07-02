@@ -1,4 +1,4 @@
-﻿// Módulo de Renderizado Software v0.8.0
+// Módulo de Renderizado Software v0.8.1
 //
 // FASE 6:
 // - Viewport culling via SpatialGrid (solo renderizar entidades visibles)
@@ -17,8 +17,7 @@
 // [TA#17] get_unchecked
 
 use crate::ecs::{GameWorld, Position, Renderable, ZoneComponent, ZoneType, Camera,
-                  ConstructionState, BuildingType, TrafficCar, SpatialGrid, SPATIAL_CELL_SIZE,
-                  SPATIAL_GRID_DIM};
+                  ConstructionState, BuildingType};
 use crate::simd_render;
 
 // ---------------------------------------------------------------------------
@@ -92,10 +91,6 @@ pub fn render_world(
 
 // ---------------------------------------------------------------------------
 // SINGLE-PASS ENTITIES [FASE 6]
-//
-// En vez de 4 queries separadas (base_layer, building_layer, traffic_layer, etc),
-// iteramos TODAS las entidades UNA vez, usando el SpatialGrid para culling.
-// Las entidades fuera del viewport se saltan en O(1).
 // ---------------------------------------------------------------------------
 
 fn render_entities_single_pass(
@@ -107,34 +102,6 @@ fn render_entities_single_pass(
     oy: f32,
     scale: f32,
 ) {
-    let grid_size = gw.grid_size as f32;
-
-    // Calcular viewport en coordenadas de mundo
-    let vp_left = -ox / scale;
-    let vp_top = -oy / scale;
-    let vp_right = (w as f32 - ox) / scale;
-    let vp_bottom = (h as f32 - oy) / scale;
-
-    // Expandir viewport ligeramente para margen
-    let margin = 10.0;
-    let vp_cx = (vp_left + vp_right) / 2.0;
-    let vp_cy = (vp_top + vp_bottom) / 2.0;
-    let vp_radius = ((vp_right - vp_left).abs() + (vp_bottom - vp_top).abs()) / 2.0 + margin;
-
-    // Query spatial grid por entidades cercanas al viewport
-    let nearby = gw.spatial_grid.query_near(vp_cx, vp_cy, vp_radius);
-
-    // Single pass: recolectar y dibujar en orden de capa
-    for entity_bits in nearby {
-        // Convertir bits de vuelta a entity (aproximación: necesitamos acceso al mundo real)
-        // La iteración directa del mundo con hecs sigue siendo necesaria para
-        // obtener los componentes, pero filtramos por spatial grid
-    }
-
-    // Fallback al método original con iteración completa del mundo
-    // (el spatial grid se usa para culling en futuras optimizaciones)
-    // Mientras tanto, usamos queries separadas pero optimizadas:
-
     // PASADA: Zonas (capa 0-1)
     for (_entity, (pos, renderable)) in gw.world
         .query::<(&Position, &Renderable)>()
@@ -150,7 +117,6 @@ fn render_entities_single_pass(
         .iter()
     {
         if zone.density > 0 {
-            // Quick culling
             let sx = pos.x * scale + ox;
             let sy = pos.y * scale + oy;
             if sx < -10.0 || sx > w as f32 + 10.0 || sy < -10.0 || sy > h as f32 + 10.0 {
@@ -280,7 +246,6 @@ fn render_lane_network(
 /// Bresenham con early-out de bounds
 fn draw_line(fb: &mut [u32], w: usize, h: usize,
              x1: i32, y1: i32, x2: i32, y2: i32, color: u32) {
-    // Early out: línea completamente fuera de bounds
     if (x1 < 0 && x2 < 0) || (x1 >= w as i32 && x2 >= w as i32)
         || (y1 < 0 && y2 < 0) || (y1 >= h as i32 && y2 >= h as i32) {
         return;
@@ -370,7 +335,6 @@ fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
         simd_render::fill_rect_alpha_simd(fb, w, h, 0, 0, w_i32, 24, COLOR_UI_BG);
     }
 
-    // [FASE 6]: Zero-allocation — usar buffers pre-asignados
     let mode_str = if gw.design_tool.active {
         match gw.design_tool.mode {
             crate::interactive::DesignMode::PaintZone => "MODO: PINTAR ZONAS",
@@ -382,7 +346,6 @@ fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
         "MODO: SIMULACION"
     };
 
-    // Usar array fijo en stack en vez de String::format()
     let mut title_buf: [u8; 128] = [0; 128];
     let title_str = write_title(&mut title_buf, mode_str, gw.time_of_day, gw.sim_tick);
     draw_text(fb, w, h, 8, 4, title_str, COLOR_UI_TEXT);
@@ -413,13 +376,11 @@ fn write_title<'a>(buf: &'a mut [u8], mode: &str, time_of_day: u16, tick: u64) -
     let mut pos = prefix.len();
     buf[..pos].copy_from_slice(prefix);
 
-    // Copiar mode
     let mode_bytes = mode.as_bytes();
     let mode_len = mode_bytes.len().min(30);
     buf[pos..pos + mode_len].copy_from_slice(&mode_bytes[..mode_len]);
     pos += mode_len;
 
-    // Hora
     let hour = time_of_day / 60;
     let min = time_of_day % 60;
     buf[pos] = b' '; pos += 1;
@@ -437,7 +398,6 @@ fn write_title<'a>(buf: &'a mut [u8], mode: &str, time_of_day: u16, tick: u64) -
     buf[pos] = b'T'; pos += 1;
     buf[pos] = b':'; pos += 1;
 
-    // Tick como número (zero-alloc)
     if tick == 0 {
         buf[pos] = b'0'; pos += 1;
     } else {
@@ -455,7 +415,6 @@ fn write_title<'a>(buf: &'a mut [u8], mode: &str, time_of_day: u16, tick: u64) -
         }
     }
 
-    // Convertir a str seguro
     let valid_len = pos.min(buf.len());
     unsafe { std::str::from_utf8_unchecked(&buf[..valid_len]) }
 }

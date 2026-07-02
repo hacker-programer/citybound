@@ -196,10 +196,11 @@ impl ParkingManager {
         building_type: crate::ecs::BuildingType,
     ) {
         let capacity = match building_type {
-            crate::ecs::BuildingType::House => ParkingCapacity::new(ParkingType::GaragePrivate, 2),
-            crate::ecs::BuildingType::Apartment => ParkingCapacity::new(ParkingType::Underground, 20),
-            crate::ecs::BuildingType::Shop => ParkingCapacity::new(ParkingType::SurfaceLot, 15),
-            crate::ecs::BuildingType::Office => ParkingCapacity::new(ParkingType::Underground, 40),
+            crate::ecs::BuildingType::Farm => ParkingCapacity::new(ParkingType::None, 0),
+            crate::ecs::BuildingType::Hospital => ParkingCapacity::new(ParkingType::Underground, 50),
+            crate::ecs::BuildingType::School => ParkingCapacity::new(ParkingType::SurfaceLot, 30),
+            crate::ecs::BuildingType::Police => ParkingCapacity::new(ParkingType::GaragePrivate, 12),
+        };
             crate::ecs::BuildingType::Factory => ParkingCapacity::new(ParkingType::SurfaceLot, 10),
             crate::ecs::BuildingType::Farm => ParkingCapacity::new(ParkingType::None, 0),
         };

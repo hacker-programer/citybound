@@ -17,11 +17,10 @@ pub struct SaveData {
     pub version: u32,
     pub sim_tick: u64,
     pub time_of_day: u16,
-    pub sim_tick: u64,
-    pub time_of_day: u16,
     pub finance_treasury: f32,
     pub finance_land_value_tax_rate: f32,
     pub finance_corporate_tax_rate: f32,
+    pub finance_sales_tax_rate: f32,
     pub finance_sales_tax_rate: f32,
     pub politics_approval: f32,
     /// Posiciones de edificios: (x, y, building_type, money, food, goods)

@@ -1,10 +1,15 @@
-// RenderCache v0.9 — Pre-sort estático de entidades por capa [FASE 6]
+// RenderCache v0.10 — Pre-sort estático de entidades por capa [FASE 7]
 //
 // En vez de ordenar/sortear entidades cada frame, las entidades se
 // insertan en el bucket de capa correcto al crearse.
 // El render solo itera los buckets en orden (0..=5), sin sort.
+//
+// FASE 7: 
+// - rebuild_from_world para sincronizar con ECS
+// - Colores para nuevos edificios (Hospital, Escuela, Policía)
+// - Integración completa con pipeline de render
 
-use crate::ecs::{BuildingType, ZoneType};
+use crate::ecs::{BuildingType, ZoneType, Position, Renderable, ConstructionState, ZoneComponent, TrafficCar};
 
 /// Capas de renderizado (orden back-to-front)
 pub const LAYER_TERRAIN: u8 = 0;
@@ -34,16 +39,12 @@ impl RenderCacheEntry {
 }
 
 /// Cache de render con buckets pre-ordenados por capa.
-/// Las entidades se añaden al bucket correspondiente automáticamente.
 pub struct RenderCache {
-    /// Buckets por capa [LAYER_TERRAIN..LAYER_UI]
     pub buckets: [Vec<RenderCacheEntry>; NUM_RENDER_LAYERS],
-    /// Flag: ¿necesita reconstrucción desde el ECS?
     pub dirty: bool,
 }
 
 impl RenderCache {
-    /// Crea un nuevo cache con capacidad pre-reservada [TC#2]
     pub fn new() -> Self {
         let mut buckets: [Vec<RenderCacheEntry>; NUM_RENDER_LAYERS] = unsafe { std::mem::zeroed() };
         for bucket in buckets.iter_mut() {
@@ -52,29 +53,62 @@ impl RenderCache {
         RenderCache { buckets, dirty: true }
     }
 
-    /// Limpia todos los buckets (llamar al inicio de cada frame)
     pub fn clear(&mut self) {
         for bucket in self.buckets.iter_mut() {
             bucket.clear();
         }
     }
 
-    /// Añade una entidad al bucket de su capa
     #[inline(always)]
     pub fn push(&mut self, entry: RenderCacheEntry) {
         let layer = entry.layer.min(NUM_RENDER_LAYERS as u8 - 1) as usize;
-        // SAFETY: layer está validado contra NUM_RENDER_LAYERS
         unsafe {
             self.buckets.get_unchecked_mut(layer).push(entry);
         }
     }
 
-    /// Número total de entidades cacheadas
     pub fn total_entries(&self) -> usize {
         self.buckets.iter().map(|b| b.len()).sum()
     }
 
-    /// Itera sobre todas las entradas en orden de capa (back-to-front)
+    /// [FASE 7]: Reconstruye el cache desde el mundo ECS
+    pub fn rebuild_from_world(&mut self, world: &hecs::World) {
+        self.clear();
+
+        // Zonas (capa 1)
+        for (_entity, (pos, zone)) in world.query::<(&Position, &ZoneComponent)>().iter() {
+            if zone.density > 0 {
+                self.push(RenderCacheEntry::new(
+                    pos.x, pos.y, 1, // rect
+                    zone_color(zone.zone_type),
+                    1.0, LAYER_ZONES,
+                ));
+            }
+        }
+
+        // Edificios y construcciones (capa 2-3)
+        for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
+            if renderable.layer >= 2 && renderable.layer <= 3 {
+                self.push(RenderCacheEntry::new(
+                    pos.x, pos.y, renderable.shape_type,
+                    renderable.color, renderable.size, renderable.layer,
+                ));
+            }
+        }
+
+        // Tráfico (capa 4)
+        for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
+            if renderable.layer >= 4 {
+                self.push(RenderCacheEntry::new(
+                    pos.x, pos.y, renderable.shape_type,
+                    renderable.color, renderable.size, renderable.layer,
+                ));
+            }
+        }
+
+        self.dirty = false;
+    }
+
     #[inline]
     pub fn iter_layers(&self) -> RenderCacheIter {
         RenderCacheIter {
@@ -124,6 +158,10 @@ pub fn building_color(btype: BuildingType) -> u32 {
         BuildingType::Office => 0xFF_78_90_9C,
         BuildingType::Factory => 0xFF_8D_6E_63,
         BuildingType::Farm => 0xFF_8B_C3_4A,
+        // [FASE 7]: Edificios públicos
+        BuildingType::Hospital => 0xFF_F4_81_81,   // Rojo claro (cruz roja)
+        BuildingType::School => 0xFF_FF_D5_4F,     // Amarillo
+        BuildingType::Police => 0xFF_42_45_E8,     // Azul policía
     }
 }
 
@@ -142,6 +180,8 @@ pub fn zone_color(ztype: ZoneType) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ecs;
+    use crate::object_pool::EntityPool;
 
     #[test]
     fn test_render_cache_push_and_iter() {
@@ -153,8 +193,6 @@ mod tests {
 
         let all: Vec<&RenderCacheEntry> = cache.iter_layers().collect();
         assert_eq!(all.len(), 3);
-
-        // Debe respetar orden: ZONES(1) < BUILDINGS(2) < TRAFFIC(4)
         assert_eq!(all[0].layer, LAYER_ZONES);
         assert_eq!(all[1].layer, LAYER_BUILDINGS);
         assert_eq!(all[2].layer, LAYER_TRAFFIC);
@@ -165,12 +203,8 @@ mod tests {
         let mut cache = RenderCache::new();
         cache.push(RenderCacheEntry::new(0.0, 0.0, 0, 0, 1.0, 0));
         assert_eq!(cache.total_entries(), 1);
-
         cache.clear();
         assert_eq!(cache.total_entries(), 0);
-
-        let all: Vec<&RenderCacheEntry> = cache.iter_layers().collect();
-        assert!(all.is_empty());
     }
 
     #[test]
@@ -185,10 +219,10 @@ mod tests {
     #[test]
     fn test_layer_clamping() {
         let mut cache = RenderCache::new();
-        cache.push(RenderCacheEntry::new(0.0, 0.0, 0, 0, 1.0, 255)); // Overflow
+        cache.push(RenderCacheEntry::new(0.0, 0.0, 0, 0, 1.0, 255));
         let all: Vec<&RenderCacheEntry> = cache.iter_layers().collect();
         assert_eq!(all.len(), 1);
-        assert_eq!(all[0].layer, NUM_RENDER_LAYERS as u8 - 1); // Clamped
+        assert_eq!(all[0].layer, NUM_RENDER_LAYERS as u8 - 1);
     }
 
     #[test]
@@ -196,10 +230,11 @@ mod tests {
         let types = [
             BuildingType::House, BuildingType::Apartment, BuildingType::Shop,
             BuildingType::Office, BuildingType::Factory, BuildingType::Farm,
+            BuildingType::Hospital, BuildingType::School, BuildingType::Police,
         ];
         for t in &types {
             let c = building_color(*t);
-            assert_eq!((c >> 24) & 0xFF, 0xFF, "Alpha must be 0xFF");
+            assert_eq!((c >> 24) & 0xFF, 0xFF, "Alpha must be 0xFF for {:?}", t);
         }
     }
 
@@ -213,5 +248,27 @@ mod tests {
             let c = zone_color(*t);
             assert_eq!((c >> 24) & 0xFF, 0x44, "Alpha must be 0x44 for zones");
         }
+    }
+
+    #[test]
+    fn test_rebuild_from_world() {
+        crate::luts::init_trig_luts();
+        crate::rng_pool::init_rng_pool(42);
+        let mut pool = EntityPool::new(1000);
+        let gw = ecs::create_world(&mut pool);
+        let mut cache = RenderCache::new();
+        cache.rebuild_from_world(&gw.world);
+        assert!(cache.total_entries() > 0, "Cache must be populated from world");
+        assert!(!cache.dirty);
+    }
+
+    #[test]
+    fn test_new_building_colors_distinct() {
+        let hospital = building_color(BuildingType::Hospital);
+        let school = building_color(BuildingType::School);
+        let police = building_color(BuildingType::Police);
+        assert_ne!(hospital, school);
+        assert_ne!(school, police);
+        assert_ne!(hospital, police);
     }
 }

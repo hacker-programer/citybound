@@ -453,8 +453,10 @@ impl DesignTool {
         }
     }
 }
+}
 
 // ---------------------------------------------------------------------------
+// PROCESAMIENTO DE INPUT
 // PROCESAMIENTO DE INPUT
 // PROCESAMIENTO DE INPUT
 // PROCESAMIENTO DE INPUT

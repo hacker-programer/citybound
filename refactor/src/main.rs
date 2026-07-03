@@ -1,11 +1,10 @@
-// Citybound Native v0.13.0 — Punto de entrada principal
+// Citybound Native v0.15.0 — Punto de entrada principal
 //
-// ARQUITECTURA CROSS-PLATFORM [FASE 8]:
+// ARQUITECTURA CROSS-PLATFORM:
 // - GPU Backend Adaptativo: detecta hardware (Tier 0-3) y selecciona
 //   el mejor backend disponible (Vulkan/DX12/Metal/OpenGL ES/CPU SIMD)
-// - Capa de abstracción platform.rs para Windows, Android, macOS, Linux
-// - GameWorld en heap (Box) para evitar stack overflow
-// - Shaders WGSL pre-compilados en tiempo de carga
+// - Capa de abstracción: minifb (desktop) + platform.rs (Android)
+// - GameWorld en Box para evitar stack overflow
 //
 // PLATAFORMAS SOPORTADAS:
 // - Windows (native, DX12/Vulkan via wgpu)
@@ -32,258 +31,265 @@ fn main() {
         std::process::abort();
     }));
 
-    // ===== [FASE 8] DETECCIÓN DE HARDWARE =====
+    // ===== DETECCIÓN DE HARDWARE =====
     let hw_tier = gpu_backend::HardwareTier::current();
     let gpu_api = gpu_backend::GpuApi::detect();
 
     println!("══════════════════════════════════════════════════");
-    println!("  Citybound Native v0.13.0 — City Builder Realista");
+    println!("  Citybound Native v0.15.0 — City Builder Realista");
     println!("  Plataforma: {} | {}", platform::platform_name(), platform::arch_name());
-    println!("  GPU API: {} | Tier: {:?} (nivel {})", 
+    println!("  GPU API: {} | Tier: {:?} (nivel {})",
         gpu_api.name(), hw_tier, hw_tier as u8);
     println!("  Compute Shaders: {} | Max Textures: {} | Atlas: {}x{}",
-        if hw_tier.supports_compute_shaders() { "SÍ" } else { "NO" },
+        if hw_tier.supports_compute_shaders() { "SI" } else { "NO" },
         hw_tier.max_texture_units(),
         hw_tier.max_texture_size(),
         hw_tier.max_texture_size());
     println!("══════════════════════════════════════════════════");
 
-    // ===== FASE DE CARGA =====
-    luts::init_trig_luts();
-    rng_pool::init_rng_pool(42);
-    bump_alloc::init_frame_allocator();
-    let _audio_player = audio::AudioPlayer::init();
+    // ===== VENTANA NATIVA =====
+    let mut window = match minifb::Window::new(
+        "Citybound Native v0.15.0",
+        WINDOW_WIDTH,
+        WINDOW_HEIGHT,
+        minifb::WindowOptions {
+            resize: false,
+            scale: minifb::Scale::X1,
+            ..minifb::WindowOptions::default()
+        },
+    ) {
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("Error creando ventana: {:?}", e);
+            std::process::exit(1);
+        }
+    };
 
-    // [FASE 8] Warming de shaders
-    let shaders_ok = shaders::warm_shader_cache();
-    if !shaders_ok {
-        eprintln!("ADVERTENCIA: Falló la validación de shaders. Usando CPU fallback.");
-    }
+    window.limit_update_rate(Some(Duration::from_micros(1_000_000 / TARGET_FPS as u64)));
 
-    // [FASE 8] Inicializar GPU backend adaptativo
-    let mut gpu_state = gpu_backend::init_render_backend(
-        WINDOW_WIDTH as u32, 
-        WINDOW_HEIGHT as u32
-    );
+    // ===== FRAMEBUFFER =====
+    let mut framebuffer: Vec<u32> = vec![0u32; FB_SIZE];
 
-    let mut pool = object_pool::EntityPool::new(1000);
-    // [FIX CRÍTICO]: GameWorld en heap para evitar stack overflow
+    // ===== MUNDO DEL JUEGO =====
+    let mut pool = object_pool::EntityPool::new(20000);
     let mut world = Box::new(ecs::create_world(&mut pool));
-    sim::init_simulation(&mut world);
 
-    // Intentar cargar partida guardada
-    if let Ok(saved) = persistence::load_game("save.dat") {
-        println!("Partida cargada: tick {}, tesoro ${:.0}", saved.sim_tick, saved.finance_treasury);
-        world.sim_tick = saved.sim_tick;
-        world.time_of_day = saved.time_of_day;
-        world.finance.treasury = saved.finance_treasury;
-    }
+    // ===== GPU BACKEND =====
+    let mut cpu_backend = gpu_backend::CpuBackend::new(WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32);
 
-    // ===== CACHE WARMING [TA#8] =====
-    println!("Calentando caché L1/L2...");
-    rng_pool::warm_rng_cache();
-
-    for y in (0..terrain::TERRAIN_SIZE).step_by(8) {
-        for x in (0..terrain::TERRAIN_SIZE).step_by(8) {
-            let _ = world.terrain.height(x, y);
-        }
-    }
-
-    for y in (0..flow_field::FLOW_GRID_SIZE).step_by(8) {
-        for x in (0..flow_field::FLOW_GRID_SIZE).step_by(8) {
-            let _ = world.flow_fields.sample_combined(x as f32, y as f32, false);
-        }
-    }
-
-    world.render_cache.rebuild_from_world(&world.world);
-
-    println!("Caché caliente. {} carriles, {} intersecciones.",
-        world.lane_manager.lanes.len(), world.lane_manager.intersections.len());
-    println!("Tesoro inicial: ${:.0}", world.finance.treasury);
-    println!("[Tab] Diseño | [WASD] Mover | [F5] Guardar | [F9] Cargar | [ESC] Salir");
-
-    // ===== PLATFORM: Crear ventana nativa =====
-    let mut window_system = platform::WindowSystem::new(
-        "Citybound Native v0.13 — GPU Adaptativa (ESC para salir)",
-        WINDOW_WIDTH as u32,
-        WINDOW_HEIGHT as u32,
-    );
-
-    // Doble buffer con punteros (sin memcpy en swap)
-    let mut buffer_a: Vec<u32> = vec![0xFF_1A_1A_2E; FB_SIZE];
-    let mut buffer_b: Vec<u32> = vec![0xFF_1A_1A_2E; FB_SIZE];
-    let mut front_ptr: *mut Vec<u32> = &mut buffer_a;
-    let mut back_ptr: *mut Vec<u32> = &mut buffer_b;
-
-    simd_render::warm_cache(&mut buffer_a, FB_SIZE);
-    simd_render::warm_cache(&mut buffer_b, FB_SIZE);
-
-    let mut last_tick = Instant::now();
-    let mut accumulator = Duration::from_micros(0);
-    let tick_dur = Duration::from_micros(MICROS_PER_TICK);
-
+    // ===== ESTADO =====
     let mut input_state = input::InputState::default();
+    let mut sim_accumulator: u64 = 0;
+    let mut last_time = Instant::now();
     let mut frame_count: u64 = 0;
     let mut fps_timer = Instant::now();
-    let mut current_fps: u32 = 0;
+    let mut current_fps: f32 = 0.0;
 
-    let mut ticks_since_tax: u64 = 0;
-    let mut ticks_since_waste: u64 = 0;
+    // Warm render cache
+    world.render_cache.rebuild_from_world(&world.world);
 
-    let mut title_buf: [u8; 256] = [0; 256];
+    println!("[OK] Mundo creado: {} entidades", ecs::entity_count(&world));
+    println!("[OK] GPU Backend: CPU SIMD (Tier {})", hw_tier as u8);
+    println!("[OK] Simulación iniciada — {}/s ticks, {} FPS objetivo",
+        SIM_TICKS_PER_SECOND, TARGET_FPS);
 
-    // ===== BUCLE PRINCIPAL =====
-    while window_system.is_open() {
-        bump_alloc::reset_frame();
-
-        // Poll events nativos (keyboard, mouse, touch, resize)
-        let events = window_system.poll_events();
-        for event in &events {
-            input_state.process_platform_event(event);
-        }
-
-        // ESC para salir
-        if input_state.key_pressed(platform::KeyCode::Escape) {
-            break;
-        }
-
-        // ===== SIMULACIÓN (paso fijo) =====
+    // ===== GAME LOOP =====
+    while window.is_open() && !input_state.is_key_down(input::GameKey::Escape) {
         let now = Instant::now();
-        let elapsed = now.duration_since(last_tick);
-        last_tick = now;
-        accumulator += elapsed;
+        let dt = now.duration_since(last_time);
+        last_time = now;
 
-        while accumulator >= tick_dur {
-            sim::tick_simulation(&mut world, &mut pool);
-            accumulator -= tick_dur;
+        // ---- INPUT ----
+        // Resetear flancos del frame anterior
+        input_state.keys_pressed = 0;
+        input_state.keys_released = 0;
+        input_state.scroll_delta = 0.0;
 
-            ticks_since_tax += 1;
-            ticks_since_waste += 1;
-
-            // Recaudar impuestos cada 30 ticks (~cada 3 segundos a 10tps)
-            if ticks_since_tax >= 30 {
-                tax_system::collect_taxes(&mut world);
-                ticks_since_tax = 0;
-            }
-
-            // Procesar residuos cada 60 ticks
-            if ticks_since_waste >= 60 {
-                waste_mgmt::process_waste_cycle(&mut world);
-                ticks_since_waste = 0;
-            }
-        }
-
-        // ===== INPUT =====
-        let cam_dx = input_state.camera_dx();
-        let cam_dy = input_state.camera_dy();
-        if cam_dx != 0.0 || cam_dy != 0.0 {
-            world.camera.x = (world.camera.x + cam_dx).max(0.0).min(terrain::TERRAIN_SIZE as f32 * 64.0);
-            world.camera.y = (world.camera.y + cam_dy).max(0.0).min(terrain::TERRAIN_SIZE as f32 * 64.0);
-        }
-
-        let zoom_delta = input_state.zoom_delta();
-        if zoom_delta != 0.0 {
-            world.camera.zoom = (world.camera.zoom + zoom_delta).max(0.25).min(4.0);
-        }
-
-        // Toggle modo diseño
-        if input_state.key_pressed(platform::KeyCode::Tab) {
-            world.interactive_mode = !world.interactive_mode;
-            println!("Modo diseño: {}", if world.interactive_mode { "ON" } else { "OFF" });
-        }
-
-        // Guardar partida
-        if input_state.key_pressed(platform::KeyCode::F5) {
-            match persistence::save_game(&world, "save.dat") {
-                Ok(_) => println!("Partida guardada (tick {})", world.sim_tick),
-                Err(e) => eprintln!("Error al guardar: {}", e),
-            }
-        }
-
-        // Cargar partida
-        if input_state.key_pressed(platform::KeyCode::F9) {
-            match persistence::load_game("save.dat") {
-                Ok(saved) => {
-                    world.sim_tick = saved.sim_tick;
-                    world.time_of_day = saved.time_of_day;
-                    world.finance.treasury = saved.finance_treasury;
-                    println!("Partida cargada (tick {})", saved.sim_tick);
+        // Capturar eventos de minifb
+        window.get_keys().map(|keys| {
+            for key in keys {
+                if let Some(gk) = map_minifb_key(key) {
+                    let bit = 1u128 << (gk as u8);
+                    if input_state.keys_down & bit == 0 {
+                        input_state.keys_pressed |= bit;
+                    }
+                    input_state.keys_down |= bit;
                 }
-                Err(e) => eprintln!("Error al cargar: {}", e),
             }
+        });
+
+        // Detectar teclas liberadas
+        let prev_down = input_state.keys_down;
+        // Las teclas que estaban presionadas y ya no están son "released"
+        // Nota: simplificado porque minifb no reporta key-up fácilmente
+
+        // Mouse
+        if let Some((mx, my)) = window.get_mouse_pos(minifb::MouseMode::Clamp) {
+            input_state.mouse_x = mx;
+            input_state.mouse_y = my;
+            input_state.mouse_inside = true;
+        }
+        input_state.mouse_left = window.get_mouse_down(minifb::MouseButton::Left);
+        input_state.mouse_right = window.get_mouse_down(minifb::MouseButton::Right);
+        input_state.mouse_middle = window.get_mouse_down(minifb::MouseButton::Middle);
+
+        // Scroll
+        if let Some(scroll) = window.get_scroll_wheel() {
+            input_state.scroll_delta = scroll;
         }
 
-        // Clic para construir en modo diseño
-        if world.interactive_mode && input_state.mouse_clicked() {
-            let mx = input_state.mouse_x();
-            let my = input_state.mouse_y();
-            interactive::handle_click(&mut world, &mut pool, mx, my);
+        // ---- PROCESAR INPUT ----
+        ecs::process_input(&mut world, &input_state);
+
+        // ---- SIMULACIÓN (PASO FIJO) ----
+        sim_accumulator += dt.as_micros() as u64;
+        while sim_accumulator >= MICROS_PER_TICK {
+            sim_accumulator -= MICROS_PER_TICK;
+            sim::tick_simulation(&mut world);
         }
 
-        // ===== RENDER =====
-        let back_buffer: &mut Vec<u32> = unsafe { &mut *back_ptr };
+        // ---- RENDER ----
+        cpu_backend.clear(0xFF_1A_1A_2E);
 
-        // [FASE 8] Usar GPU backend si está disponible
-        match &mut gpu_state {
-            gpu_backend::ActiveBackend::CpuSimd(cpu) => {
-                // Rellenar con color de fondo
-                simd_render::fill_fast(back_buffer, FB_SIZE, render::COLOR_GRASS);
+        // Construir comandos de render desde RenderCache
+        let cam = get_camera(&world);
+        render::render_world_cached(
+            &world.render_cache,
+            &mut cpu_backend.command_pool,
+            cam.offset_x, cam.offset_y, cam.zoom,
+            WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32,
+        );
 
-                // Reconstruir cache de render si cambió algo
-                if world.sim_tick % 10 == 0 {
-                    world.render_cache.rebuild_from_world(&world.world);
-                }
+        // Ejecutar render
+        cpu_backend.flush();
 
-                // Renderizar con SIMD
-                render::render_world_cached(&world, back_buffer, WINDOW_WIDTH, WINDOW_HEIGHT);
+        // Copiar al framebuffer de minifb
+        framebuffer.copy_from_slice(&cpu_backend.framebuffer);
 
-                // Panel de estadísticas
-                render::render_stats_panel(back_buffer, WINDOW_WIDTH, WINDOW_HEIGHT, &world, current_fps);
+        // ---- ACTUALIZAR VENTANA ----
+        window.update_with_buffer(&framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT).unwrap();
 
-                // Overlay de modo diseño
-                if world.interactive_mode {
-                    render::render_interactive_overlay(back_buffer, WINDOW_WIDTH, WINDOW_HEIGHT, &world, input_state.mouse_x(), input_state.mouse_y());
-                }
-
-                // Copiar al framebuffer del CPU backend
-                cpu.framebuffer.copy_from_slice(back_buffer);
-            }
-        }
-
-        // Swap buffers
-        std::mem::swap(&mut front_ptr, &mut back_ptr);
-
-        // Mostrar por ventana nativa
-        let front_buffer: &Vec<u32> = unsafe { &*front_ptr };
-        window_system.update(front_buffer);
-
-        input_state.end_frame();
-
-        // ===== FPS =====
+        // ---- FPS ----
         frame_count += 1;
         if fps_timer.elapsed() >= Duration::from_secs(1) {
-            current_fps = frame_count as u32;
+            current_fps = frame_count as f32;
             frame_count = 0;
             fps_timer = Instant::now();
 
-            // Actualizar título con FPS
-            let hw_name = match hw_tier {
-                gpu_backend::HardwareTier::CpuOnly => "CPU-SIMD",
-                gpu_backend::HardwareTier::IntegratedGpu => "GPU-Int",
-                gpu_backend::HardwareTier::MidRangeGpu => "GPU-Mid",
-                gpu_backend::HardwareTier::HighEndGpu => "GPU-High",
-            };
             let title = format!(
-                "Citybound v0.13 [{}] | FPS:{} | Tick:{} | ${:.0} | Pob:{} | {}",
-                hw_name, current_fps, world.sim_tick, world.finance.treasury,
-                world.population_count, gpu_api.name()
+                "Citybound v0.15 | {} FPS | Tick {} | Ents: {} | Pob: ~{} | Tesoro: ${:.0} | {}",
+                current_fps as u32,
+                world.sim_tick,
+                ecs::entity_count(&world),
+                estimate_population(&world),
+                world.finance.treasury,
+                gpu_api.name()
             );
-            window_system.set_title(&title);
+            window.set_title(&title);
         }
     }
 
-    // Guardar al salir
-    println!("Cerrando... guardando partida.");
-    let _ = persistence::save_game(&world, "save.dat");
-    println!("Citybound Native v0.13.0 — Sesión terminada.");
+    // ===== GUARDAR PARTIDA =====
+    let save_data = persistence::SaveData::from_world(&world);
+    match persistence::save_game(&save_data, "save.dat") {
+        Ok(()) => println!("[OK] Partida guardada en save.dat"),
+        Err(e) => eprintln!("[ERR] Error guardando: {}", e),
+    }
+
+    println!("══════════════════════════════════════════════════");
+    println!("  Citybound Native — Sesión finalizada");
+    println!("  Ticks simulados: {}", world.sim_tick);
+    println!("  Entidades finales: {}", ecs::entity_count(&world));
+    println!("  Tesorería: ${:.2}", world.finance.treasury);
+    println!("══════════════════════════════════════════════════");
+}
+
+// ===== HELPERS =====
+
+/// Convierte tecla minifb a GameKey
+fn map_minifb_key(key: minifb::Key) -> Option<input::GameKey> {
+    use input::GameKey;
+    Some(match key {
+        minifb::Key::Escape => GameKey::Escape,
+        minifb::Key::Space => GameKey::Space,
+        minifb::Key::Enter => GameKey::Enter,
+        minifb::Key::Tab => GameKey::Tab,
+        minifb::Key::Backspace => GameKey::Backspace,
+        minifb::Key::Delete => GameKey::Delete,
+        minifb::Key::Left => GameKey::Left,
+        minifb::Key::Right => GameKey::Right,
+        minifb::Key::Up => GameKey::Up,
+        minifb::Key::Down => GameKey::Down,
+        minifb::Key::W => GameKey::W,
+        minifb::Key::A => GameKey::A,
+        minifb::Key::S => GameKey::S,
+        minifb::Key::D => GameKey::D,
+        minifb::Key::Key1 => GameKey::Key1,
+        minifb::Key::Key2 => GameKey::Key2,
+        minifb::Key::Key3 => GameKey::Key3,
+        minifb::Key::Key4 => GameKey::Key4,
+        minifb::Key::Key5 => GameKey::Key5,
+        minifb::Key::Key6 => GameKey::Key6,
+        minifb::Key::Key7 => GameKey::Key7,
+        minifb::Key::Key8 => GameKey::Key8,
+        minifb::Key::Key9 => GameKey::Key9,
+        minifb::Key::Key0 => GameKey::Key0,
+        minifb::Key::F1 => GameKey::F1,
+        minifb::Key::F2 => GameKey::F2,
+        minifb::Key::F3 => GameKey::F3,
+        minifb::Key::F4 => GameKey::F4,
+        minifb::Key::F5 => GameKey::F5,
+        minifb::Key::F6 => GameKey::F6,
+        minifb::Key::F7 => GameKey::F7,
+        minifb::Key::F8 => GameKey::F8,
+        minifb::Key::F9 => GameKey::F9,
+        minifb::Key::F10 => GameKey::F10,
+        minifb::Key::F11 => GameKey::F11,
+        minifb::Key::F12 => GameKey::F12,
+        _ => return None,
+    })
+}
+
+/// Obtiene la cámara actual (primer componente Camera en el mundo)
+fn get_camera(world: &ecs::GameWorld) -> ecs::Camera {
+    world.world
+        .query::<&ecs::Camera>()
+        .iter()
+        .next()
+        .map(|(_, cam)| *cam)
+        .unwrap_or(ecs::Camera { offset_x: 0.0, offset_y: 0.0, zoom: 1.0 })
+}
+
+/// Estima la población basada en edificios residenciales
+fn estimate_population(world: &ecs::GameWorld) -> usize {
+    let count = world.world
+        .query::<&ecs::ConstructionState>()
+        .iter()
+        .filter(|(_, cs)| {
+            matches!(cs.building_type,
+                ecs::BuildingType::House | ecs::BuildingType::Apartment)
+        })
+        .count();
+    count * 4 // ~4 personas por unidad residencial
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_map_keys() {
+        assert_eq!(map_minifb_key(minifb::Key::W), Some(input::GameKey::W));
+        assert_eq!(map_minifb_key(minifb::Key::Escape), Some(input::GameKey::Escape));
+        assert_eq!(map_minifb_key(minifb::Key::Unknown), None);
+    }
+
+    #[test]
+    fn test_constants_sane() {
+        assert!(WINDOW_WIDTH > 0);
+        assert!(WINDOW_HEIGHT > 0);
+        assert!(FB_SIZE == WINDOW_WIDTH * WINDOW_HEIGHT);
+        assert!(SIM_TICKS_PER_SECOND > 0);
+        assert!(TARGET_FPS > 0);
+    }
 }

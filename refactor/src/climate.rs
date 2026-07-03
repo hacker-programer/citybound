@@ -69,31 +69,10 @@ fn get_day_night_params(time_fraction: f32) -> (f32, f32, f32, f32) {
 unsafe fn apply_color_grading(fb: &mut [u32], width: usize, height: usize, 
                                r_mul: f32, g_mul: f32, b_mul: f32, ambient: f32) {
     use std::arch::x86_64::*;
-
     let total_pixels = width * height;
-    let simd_end = (total_pixels / 4) * 4;
 
-    // Constantes SIMD
-    let r_mul_f = _mm_set1_ps(r_mul);
-    let g_mul_f = _mm_set1_ps(g_mul);
-    let b_mul_f = _mm_set1_ps(b_mul);
-    let ambient_f = _mm_set1_ps(ambient * 255.0);
-    let max_f = _mm_set1_ps(255.0);
-    let min_f = _mm_set1_ps(0.0);
-
-    for px in (0..simd_end).step_by(4) {
-        let ptr = fb.as_ptr().add(px) as *const __m128i;
-        let pixels = _mm_loadu_si128(ptr);
-
-        // Extraer canales: ARGB (little-endian: [B0 G0 R0 A0, B1 G1 R1 A1, ...])
-        let p0 = _mm_cvtepi32_ps(_mm_unpacklo_epi16(
-            _mm_unpacklo_epi8(pixels, _mm_setzero_si128()),
-            _mm_setzero_si128()
-        ));
-        let p1 = _mm_cvtepi32_ps(_mm_unpacklo_epi16(
-            _mm_unpackhi_epi8(pixels, _mm_setzero_si128()),
-            _mm_setzero_si128()
-        ));
+    // Procesado escalar (el SIMD está planificado para fase futura)
+    for px in 0..total_pixels {
 
         // Aplicar multiplicadores por canal y ambient
         // (esto es una aproximación; el alpha blending fino es más complejo)

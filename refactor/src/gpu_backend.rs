@@ -987,13 +987,15 @@ impl CpuBackend {
 // ---------------------------------------------------------------------------
 // EJECUCIÓN DE COMANDO EN TILE (rayon)
 // ---------------------------------------------------------------------------
-
+#[inline(always)]
+fn execute_cmd_on_tile(
     cmd: &RenderCommand,
     fb: &mut [u32],
     tile_x0: usize, tile_y0: usize,
     tile_x1: usize, tile_y1: usize,
     _fb_w: usize,
 ) {
+
     let x0 = cmd.x0.max(tile_x0 as i16) as usize;
     let y0 = cmd.y0.max(tile_y0 as i16) as usize;
     let x1 = cmd.x1.min(tile_x1 as i16) as usize;

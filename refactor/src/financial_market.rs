@@ -489,15 +489,15 @@ pub struct FinancialSystem {
     /// Inflación acumulada
     pub inflation_rate: f32,
     /// PBI estimado de la ciudad
-    pub estimated_gdp: f64,
-}
-
-impl FinancialSystem {
-    pub fn new() -> Self {
-        FinancialSystem {
-            credit_agency: CreditAgency::new(),
-            water_market: WaterFuturesMarket::new(),
-            stock_exchange: StockExchange::new(),
+    pub fn tick(
+        &mut self,
+        current_tick: u32,
+        treasury: &mut f64,
+        water_reserves: f32,
+        water_demand: f32,
+        social_spending_ratio: f32,
+        corporate_tax_rate: f32,
+    ) -> FinancialReport {
             bond_market: BondMarket::new(),
             current_lending_rate: 0.035,
             inflation_rate: 0.02,

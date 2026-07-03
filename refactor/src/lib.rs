@@ -64,3 +64,5 @@ pub mod politics;
 pub mod climate;
 pub mod persistence;
 pub mod pedestrian; // Social Force Model — peatones, cruces, multitudes
+pub mod judicial; // Sistema judicial: tribunales, demandas, patentes troll
+pub mod financial_market; // Mercado financiero: bolsa, futuros de agua, bonos, crédito

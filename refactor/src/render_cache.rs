@@ -43,14 +43,12 @@ pub struct RenderCache {
     pub buckets: [Vec<RenderCacheEntry>; NUM_RENDER_LAYERS],
     pub dirty: bool,
 }
-
 impl RenderCache {
     pub fn new() -> Self {
         let buckets: [Vec<RenderCacheEntry>; NUM_RENDER_LAYERS] = 
+            std::array::from_fn(|_| Vec::with_capacity(4096));
         RenderCache { buckets, dirty: true }
     }
-
-    pub fn clear(&mut self) {
 
     pub fn clear(&mut self) {
         for bucket in self.buckets.iter_mut() {
@@ -107,6 +105,7 @@ impl RenderCache {
 
         self.dirty = false;
     }
+
     #[inline]
     pub fn iter_layers(&self) -> RenderCacheIter<'_> {
         RenderCacheIter {
@@ -116,6 +115,7 @@ impl RenderCache {
         }
     }
 }
+
 
 
 pub struct RenderCacheIter<'a> {

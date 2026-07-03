@@ -46,7 +46,7 @@ const NEIGHBOR_RADIUS: f32 = 5.0;
 /// Probabilidad de cruzar con semáforo en rojo (imprudencia)
 const JAYWALKING_PROB: f32 = 0.2;
 
-/// Factor de reducción de velocidad al cruzar calle
+#[allow(dead_code)]
 const CROSSING_SPEED_FACTOR: f32 = 1.15; // ligeramente más rápido al cruzar
 
 /// Máximo de peatones simultáneos

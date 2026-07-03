@@ -9,7 +9,7 @@
 // - Colores para nuevos edificios (Hospital, Escuela, Policía)
 // - Integración completa con pipeline de render
 
-use crate::ecs::{BuildingType, ZoneType, Position, Renderable, ConstructionState, ZoneComponent, TrafficCar};
+use crate::ecs::{BuildingType, ZoneType, Position, Renderable, ZoneComponent};
 
 /// Capas de renderizado (orden back-to-front)
 pub const LAYER_TERRAIN: u8 = 0;

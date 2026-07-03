@@ -103,9 +103,7 @@ pub enum GameKey {
 impl InputState {
     /// Procesa un evento de plataforma unificado (PlatformEvent → InputState)
     /// Permite que el sistema de input funcione con cualquier backend de plataforma
-    #[cfg(feature = "platform_events")]
     pub fn process_platform_event(&mut self, event: &crate::platform::PlatformEvent) {
-        use crate::platform::{PlatformEvent, PlatformKey as Pk, MouseButton as PMb};
 
         match *event {
             PlatformEvent::KeyPressed(key) => {

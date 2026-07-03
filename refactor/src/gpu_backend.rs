@@ -914,7 +914,11 @@ impl CpuBackend {
         }
         let _ = fb_h;
     }
+    }
 
+    fn draw_line(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
+        let mut x = x0 as isize;
+        let mut y = y0 as isize;
         let ex = x1 as isize;
         let ey = y1 as isize;
         let dx = (ex - x).abs();
@@ -934,7 +938,7 @@ impl CpuBackend {
     }
 
     fn draw_sprite(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, cmd: &RenderCommand) {
-        let entry = &self.atlas.entries[cmd.texture_id as usize];
+
         let dx = cmd.x1 - cmd.x0;
         let dy = cmd.y1 - cmd.y0;
         if dx <= 0 || dy <= 0 { return; }

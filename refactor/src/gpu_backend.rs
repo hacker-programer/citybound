@@ -990,12 +990,10 @@ impl CpuBackend {
         self.framebuffer.resize(pixels, 0);
         self.work_buffer.resize(pixels, 0);
         self.width = width;
-        self.height = height;
     }
 }
 
-#[cfg(feature = "gpu")]
-}
+// ---------------------------------------------------------------------------
 
 
 // ---------------------------------------------------------------------------

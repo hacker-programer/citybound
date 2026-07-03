@@ -118,11 +118,12 @@ pub fn splitmix64(state: &mut u64) -> u64 {
     z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
     z ^ (z >> 31)
 }
-
 /// Versión f32 de splitmix64
 #[inline(always)]
 pub fn splitmix64_f32(state: &mut u64) -> f32 {
     (splitmix64(state) as f32) / (u64::MAX as f32 + 1.0)
+}
+
 /// Fuerza la carga del pool de RNG en caché L1.
 pub fn warm_rng_cache() {
     let base: *const f32 = unsafe { std::ptr::addr_of!(RNG_POOL.data) as *const f32 };
@@ -136,12 +137,9 @@ pub fn warm_rng_cache() {
     }
 }
 
-            std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 4));
-            std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 8));
-            std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 12));
-        }
-    }
-}
+// ---------------------------------------------------------------------------
+// TESTS
+
 
 // ---------------------------------------------------------------------------
 // TESTS

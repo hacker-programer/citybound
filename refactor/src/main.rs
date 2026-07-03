@@ -75,7 +75,7 @@ fn main() {
     // world es Box<GameWorld>, todos los arrays masivos están en heap
 
     // ===== RENDER BACKEND (CPU SIMD + GPU opcional) =====
-    let _render_backend = gpu_backend::init_render_backend(WINDOW_WIDTH, WINDOW_HEIGHT);
+    let _render_backend = gpu_backend::init_render_backend(WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32);
 
     // ===== INPUT =====
     let mut input_state = input::InputState::new();

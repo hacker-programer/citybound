@@ -459,12 +459,13 @@ impl DesignTool {
 // ---------------------------------------------------------------------------
 
 /// Procesa input para la herramienta de diseño
+pub fn process_design_input(
+    tool: &mut DesignTool,
     gw: &mut GameWorld,
     input: &InputState,
     window_width: usize,
     window_height: usize,
 ) {
-    // Activar/desactivar con Tab
     if input.is_key_pressed(GameKey::Tab) {
         tool.toggle();
     }

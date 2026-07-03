@@ -971,9 +971,10 @@ impl CpuBackend {
             }
         }
 
+        }
+
     pub fn swap_buffers(&mut self) {
-        self.framebuffer.copy_from_slice(&self.work_buffer);
-    }
+
 
     pub fn resize(&mut self, width: u32, height: u32) {
         let pixels = (width as usize) * (height as usize);

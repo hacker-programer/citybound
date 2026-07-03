@@ -668,7 +668,9 @@ fn building_color(btype: BuildingType) -> u32 {
         BuildingType::Shop => COLOR_BUILDING_SHOP,
         BuildingType::Office => COLOR_BUILDING_OFFICE,
         BuildingType::Factory => COLOR_BUILDING_FACTORY,
+        BuildingType::Farm => COLOR_BUILDING_FARM,
         BuildingType::Hospital => COLOR_BUILDING_HOSPITAL,
+
         BuildingType::School => COLOR_BUILDING_SCHOOL,
         BuildingType::Police => COLOR_BUILDING_POLICE,
     }

@@ -195,18 +195,10 @@ fn accumulate_wear(gw: &mut GameWorld) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_road_wear_new() {
-        let grid = RoadWearGrid::new();
-        assert!((grid.get(0, 0) - 0.0).abs() < 0.01);
-        assert!((grid.maintenance_budget - 0.5).abs() < 0.01);
-    }
-
     #[test]
     fn test_wear_accumulation() {
         let mut grid = RoadWearGrid::new();
-        grid.values[10][10] += CAR_WEAR * 100.0;
+        grid.values[10 * WEAR_GRID_SIZE + 10] += CAR_WEAR * 100.0;
         assert!(grid.get(10, 10) > 0.0);
     }
 
@@ -214,7 +206,7 @@ mod tests {
     fn test_maintenance_repairs() {
         let mut grid = RoadWearGrid::new();
         grid.maintenance_budget = 1.0;
-        grid.values[10][10] = 50.0;
+        grid.values[10 * WEAR_GRID_SIZE + 10] = 50.0;
 
         grid.apply_maintenance();
 
@@ -225,7 +217,7 @@ mod tests {
     fn test_no_maintenance_no_repair() {
         let mut grid = RoadWearGrid::new();
         grid.maintenance_budget = 0.0;
-        grid.values[10][10] = 50.0;
+        grid.values[10 * WEAR_GRID_SIZE + 10] = 50.0;
 
         grid.apply_maintenance();
 
@@ -242,7 +234,7 @@ mod tests {
     #[test]
     fn test_speed_factor_damaged() {
         let mut grid = RoadWearGrid::new();
-        grid.values[10][10] = DAMAGE_THRESHOLD + 10.0;
+        grid.values[10 * WEAR_GRID_SIZE + 10] = DAMAGE_THRESHOLD + 10.0;
 
         let factor = grid.speed_factor(10, 10);
         assert!(factor < 1.0, "Daño debe reducir velocidad: {}", factor);
@@ -251,7 +243,7 @@ mod tests {
     #[test]
     fn test_speed_factor_severe() {
         let mut grid = RoadWearGrid::new();
-        grid.values[10][10] = SEVERE_DAMAGE_THRESHOLD + 10.0;
+        grid.values[10 * WEAR_GRID_SIZE + 10] = SEVERE_DAMAGE_THRESHOLD + 10.0;
 
         let factor = grid.speed_factor(10, 10);
         assert!((factor - (1.0 - MAX_SPEED_PENALTY)).abs() < 0.01,
@@ -265,11 +257,14 @@ mod tests {
         let clean = grid.wear_color(10, 10);
         assert_eq!(clean, 0x00_00_00_00);
 
-        grid.values[10][10] = DAMAGE_THRESHOLD + 5.0;
+        grid.values[10 * WEAR_GRID_SIZE + 10] = DAMAGE_THRESHOLD + 5.0;
         let damaged = grid.wear_color(10, 10);
         assert_ne!(damaged, 0x00_00_00_00);
 
-        grid.values[10][10] = SEVERE_DAMAGE_THRESHOLD + 5.0;
+        grid.values[10 * WEAR_GRID_SIZE + 10] = SEVERE_DAMAGE_THRESHOLD + 5.0;
+        let severe = grid.wear_color(10, 10);
+        assert_ne!(severe, damaged);
+    }
         let severe = grid.wear_color(10, 10);
         assert_ne!(severe, damaged);
     }

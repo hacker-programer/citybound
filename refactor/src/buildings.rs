@@ -1462,9 +1462,16 @@ impl BuildingCatalog {
             requires_electricity: true,
             requires_fiber: false,
             requires_road_access: true,
+            requires_nearby: Some("Water"),
+        });
 
         // =========================================================================
         // 5. TRANSPORTE, MOVILIDAD Y CAOS VIAL (43-60)
+        // =========================================================================
+
+        // 43: Plataforma Hyperloop Subterránea
+        templates.push(BuildingTemplate {
+
         // =========================================================================
 
         // 43: Plataforma Hyperloop Subterránea

@@ -964,10 +964,512 @@ impl BuildingCatalog {
             nimby_radius: 15,
             requires_nearby: Some("Industrial"),
         });
+            requires_nearby: Some("Industrial"),
+        });
+
+        // 26: Prisión Federal de Máxima Seguridad
+        templates.push(BuildingTemplate {
+            id: 26,
+            name: "Prisión de Máxima Seguridad",
+            description: "Agujero negro de moralidad. Subsidios por cada preso. Si se llena: motines e incendios. Devora valor del suelo.",
+            category: BuildingCategory::Security,
+            style: ArchitectureStyle::Brutalist,
+            width: 5, height: 5,
+            construction_cost: 25_000_000.0,
+            construction_time_days: 600,
+            max_occupancy: 2000,
+            effects: BuildingEffects {
+                tax_revenue_annual: 3_000_000.0,  // Subsidios por preso
+                operating_cost_annual: 8_000_000.0,
+                jobs_created: 400,
+                land_value_multiplier: 0.1,
+                happiness_effect: -0.1,
+                crime_effect: -0.05,  // Teóricamente reduce crimen
+                water_consumption: 30.0,
+                electricity_consumption: 12.0,
+                waste_generation: 5.0,
+                traffic_generation: 8.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: false,
+            requires_road_access: true,
+            nimby_radius: 25,
+            requires_nearby: None,
+        });
+
+        // 27: Casino
+        templates.push(BuildingTemplate {
+            id: 27,
+            name: "Casino Terrestre Masivo",
+            description: "Aspirador de riqueza. NPCs pobres en loops de pathfinding adictivos. Suicidios y quiebras a largo plazo.",
+            category: BuildingCategory::Entertainment,
+            style: ArchitectureStyle::GlassTower,
+            width: 4, height: 5,
+            construction_cost: 30_000_000.0,
+            construction_time_days: 300,
+            max_occupancy: 3000,
+            effects: BuildingEffects {
+                tax_revenue_annual: 15_000_000.0,  // Altos impuestos al juego
+                operating_cost_annual: 3_000_000.0,
+                jobs_created: 500,
+                land_value_multiplier: 1.1,
+                happiness_effect: 0.05,  // Placer inmediato
+                crime_effect: 0.2,       // Atrae crimen
+                health_effect: -0.05,
+                electricity_consumption: 15.0,
+                water_consumption: 10.0,
+                light_pollution: 0.8,
+                traffic_generation: 20.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: true,
+            requires_road_access: true,
+            nimby_radius: 5,
+            requires_nearby: Some("Commercial"),
+        });
+
+        // 28: Planta Desalinizadora
+        templates.push(BuildingTemplate {
+            id: 28,
+            name: "Planta de Desalinización",
+            description: "Chupa agua del mar. Consume electricidad monstruosa. Salmuera hiperconcentrada mata pesca si no se trata.",
+            category: BuildingCategory::Water,
+            style: ArchitectureStyle::Industrial,
+            width: 3, height: 3,
+            construction_cost: 18_000_000.0,
+            construction_time_days: 400,
+            max_occupancy: 100,
+            effects: BuildingEffects {
+                tax_revenue_annual: 200_000.0,
+                operating_cost_annual: 3_000_000.0,
+                jobs_created: 100,
+                land_value_multiplier: 0.5,
+                electricity_consumption: 60.0,
+                water_consumption: -100.0,  // PRODUCE agua
+                water_pollution: 0.3,
+                ..Default::default()
+            },
+            requires_water: false,
+            requires_electricity: true,
+            requires_fiber: false,
+            requires_road_access: true,
+            nimby_radius: 10,
+            requires_nearby: Some("Water"),
+        });
+
+        // 29: Data Center
+        templates.push(BuildingTemplate {
+            id: 29,
+            name: "Data Center Masivo",
+            description: "Servidores 24/7. Reduce latencia de toda la ciudad. Consume agua para refrigeración como un barrio entero.",
+            category: BuildingCategory::Technology,
+            style: ArchitectureStyle::HighTech,
+            width: 3, height: 3,
+            construction_cost: 20_000_000.0,
+            construction_time_days: 250,
+            max_occupancy: 50,
+            effects: BuildingEffects {
+                tax_revenue_annual: 2_000_000.0,
+                operating_cost_annual: 5_000_000.0,
+                jobs_created: 50,
+                land_value_multiplier: 0.8,
+                fiber_traffic: 100.0,
+                electricity_consumption: 40.0,
+                water_consumption: 50.0,  // Refrigeración
+                noise_pollution: 0.3,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: true,
+            requires_road_access: true,
+            nimby_radius: 3,
+            requires_nearby: Some("Technology"),
+        });
+
+        // 30: Torre de Agua
+        templates.push(BuildingTemplate {
+            id: 30,
+            name: "Torre de Agua Municipal",
+            description: "Provee presión de agua por gravedad. Sin electricidad funciona. Ícono urbano subestimado.",
+            category: BuildingCategory::Water,
+            style: ArchitectureStyle::Industrial,
+            width: 1, height: 1,
+            construction_cost: 500_000.0,
+            construction_time_days: 60,
+            max_occupancy: 0,
+            effects: BuildingEffects {
+                operating_cost_annual: 30_000.0,
+                jobs_created: 2,
+                land_value_multiplier: 0.95,
+                water_consumption: 0.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: false,
+            requires_fiber: false,
+            requires_road_access: true,
+            nimby_radius: 2,
+            requires_nearby: Some("Residential"),
+        });
+
+        // 31: Cementerio
+        templates.push(BuildingTemplate {
+            id: 31,
+            name: "Cementerio Municipal",
+            description: "Consume terreno permanentemente. Químicos de embalsamamiento envenenan napas. Demolerlo causa la peor protesta.",
+            category: BuildingCategory::Government,
+            style: ArchitectureStyle::Neoclassical,
+            width: 4, height: 4,
+            construction_cost: 1_000_000.0,
+            construction_time_days: 90,
+            max_occupancy: 0,
+            effects: BuildingEffects {
+                operating_cost_annual: 100_000.0,
+                jobs_created: 10,
+                land_value_multiplier: 0.8,
+                happiness_effect: 0.02,
+                soil_pollution: 0.1,
+                water_pollution: 0.05,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: false,
+            requires_fiber: false,
+            requires_road_access: true,
+            nimby_radius: 8,
+            requires_nearby: None,
+        });
+
+        // 32: Estadio Deportivo
+        templates.push(BuildingTemplate {
+            id: 32,
+            name: "Estadio Deportivo Mayor",
+            description: "50,000 NPCs en un solo nodo. Domingo de partido: colapso vial total. Entre semana: elefante blanco de cemento.",
+            category: BuildingCategory::Sports,
+            style: ArchitectureStyle::Brutalist,
+            width: 6, height: 5,
+            construction_cost: 50_000_000.0,
+            construction_time_days: 500,
+            max_occupancy: 50000,
+            effects: BuildingEffects {
+                tax_revenue_annual: 4_000_000.0,
+                operating_cost_annual: 6_000_000.0,
+                jobs_created: 300,
+                land_value_multiplier: 0.9,
+                happiness_effect: 0.1,
+                traffic_generation: 100.0,  // Día de partido
+                pedestrian_traffic: 200.0,
+                electricity_consumption: 20.0,
+                water_consumption: 15.0,
+                waste_generation: 10.0,
+                noise_pollution: 0.5,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: true,
+            requires_road_access: true,
+            nimby_radius: 10,
+            requires_nearby: Some("Transport"),
+        });
+
+        // 33: Sede Sindical
+        templates.push(BuildingTemplate {
+            id: 33,
+            name: "Sede Central de Sindicato",
+            description: "Nido de problemas logísticos. Si los ofendes: paro total. Basura sin recoger, comida pudriéndose.",
+            category: BuildingCategory::Government,
+            style: ArchitectureStyle::Brutalist,
+            width: 2, height: 2,
+            construction_cost: 1_000_000.0,
+            construction_time_days: 100,
+            max_occupancy: 100,
+            effects: BuildingEffects {
+                operating_cost_annual: 200_000.0,
+                jobs_created: 100,
+                land_value_multiplier: 0.95,
+                happiness_effect: 0.05,  // Para los sindicalizados
+                traffic_generation: 2.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: true,
+            requires_road_access: true,
+            nimby_radius: 2,
+            requires_nearby: Some("Industrial"),
+        });
+
+        // 34: Banco Central / Bolsa de Valores
+        templates.push(BuildingTemplate {
+            id: 34,
+            name: "Bolsa de Valores Local",
+            description: "Multiplica riqueza de clase alta. Blanco #1 de ataques. Requiere anillo de seguridad que mata tráfico peatonal.",
+            category: BuildingCategory::Finance,
+            style: ArchitectureStyle::GlassTower,
+            width: 3, height: 6,
+            construction_cost: 40_000_000.0,
+            construction_time_days: 400,
+            max_occupancy: 800,
+            effects: BuildingEffects {
+                tax_revenue_annual: 8_000_000.0,
+                operating_cost_annual: 4_000_000.0,
+                jobs_created: 800,
+                land_value_multiplier: 2.5,
+                gentrification_speed: 0.2,
+                happiness_effect: -0.05,
+                traffic_generation: 15.0,
+                electricity_consumption: 10.0,
+                fiber_traffic: 30.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: true,
+            requires_road_access: true,
+            nimby_radius: 3,
+            requires_nearby: Some("Financial"),
+        });
+
+        // 35: Subestación Eléctrica
+        templates.push(BuildingTemplate {
+            id: 35,
+            name: "Subestación de Alta Tensión",
+            description: "Reduce voltaje para uso residencial. Si se sobrecarga en verano: explosión. Zumbido constante devalúa el suelo.",
+            category: BuildingCategory::Energy,
+            style: ArchitectureStyle::Industrial,
+            width: 2, height: 2,
+            construction_cost: 2_500_000.0,
+            construction_time_days: 120,
+            max_occupancy: 5,
+            effects: BuildingEffects {
+                operating_cost_annual: 150_000.0,
+                jobs_created: 5,
+                land_value_multiplier: 0.6,
+                noise_pollution: 0.3,
+                electricity_consumption: 0.0,  // Solo transforma
+                ..Default::default()
+            },
+            requires_water: false,
+            requires_electricity: true,
+            requires_fiber: false,
+            requires_road_access: true,
+            nimby_radius: 8,
+            requires_nearby: Some("Residential"),
+        });
+
+        // 36: Comisaría de Policía
+        templates.push(BuildingTemplate {
+            id: 36,
+            name: "Comisaría Central",
+            description: "Reduce crimen en radio. Si tiene bajo presupuesto, policías aceptan sobornos. La corrupción escala.",
+            category: BuildingCategory::Security,
+            style: ArchitectureStyle::Brutalist,
+            width: 2, height: 3,
+            construction_cost: 3_000_000.0,
+            construction_time_days: 150,
+            max_occupancy: 150,
+            effects: BuildingEffects {
+                operating_cost_annual: 2_500_000.0,
+                jobs_created: 150,
+                land_value_multiplier: 1.05,
+                crime_effect: -0.15,
+                happiness_effect: 0.05,
+                traffic_generation: 5.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: true,
+            requires_road_access: true,
+            nimby_radius: 0,
+            requires_nearby: None,
+        });
+
+        // 37: Estación de Bomberos
+        templates.push(BuildingTemplate {
+            id: 37,
+            name: "Cuartel de Bomberos",
+            description: "Mitiga incendios. Si el tráfico los bloquea, el fuego se propaga. Necesitan prioridad en semáforos.",
+            category: BuildingCategory::Security,
+            style: ArchitectureStyle::Brutalist,
+            width: 2, height: 2,
+            construction_cost: 2_000_000.0,
+            construction_time_days: 120,
+            max_occupancy: 60,
+            effects: BuildingEffects {
+                operating_cost_annual: 1_500_000.0,
+                jobs_created: 60,
+                land_value_multiplier: 1.1,
+                happiness_effect: 0.05,
+                traffic_generation: 3.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: true,
+            requires_road_access: true,
+            nimby_radius: 0,
+            requires_nearby: None,
+        });
+
+        // 38: Puerto de Aguas Profundas
+        templates.push(BuildingTemplate {
+            id: 38,
+            name: "Puerto de Contenedores",
+            description: "Arteria principal de importación. Requiere dragado constante. Sin tren de carga: colapso vial por camiones.",
+            category: BuildingCategory::Transport,
+            style: ArchitectureStyle::Industrial,
+            width: 6, height: 6,
+            construction_cost: 60_000_000.0,
+            construction_time_days: 600,
+            max_occupancy: 1000,
+            effects: BuildingEffects {
+                tax_revenue_annual: 12_000_000.0,
+                operating_cost_annual: 5_000_000.0,
+                jobs_created: 1000,
+                land_value_multiplier: 0.3,
+                water_pollution: 0.4,
+                noise_pollution: 0.6,
+                traffic_generation: 40.0,
+                electricity_consumption: 15.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: true,
+            requires_road_access: true,
+            nimby_radius: 12,
+            requires_nearby: Some("Industrial"),
+        });
+
+        // 39: Aeropuerto
+        templates.push(BuildingTemplate {
+            id: 39,
+            name: "Aeropuerto Internacional",
+            description: "Conecta con el mundo. Ruido de turbinas destruye valor residencial en cono de aproximación. Atrae turismo masivo.",
+            category: BuildingCategory::Transport,
+            style: ArchitectureStyle::HighTech,
+            width: 8, height: 6,
+            construction_cost: 100_000_000.0,
+            construction_time_days: 800,
+            max_occupancy: 5000,
+            effects: BuildingEffects {
+                tax_revenue_annual: 15_000_000.0,
+                operating_cost_annual: 10_000_000.0,
+                jobs_created: 3000,
+                land_value_multiplier: 0.2,  // Cerca es inhabitable
+                noise_pollution: 1.0,        // Máximo ruido
+                air_pollution: 0.3,
+                traffic_generation: 50.0,
+                electricity_consumption: 30.0,
+                water_consumption: 20.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: true,
+            requires_road_access: true,
+            nimby_radius: 20,
+            requires_nearby: None,
+        });
+
+        // 40: Universidad
+        templates.push(BuildingTemplate {
+            id: 40,
+            name: "Campus Universitario",
+            description: "Genera investigación y cultura. Si no hay empleos tech, fuga de cerebros. Primeros en protestar si subís el bus.",
+            category: BuildingCategory::Education,
+            style: ArchitectureStyle::Neoclassical,
+            width: 5, height: 4,
+            construction_cost: 25_000_000.0,
+            construction_time_days: 500,
+            max_occupancy: 5000,
+            effects: BuildingEffects {
+                tax_revenue_annual: 500_000.0,
+                operating_cost_annual: 8_000_000.0,
+                jobs_created: 800,
+                land_value_multiplier: 1.2,
+                education_effect: 0.3,
+                happiness_effect: 0.05,
+                traffic_generation: 10.0,
+                pedestrian_traffic: 30.0,
+                electricity_consumption: 8.0,
+                water_consumption: 15.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: true,
+            requires_road_access: true,
+            nimby_radius: 0,
+            requires_nearby: None,
+        });
+
+        // 41: Planta de Tratamiento de Agua
+        templates.push(BuildingTemplate {
+            id: 41,
+            name: "Planta Potabilizadora",
+            description: "Filtra y purifica agua del río. Si el río está contaminado por industria: filtros colapsan. Costos se disparan.",
+            category: BuildingCategory::Water,
+            style: ArchitectureStyle::Industrial,
+            width: 3, height: 3,
+            construction_cost: 8_000_000.0,
+            construction_time_days: 300,
+            max_occupancy: 80,
+            effects: BuildingEffects {
+                operating_cost_annual: 1_500_000.0,
+                jobs_created: 80,
+                land_value_multiplier: 0.6,
+                water_consumption: -200.0,  // PRODUCE agua potable
+                electricity_consumption: 10.0,
+                waste_generation: 2.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: false,
+            requires_road_access: true,
+            nimby_radius: 8,
+            requires_nearby: Some("Water"),
+        });
+
+        // 42: Depuradora de Aguas Residuales
+        templates.push(BuildingTemplate {
+            id: 42,
+            name: "Planta Depuradora de Aguas Negras",
+            description: "Limpia aguas cloacales. Sin esto, el río se vuelve alcantarilla. Consume químicos y electricidad a niveles industriales.",
+            category: BuildingCategory::Water,
+            style: ArchitectureStyle::Industrial,
+            width: 4, height: 4,
+            construction_cost: 12_000_000.0,
+            construction_time_days: 350,
+            max_occupancy: 120,
+            effects: BuildingEffects {
+                operating_cost_annual: 2_500_000.0,
+                jobs_created: 120,
+                land_value_multiplier: 0.3,
+                water_pollution: -0.3,  // REDUCE contaminación
+                electricity_consumption: 15.0,
+                waste_generation: 5.0,  // Lodos
+                happiness_effect: -0.02,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: false,
+            requires_road_access: true,
+            nimby_radius: 12,
+            requires_nearby: Some("Water"),
+        });
 
         BuildingCatalog { templates }
     }
-
     /// Obtiene un template por ID (acceso O(1))
     #[inline(always)]
     pub fn get(&self, id: u16) -> Option<&BuildingTemplate> {

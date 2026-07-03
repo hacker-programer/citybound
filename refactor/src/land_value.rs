@@ -205,6 +205,10 @@ fn generate_pollution(gw: &mut GameWorld) {
         }
     }
 }
+}
+
+fn update_land_values(gw: &mut GameWorld) {
+    for y in 0..HEATMAP_SIZE {
         for x in 0..HEATMAP_SIZE {
             let idx = y * HEATMAP_SIZE + x;
             let mut value = gw.land_value_map.values[idx];
@@ -228,7 +232,6 @@ fn generate_pollution(gw: &mut GameWorld) {
 
         match zone.zone_type {
             ZoneType::Park => {
-                // Parque aumenta valor en radio de 3 celdas
                 for dy in -3i32..=3 {
                     for dx in -3i32..=3 {
                         let nx = (gx as i32 + dx).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
@@ -243,7 +246,6 @@ fn generate_pollution(gw: &mut GameWorld) {
             }
             ZoneType::Industrial => {
                 if zone.density > 0 {
-                    // Penalización en radio de 2 celdas
                     for dy in -2i32..=2 {
                         for dx in -2i32..=2 {
                             let nx = (gx as i32 + dx).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
@@ -265,14 +267,6 @@ fn generate_pollution(gw: &mut GameWorld) {
         }
     }
 }
-
-/// Gentrificación: si valor del suelo supera ingresos del residente,
-/// el edificio se degrada
-fn apply_gentrification(gw: &mut GameWorld) {
-    let mut to_degrade: Vec<(f32, f32)> = Vec::with_capacity(32);
-
-    for (_entity, (pos, construction, storage)) in gw.world
-        .query::<(&Position, &ConstructionState, &ResourceStorage)>()
         .iter()
     {
         if construction.building_type != BuildingType::House

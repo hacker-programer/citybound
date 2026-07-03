@@ -906,8 +906,7 @@ impl BuildingCatalog {
             requires_nearby: Some("Industrial"),
         });
 
-        });
-
+        // 24: Vertedero Municipal
         // 24: Vertedero Municipal
         templates.push(BuildingTemplate {
             id: 24,

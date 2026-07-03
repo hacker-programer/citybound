@@ -173,7 +173,6 @@ pub fn tick_land_value(gw: &mut GameWorld) {
 
     // 4. Difundir valor del suelo
     gw.land_value_map.diffuse();
-
     // 5. Aplicar gentrificación
     apply_gentrification(gw);
 }
@@ -181,12 +180,7 @@ pub fn tick_land_value(gw: &mut GameWorld) {
 fn generate_pollution(gw: &mut GameWorld) {
     for (_entity, (pos, zone)) in gw.world
         .query::<(&Position, &ZoneComponent)>()
-fn generate_pollution(gw: &mut GameWorld) {
-    for (_entity, (pos, zone)) in gw.world
-        .query::<(&Position, &ZoneComponent)>()
         .iter()
-    {
-        if zone.zone_type == ZoneType::Industrial && zone.density > 0 {
             let gx = pos.x as usize;
             let gy = pos.y as usize;
             if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {

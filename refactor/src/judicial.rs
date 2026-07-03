@@ -368,9 +368,9 @@ impl JudicialSystem {
 
         events
     }
-
     /// Determina el fallo de un caso basado en su tipo y nivel de corrupción
-    fn determine_ruling(&self, case: &LegalCase, corruption: f32) -> CaseRuling {
+    /// (Función libre para evitar conflictos de borrow checker)
+    fn determine_ruling_impl(case: &LegalCase, corruption: f32) -> CaseRuling {
         // Probabilidad base de que gane el demandante
         let plaintiff_base = match case.case_type {
             CaseType::CivilDamages => 0.50,
@@ -398,8 +398,6 @@ impl JudicialSystem {
             CaseRuling::DefendantWon
         }
     }
-
-    /// El alcalde puede sobornar jueces para influir en casos
     pub fn corrupt_court(&mut self, court_id: u64, bribe_amount: f64) -> bool {
         if let Some(court) = self.courthouses.iter_mut().find(|c| c.id == court_id) {
             court.corruption_index = (court.corruption_index + (bribe_amount / 1_000_000.0) as f32).min(1.0);

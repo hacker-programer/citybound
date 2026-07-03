@@ -283,7 +283,7 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     }
 
     // [FASE 7]: Edificios iniciales con nuevos tipos
-    let buildings: [(f32, f32, BuildingType); 14] = [
+    let buildings: [(f32, f32, BuildingType); 11] = [
         (30.0, 30.0, BuildingType::House),
         (35.0, 30.0, BuildingType::Shop),
         (40.0, 30.0, BuildingType::Factory),

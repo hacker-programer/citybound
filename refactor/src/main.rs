@@ -116,11 +116,10 @@ fn main() {
             input_state.mouse_x = mx;
             input_state.mouse_y = my;
             input_state.mouse_inside = true;
-        }
-        input_state.mouse_left = window.get_mouse_down(minifb::MouseButton::Left);
-        input_state.mouse_right = window.get_mouse_down(minifb::MouseButton::Right);
-
         // Scroll
+        if let Some((_scroll_x, scroll_y)) = window.get_scroll_wheel() {
+            input_state.scroll_delta = scroll_y;
+        }
         if let Some(scroll) = window.get_scroll_wheel() {
         // ---- PROCESAR INPUT DEL JUEGO ----
         ecs::process_input(&mut world, &input_state);

@@ -114,8 +114,8 @@ impl SpatialGrid {
         SpatialGrid { cells, dirty: true }
     }
 
-        SpatialGrid { cells, dirty: true }
-    }
+    #[inline(always)]
+    fn cell_index(x: f32, y: f32) -> (usize, usize) {
 
     #[inline(always)]
     fn cell_index(x: f32, y: f32) -> (usize, usize) {

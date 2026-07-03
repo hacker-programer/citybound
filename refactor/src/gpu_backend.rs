@@ -864,9 +864,6 @@ impl CpuBackend {
         }
     }
 
-    }
-
-
     #[inline(always)]
     fn execute_one(&mut self, cmd: &RenderCommand, w: usize, h: usize) {
         let x0 = cmd.x0 as usize;
@@ -876,7 +873,6 @@ impl CpuBackend {
         match cmd.primitive_type {
             0 => self.draw_rect(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color, cmd.flags),
             1 => self.draw_line(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color),
-            2 => {
             2 => {
                 if x0 < w && y0 < h {
                     self.work_buffer[y0 * w + x0] = blend_pixel(self.work_buffer[y0 * w + x0], cmd.color);

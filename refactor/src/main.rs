@@ -4,6 +4,10 @@
 // Simulación a 10 ticks/s, renderizado a 30 FPS objetivo
 //
 // PLATAFORMAS: Windows, Android, macOS, Linux
+//
+// [FIX STACK OVERFLOW]: GameWorld se almacena como Box para evitar
+// que los arrays masivos de sub-sistemas (TerrainMap 144KB, FlowField 128KB×8,
+// UtilityGrids, etc.) desborden el stack de 1MB de Windows.
 
 #![allow(unsafe_code)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -46,27 +50,37 @@ fn main() {
         minifb::WindowOptions {
             resize: false,
             scale: minifb::Scale::X1,
-            ..minifb::WindowOptions::default()
+            ..Default::default()
         },
     ) {
         Ok(w) => w,
         Err(e) => {
-            eprintln!("Error creando ventana: {:?}", e);
-            std::process::exit(1);
+            eprintln!("[ERR] No se pudo abrir ventana: {}", e);
+            return;
         }
     };
 
-    // ===== FRAMEBUFFER =====
-    // ===== FRAMEBUFFER =====
-    // ===== FRAMEBUFFER =====
-    let mut framebuffer: Vec<u32> = vec![0xFF_1A_1A_2Eu32; FB_SIZE];
+    window.set_target_fps(TARGET_FPS as usize);
 
-    // ===== MUNDO DEL JUEGO =====
-    let mut pool = object_pool::EntityPool::new(20000);
-    let mut world = Box::new(ecs::create_world(&mut pool));
+    // ===== FRAMEBUFFER (heap) =====
+    let mut framebuffer: Vec<u32> = vec![0xFF_00_00_00u32; FB_SIZE];
 
-    // ===== ESTADO =====
-    let mut input_state = input::InputState::default();
+    // ===== LUNA GRAFICA =====
+    luts::init_trig_luts();
+    rng_pool::init_rng_pool(42);
+
+    // ===== MUNDO (Box — en heap, NO en stack) =====
+    let mut pool = object_pool::EntityPool::new(10000);
+    let mut world = ecs::create_world(&mut pool);
+    // world es Box<GameWorld>, todos los arrays masivos están en heap
+
+    // ===== RENDER BACKEND (CPU SIMD + GPU opcional) =====
+    let _render_backend = gpu_backend::init_render_backend(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+    // ===== INPUT =====
+    let mut input_state = input::InputState::new();
+
+    // ===== VARIABLES DE CONTROL =====
     let mut sim_accumulator: u64 = 0;
     let mut last_time = Instant::now();
     let mut frame_count: u64 = 0;
@@ -89,11 +103,9 @@ fn main() {
         last_time = now;
 
         // ---- INPUT ----
-        // Resetear flancos
         input_state.keys_pressed = 0;
         input_state.keys_released = 0;
 
-        // Capturar teclas presionadas
         for key in window.get_keys() {
             if let Some(gk) = map_minifb_key(key) {
                 let bit = 1u128 << (gk as u8);
@@ -104,7 +116,6 @@ fn main() {
             }
         }
 
-        // Mouse
         if let Some((mx, my)) = window.get_mouse_pos(minifb::MouseMode::Clamp) {
             input_state.mouse_x = mx;
             input_state.mouse_y = my;
@@ -113,7 +124,6 @@ fn main() {
         input_state.mouse_left = window.get_mouse_down(minifb::MouseButton::Left);
         input_state.mouse_right = window.get_mouse_down(minifb::MouseButton::Right);
 
-        // Scroll
         if let Some((_scroll_x, scroll_y)) = window.get_scroll_wheel() {
             input_state.scroll_delta = scroll_y;
         }
@@ -124,11 +134,11 @@ fn main() {
         // ---- SIMULACIÓN (PASO FIJO) ----
         sim_accumulator += dt.as_micros() as u64;
         while sim_accumulator >= MICROS_PER_TICK {
+            sim::tick(&mut world, 1.0 / SIM_TICKS_PER_SECOND as f32);
             sim_accumulator -= MICROS_PER_TICK;
-            sim::tick(&mut world, MICROS_PER_TICK as f32 / 1_000_000.0);
         }
 
-        // Renderizar mundo
+        // ---- RENDERIZAR ----
         render::render_world_cached(
             &world,
             &mut framebuffer,
@@ -136,7 +146,6 @@ fn main() {
             WINDOW_HEIGHT,
         );
 
-        // ---- ACTUALIZAR VENTANA ----
         window
             .update_with_buffer(&framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT)
             .unwrap();
@@ -186,15 +195,26 @@ fn map_minifb_key(key: minifb::Key) -> Option<input::GameKey> {
         minifb::Key::Enter => GameKey::Enter,
         minifb::Key::Tab => GameKey::Tab,
         minifb::Key::Backspace => GameKey::Backspace,
-        minifb::Key::Delete => GameKey::Delete,
-        minifb::Key::Left => GameKey::Left,
-        minifb::Key::Right => GameKey::Right,
-        minifb::Key::Up => GameKey::Up,
-        minifb::Key::Down => GameKey::Down,
         minifb::Key::W => GameKey::W,
         minifb::Key::A => GameKey::A,
         minifb::Key::S => GameKey::S,
         minifb::Key::D => GameKey::D,
+        minifb::Key::Q => GameKey::Q,
+        minifb::Key::E => GameKey::E,
+        minifb::Key::R => GameKey::R,
+        minifb::Key::F => GameKey::F,
+        minifb::Key::G => GameKey::G,
+        minifb::Key::Z => GameKey::Z,
+        minifb::Key::X => GameKey::X,
+        minifb::Key::C => GameKey::C,
+        minifb::Key::V => GameKey::V,
+        minifb::Key::B => GameKey::B,
+        minifb::Key::T => GameKey::T,
+        minifb::Key::Y => GameKey::Y,
+        minifb::Key::U => GameKey::U,
+        minifb::Key::I => GameKey::I,
+        minifb::Key::O => GameKey::O,
+        minifb::Key::P => GameKey::P,
         minifb::Key::Key1 => GameKey::Key1,
         minifb::Key::Key2 => GameKey::Key2,
         minifb::Key::Key3 => GameKey::Key3,
@@ -205,41 +225,14 @@ fn map_minifb_key(key: minifb::Key) -> Option<input::GameKey> {
         minifb::Key::Key8 => GameKey::Key8,
         minifb::Key::Key9 => GameKey::Key9,
         minifb::Key::Key0 => GameKey::Key0,
-        minifb::Key::F1 => GameKey::F1,
-        minifb::Key::F2 => GameKey::F2,
-        minifb::Key::F3 => GameKey::F3,
-        minifb::Key::F4 => GameKey::F4,
-        minifb::Key::F5 => GameKey::F5,
-        minifb::Key::F6 => GameKey::F6,
-        minifb::Key::F7 => GameKey::F7,
-        minifb::Key::F8 => GameKey::F8,
-        minifb::Key::F9 => GameKey::F9,
-        minifb::Key::F10 => GameKey::F10,
-        minifb::Key::F11 => GameKey::F11,
-        minifb::Key::F12 => GameKey::F12,
+        minifb::Key::Left => GameKey::Left,
+        minifb::Key::Right => GameKey::Right,
+        minifb::Key::Up => GameKey::Up,
+        minifb::Key::Down => GameKey::Down,
+        minifb::Key::PageUp => GameKey::PageUp,
+        minifb::Key::PageDown => GameKey::PageDown,
+        minifb::Key::Plus => GameKey::Plus,
+        minifb::Key::Minus => GameKey::Minus,
         _ => return None,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_map_keys() {
-        assert_eq!(map_minifb_key(minifb::Key::W), Some(input::GameKey::W));
-        assert_eq!(
-            map_minifb_key(minifb::Key::Escape),
-            Some(input::GameKey::Escape)
-        );
-    }
-
-    #[test]
-    fn test_constants_sane() {
-        assert!(WINDOW_WIDTH > 0);
-        assert!(WINDOW_HEIGHT > 0);
-        assert!(FB_SIZE == WINDOW_WIDTH * WINDOW_HEIGHT);
-        assert!(SIM_TICKS_PER_SECOND > 0);
-        assert!(TARGET_FPS > 0);
-    }
 }

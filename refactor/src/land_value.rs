@@ -284,13 +284,11 @@ fn update_land_values(gw: &mut GameWorld) {
         // Si el valor del suelo es muy alto comparado con ingresos
         if land_value > income * GENTRIFICATION_THRESHOLD {
             to_degrade.push((pos.x, pos.y));
+            to_degrade.push((pos.x, pos.y));
         }
-    }
     }
 
     for (x, y) in to_degrade {
-        let mut to_abandon: Vec<(f32, f32)> = Vec::new();
-        for (_entity, (_pos, construction, _storage)) in gw.world
             .query::<(&Position, &mut ConstructionState, &ResourceStorage)>()
             .iter()
         {

@@ -369,27 +369,27 @@ impl JudicialSystem {
         events
     }
 
-    /// Determina el fallo de un caso basado en su tipo y nivel de corrupciÃ³n
-    fn determine_ruling(&self, case: &LegalCase, corruption: f32) -> CaseRuling {
+    /// Determina el fallo de un caso basado en su tipo y nivel de corrupción
+    fn determine_ruling(case: &LegalCase, corruption: f32) -> CaseRuling {
         // Probabilidad base de que gane el demandante
-        let plaintiff_base = match case.case_type {
+        let plaintiff_base: f64 = match case.case_type {
             CaseType::CivilDamages => 0.50,
-            CaseType::Environmental => 0.35, // DifÃ­cil probar daÃ±o ambiental
+            CaseType::Environmental => 0.35,
             CaseType::Corporate => 0.45,
             CaseType::Labor => 0.60,
             CaseType::Property => 0.55,
             CaseType::Constitutional => 0.40,
             CaseType::Tax => 0.30,
-            CaseType::MinorCriminal => 0.70, // Estado suele ganar
+            CaseType::MinorCriminal => 0.70,
             CaseType::MajorCriminal => 0.65,
             CaseType::Appeal => 0.25,
         };
 
-        // La corrupciÃ³n altera el resultado
-        let adjusted = plaintiff_base + (corruption - 0.5) * 0.4;
+        // La corrupción altera el resultado
+        let adjusted = plaintiff_base + (corruption as f64 - 0.5) * 0.4;
 
-        if rng_pool::rng_fast() < adjusted {
-            let amount = case.damages_claimed * (0.3 + rng_pool::rng_fast() * 0.7);
+        if rng_pool::rng_fast() < adjusted as f32 {
+            let amount = case.damages_claimed * (0.3 + rng_pool::rng_fast() * 0.7) as f64;
             CaseRuling::PlaintiffWon { amount }
         } else if rng_pool::rng_fast() < 0.3 {
             let amount = case.damages_claimed * 0.1;
@@ -400,7 +400,6 @@ impl JudicialSystem {
     }
 
     /// El alcalde puede sobornar jueces para influir en casos
-    pub fn corrupt_court(&mut self, court_id: u64, bribe_amount: f64) -> bool {
         if let Some(court) = self.courthouses.iter_mut().find(|c| c.id == court_id) {
             court.corruption_index = (court.corruption_index + (bribe_amount / 1_000_000.0) as f32).min(1.0);
             return true;

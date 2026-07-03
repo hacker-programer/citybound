@@ -484,7 +484,9 @@ fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
 // ---------------------------------------------------------------------------
 
 #[inline(always)]
+#[allow(dead_code)]
 fn draw_shape(fb: &mut [u32], w: usize, h: usize,
+
               x: f32, y: f32, r: &Renderable,
               ox: f32, oy: f32, scale: f32) {
     let sx = (x * scale + ox) as i32;

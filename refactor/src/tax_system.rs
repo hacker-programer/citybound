@@ -191,7 +191,8 @@ pub fn collect_taxes(
     let taxpayers: Vec<(f32, f32, BuildingType, f32)> = gw.world
         .query::<(&Position, &ConstructionState, &ResourceStorage)>()
         .iter()
-        .map(|(_entity, (pos, construction, resources))| {
+        .map(|(_entity, (pos, construction, _resources))| {
+
             let lv_idx = (pos.y as usize % 128) * 128 + (pos.x as usize % 128);
             let lv = land_values.get(lv_idx).copied().unwrap_or(1000.0);
             (pos.x, pos.y, construction.building_type, lv)

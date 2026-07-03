@@ -445,18 +445,16 @@ impl DesignTool {
                 y,
                 building_type: btype,
                 money,
-                food,
-                goods,
-            });
         }
-    }
-                building_type: btype,
     }
 }
 
 // ---------------------------------------------------------------------------
 // PROCESAMIENTO DE INPUT
 // ---------------------------------------------------------------------------
+
+/// Procesa input para la herramienta de diseño
+pub fn process_design_input(
     tool: &mut DesignTool,
     gw: &mut GameWorld,
     input: &InputState,

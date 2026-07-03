@@ -85,7 +85,6 @@ pub struct LegalCase {
     pub ruling: Option<CaseRuling>,
     pub appeal_count: u8,
     pub is_class_action: bool,   // demanda colectiva
-    pub is_class_action: bool,   // demanda colectiva
     pub corruption_level: f32,   // 0.0 = limpio, 1.0 = totalmente corrupto
 }
 

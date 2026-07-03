@@ -1,4 +1,4 @@
-// Flow Fields Precalculados para Tráfico v0.9.0
+// Flow Fields Precalculados para Tráfico v0.10.0
 //
 // FASE 6: Reemplazo de libm::sinf/cosf con LUTs propias [TC#5]
 // - cell_to_velocity ahora usa crate::luts::sin_fast/cos_fast
@@ -8,6 +8,10 @@
 // TÉCNICA AVANZADA #7 (juegos): Flow Fields O(1)
 // TÉCNICA COMÚN #5: LUTs trigonométricas
 // TÉCNICA COMÚN #11: NavMesh estático
+//
+// [FIX STACK OVERFLOW]: FlowField::cells usa Vec<FlowCell> en lugar de
+// [FlowCell; 16384] (128KB en stack → heap). FlowFieldManager contiene
+// hasta 8 FlowFields = 1MB en stack → heap.
 
 use crate::luts;
 use std::f32::consts::TAU;
@@ -17,7 +21,7 @@ use std::f32::consts::TAU;
 // ---------------------------------------------------------------------------
 
 pub const FLOW_GRID_SIZE: usize = 128;
-pub const FLOW_DIRECTIONS: usize = 8;
+pub const FLOW_CELL_COUNT: usize = FLOW_GRID_SIZE * FLOW_GRID_SIZE;
 
 // ---------------------------------------------------------------------------
 // TIPOS
@@ -32,13 +36,15 @@ pub struct FlowCell {
 
 #[repr(align(64))]
 pub struct FlowField {
-    pub cells: [FlowCell; FLOW_GRID_SIZE * FLOW_GRID_SIZE],
+    /// Celdas del flow field: [y * FLOW_GRID_SIZE + x]
+    /// Usamos Vec en lugar de array fijo para mantener los datos en heap.
+    pub cells: Vec<FlowCell>,
 }
 
 impl FlowField {
     pub fn empty() -> Self {
         FlowField {
-            cells: [FlowCell::default(); FLOW_GRID_SIZE * FLOW_GRID_SIZE],
+            cells: vec![FlowCell::default(); FLOW_CELL_COUNT],
         }
     }
 
@@ -114,17 +120,12 @@ impl FlowField {
         *self.cells.get_unchecked(gy * FLOW_GRID_SIZE + gx)
     }
 
-    /// [FASE 6]: cell_to_velocity ahora usa LUTs trigonométricas propias
-    /// en lugar de libm::sinf/cosf. Esto es ~10x más rápido porque:
-    /// - No hay llamada a función externa
-    /// - El valor está en caché L1 (28KB total para ambas LUTs)
-    /// - La reducción de ángulo es O(1) con módulo
+    /// cell_to_velocity usa LUTs trigonométricas propias (~10x más rápido)
     #[inline(always)]
     pub fn cell_to_velocity(cell: &FlowCell, speed: f32) -> (f32, f32) {
         if cell.magnitude < 0.01 {
             return (0.0, 0.0);
         }
-        // [FASE 6]: Usar LUTs propias
         let sin_a = luts::sin_fast(cell.angle);
         let cos_a = luts::cos_fast(cell.angle);
         (cos_a * speed * cell.magnitude, sin_a * speed * cell.magnitude)
@@ -151,7 +152,7 @@ impl FlowFieldManager {
     #[inline(always)]
     pub fn sample_combined(&self, world_x: f32, world_y: f32, on_highway: bool) -> FlowCell {
         let primary = self.primary.sample(world_x, world_y);
-        let highway = self.highway.sample(world_y, world_y);
+        let highway = self.highway.sample(world_x, world_y);
 
         if on_highway && highway.magnitude > 0.5 {
             FlowCell {
@@ -175,6 +176,7 @@ mod tests {
     #[test]
     fn test_flow_field_default() {
         let field = FlowField::generate_default();
+        assert_eq!(field.cells.len(), FLOW_CELL_COUNT);
         let center = field.sample(64.0, 64.0);
         let corner = field.sample(0.0, 0.0);
         assert!(center.magnitude < 0.5, "Centro debe tener flujo bajo");
@@ -187,7 +189,7 @@ mod tests {
         let highway = field.sample(64.0, 64.0);
         assert!(highway.magnitude > 0.5, "Autopista debe tener flujo fuerte");
         assert!(highway.angle.abs() < 0.2 || (highway.angle - TAU).abs() < 0.2,
-            "Autopista debe fluir al este, ángulo={}", highway.angle);
+            "Autopista debe fluir horizontal, ángulo={}", highway.angle);
     }
 
     #[test]
@@ -204,7 +206,6 @@ mod tests {
         assert_eq!(dx2, 0.0);
         assert_eq!(dy2, 0.0);
 
-        // Comparar precisión LUTs vs libm
         let cell_pi4 = FlowCell { angle: std::f32::consts::PI / 4.0, magnitude: 1.0 };
         let (dx3, dy3) = FlowField::cell_to_velocity(&cell_pi4, 10.0);
         let expected = 10.0 * std::f32::consts::FRAC_1_SQRT_2;

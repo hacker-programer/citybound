@@ -335,8 +335,8 @@ impl DesignTool {
             self.undo_stack.push_back(action);
         }
     }
-    }
 
+    /// Agrega una acción al historial de undo
     /// Agrega una acción al historial de undo
     fn push_action(&mut self, action: DesignAction) {
         if self.undo_stack.len() >= MAX_UNDO_HISTORY {

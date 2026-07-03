@@ -88,8 +88,8 @@ pub struct LegalCase {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CaseRuling {
+    Pending,
     Dismissed,
-    Settled { amount: f64 },       // acuerdo extrajudicial
     PlaintiffWon { amount: f64 },   // ganÃ³ el demandante
     DefendantWon,                   // ganÃ³ el demandado
     HungJury,                       // jurado estancado

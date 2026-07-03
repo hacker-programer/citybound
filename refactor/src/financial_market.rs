@@ -518,11 +518,12 @@ pub struct FinancialSystem {
     ) -> FinancialReport {
         // 1. Actualizar calificación crediticia
         let debt_service_ratio = if self.bond_market.total_debt_outstanding > 0.0 {
-            (self.bond_market.annual_interest_cost / self.bond_market.total_debt_outstanding) as f32
-        } else {
-            0.0
-        };
+        // 3. Mercado de agua
+        self.water_market.tick(water_reserves, water_demand);
 
+        // 4. Bolsa de valores
+        let economy_health = self.credit_agency.score / 1000.0;
+        self.stock_exchange.tick(economy_health);
         let _rating = self.credit_agency.evaluate(
             current_tick,
             *treasury,

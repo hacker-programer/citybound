@@ -34,15 +34,14 @@
 // - persistence: Save/Load con bincode [FASE 7]
 
 pub mod ecs;
-pub mod ecs;
 pub mod sim;
 pub mod render;
 pub mod render_cache;
 pub mod luts;
 pub mod object_pool;
+pub mod bump_alloc;
+pub mod input;
 pub mod terrain;
-pub mod quadtree;
-pub mod simd_render;
 pub mod rng_pool;
 pub mod flow_field;
 pub mod bitboard;

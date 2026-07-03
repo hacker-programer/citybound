@@ -6,11 +6,14 @@ En línea: 1 Carácter: 58
     + FullyQualifiedErrorId : NativeCommandError
  
 error: unexpected closing delimiter: `}`
-  --> src\render.rs:20:62
-   |
-19 | use crate::ecs::{GameWorld, Renderable, Camera, ConstructionState, BuildingType, TrafficCar};
-   |                 - this opening brace...                                                    - ...matches this closing brace
-20 |                   ConstructionState, BuildingType, TrafficCar};
-   |                                                              ^ unexpected closing delimiter
+   --> src\rng_pool.rs:143:5
+    |
+124 | pub fn splitmix64_f32(state: &mut u64) -> f32 {
+    |                                               - this delimiter might not be properly closed...
+...
+142 |         }
+    |         - ...as it matches this but it has different indentation
+143 |     }
+    |     ^ unexpected closing delimiter
 
 error: could not compile `citybound_native` (lib) due to 1 previous error

@@ -1,0 +1,158 @@
+﻿cargo :     Checking citybound_native v0.10.0 (C:\Users\Fa\Desktop\IAF\citybound\refactor)
+En línea: 1 Carácter: 58
++ ... ers\Fa\Desktop\IAF\citybound\refactor; cargo check --lib 2>&1 | Out-F ...
++                                            ~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Checking ci...bound\refactor):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+error[E0252]: the name `GameWorld` is defined multiple times
+  --> src\road_wear.rs:20:18
+   |
+19 | use crate::ecs::{GameWorld, Position, TrafficCar};
+   |                  --------- previous import of the type `GameWorld` here
+20 | use crate::ecs::{GameWorld, Position, TrafficCar};
+   |                  ^^^^^^^^^--
+   |                  |
+   |                  `GameWorld` reimported here
+   |                  help: remove unnecessary import
+   |
+   = note: `GameWorld` must be defined only once in the type namespace of this module
+
+error[E0252]: the name `Position` is defined multiple times
+  --> src\road_wear.rs:20:29
+   |
+19 | use crate::ecs::{GameWorld, Position, TrafficCar};
+   |                             -------- previous import of the type `Position` here
+20 | use crate::ecs::{GameWorld, Position, TrafficCar};
+   |                             ^^^^^^^^--
+   |                             |
+   |                             `Position` reimported here
+   |                             help: remove unnecessary import
+   |
+   = note: `Position` must be defined only once in the type namespace of this module
+
+error[E0252]: the name `TrafficCar` is defined multiple times
+  --> src\road_wear.rs:20:39
+   |
+19 | use crate::ecs::{GameWorld, Position, TrafficCar};
+   |                                       ---------- previous import of the type `TrafficCar` here
+20 | use crate::ecs::{GameWorld, Position, TrafficCar};
+   |                                       ^^^^^^^^^^ `TrafficCar` reimported here
+   |
+   = note: `TrafficCar` must be defined only once in the type namespace of this module
+
+warning: unused imports: `GameWorld`, `Position`, and `TrafficCar`
+  --> src\road_wear.rs:20:18
+   |
+20 | use crate::ecs::{GameWorld, Position, TrafficCar};
+   |                  ^^^^^^^^^  ^^^^^^^^  ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `render_cache`
+   --> src\ecs.rs:260:9
+    |
+260 |     let render_cache = RenderCache::new();
+    |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_render_cache`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `insert_pos`
+   --> src\quadtree.rs:268:17
+    |
+268 |             let insert_pos = if node.first_entity == 0 && node.entity_count == 0 {
+    |                 ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_insert_pos`
+
+warning: unused variable: `sample_rate`
+   --> src\audio.rs:147:5
+    |
+147 |     sample_rate: u32,
+    |     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_sample_rate`
+
+warning: unused variable: `x1`
+   --> src\interactive.rs:289:43
+    |
+289 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                           ^^ help: try ignoring the field: `x1: _`
+
+warning: unused variable: `y1`
+   --> src\interactive.rs:289:47
+    |
+289 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                               ^^ help: try ignoring the field: `y1: _`
+
+warning: unused variable: `x2`
+   --> src\interactive.rs:289:51
+    |
+289 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                                   ^^ help: try ignoring the field: `x2: _`
+
+warning: unused variable: `y2`
+   --> src\interactive.rs:289:55
+    |
+289 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                                       ^^ help: try ignoring the field: `y2: _`
+
+warning: unused variable: `entity`
+   --> src\interactive.rs:605:22
+    |
+605 |                 for (entity, (pos, zone)) in gw.world
+    |                      ^^^^^^ help: if this is intentional, prefix it with an underscore: `_entity`
+
+warning: unused variable: `resources`
+   --> src\tax_system.rs:192:45
+    |
+192 |         .map(|(_entity, (pos, construction, resources))| {
+    |                                             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_resources`
+
+warning: unused variable: `r_mul_f`
+  --> src\climate.rs:77:9
+   |
+77 |     let r_mul_f = _mm_set1_ps(r_mul);
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_r_mul_f`
+
+warning: unused variable: `g_mul_f`
+  --> src\climate.rs:78:9
+   |
+78 |     let g_mul_f = _mm_set1_ps(g_mul);
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_g_mul_f`
+
+warning: unused variable: `b_mul_f`
+  --> src\climate.rs:79:9
+   |
+79 |     let b_mul_f = _mm_set1_ps(b_mul);
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_b_mul_f`
+
+warning: unused variable: `ambient_f`
+  --> src\climate.rs:80:9
+   |
+80 |     let ambient_f = _mm_set1_ps(ambient * 255.0);
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_ambient_f`
+
+warning: unused variable: `max_f`
+  --> src\climate.rs:81:9
+   |
+81 |     let max_f = _mm_set1_ps(255.0);
+   |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_max_f`
+
+warning: unused variable: `min_f`
+  --> src\climate.rs:82:9
+   |
+82 |     let min_f = _mm_set1_ps(0.0);
+   |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_min_f`
+
+warning: unused variable: `p0`
+  --> src\climate.rs:89:13
+   |
+89 |         let p0 = _mm_cvtepi32_ps(_mm_unpacklo_epi16(
+   |             ^^ help: if this is intentional, prefix it with an underscore: `_p0`
+
+warning: unused variable: `p1`
+  --> src\climate.rs:93:13
+   |
+93 |         let p1 = _mm_cvtepi32_ps(_mm_unpacklo_epi16(
+   |             ^^ help: if this is intentional, prefix it with an underscore: `_p1`
+
+For more information about this error, try `rustc --explain E0252`.
+warning: `citybound_native` (lib) generated 18 warnings
+error: could not compile `citybound_native` (lib) due to 3 previous errors; 18 warnings emitted

@@ -1,0 +1,163 @@
+﻿cargo :     Checking citybound_native v0.10.0 (C:\Users\Fa\Desktop\IAF\citybound\refactor)
+En línea: 1 Carácter: 58
++ ... ers\Fa\Desktop\IAF\citybound\refactor; cargo check --lib 2>&1 | Out-F ...
++                                            ~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Checking ci...bound\refactor):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+error[E0252]: the name `simd_render` is defined multiple times
+  --> src\render.rs:21:5
+   |
+20 | use crate::simd_render;
+   |     ------------------ previous import of the module `simd_render` here
+21 | use crate::simd_render;
+   |     ^^^^^^^^^^^^^^^^^^ `simd_render` reimported here
+   |
+   = note: `simd_render` must be defined only once in the type namespace of this module
+
+error[E0432]: unresolved import `crate::quadtree::Quadtree`
+  --> src\ecs.rs:15:5
+   |
+15 | use crate::quadtree::Quadtree;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^ no `Quadtree` in `quadtree`
+
+warning: unused import: `crate::simd_render`
+  --> src\render.rs:21:5
+   |
+21 | use crate::simd_render;
+   |     ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::bitboard::BitGrid`
+  --> src\land_value.rs:22:5
+   |
+22 | use crate::bitboard::BitGrid;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::flow_field::FlowCell`
+  --> src\road_wear.rs:21:5
+   |
+21 | use crate::flow_field::FlowCell;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `ZoneComponent` and `ZoneType`
+  --> src\tax_system.rs:16:39
+   |
+16 | use crate::ecs::{GameWorld, Position, ZoneComponent, ZoneType, ResourceStorage, ConstructionState, BuildingType};
+   |                                       ^^^^^^^^^^^^^  ^^^^^^^^
+
+warning: unused import: `Position`
+  --> src\waste_mgmt.rs:16:29
+   |
+16 | use crate::ecs::{GameWorld, Position};
+   |                             ^^^^^^^^
+
+warning: unused imports: `BuildingType`, `GameWorld`, `Position`, `ResourceStorage`, and `ZoneType`
+  --> src\politics.rs:15:18
+   |
+15 | use crate::ecs::{GameWorld, Position, ZoneType, BuildingType, ResourceStorage};
+   |                  ^^^^^^^^^  ^^^^^^^^  ^^^^^^^^  ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::simd_render`
+  --> src\climate.rs:16:5
+   |
+16 | use crate::simd_render;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `sample_rate`
+   --> src\audio.rs:147:5
+    |
+147 |     sample_rate: u32,
+    |     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_sample_rate`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `x1`
+   --> src\interactive.rs:289:43
+    |
+289 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                           ^^ help: try ignoring the field: `x1: _`
+
+warning: unused variable: `y1`
+   --> src\interactive.rs:289:47
+    |
+289 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                               ^^ help: try ignoring the field: `y1: _`
+
+warning: unused variable: `x2`
+   --> src\interactive.rs:289:51
+    |
+289 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                                   ^^ help: try ignoring the field: `x2: _`
+
+warning: unused variable: `y2`
+   --> src\interactive.rs:289:55
+    |
+289 |                 DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+    |                                                       ^^ help: try ignoring the field: `y2: _`
+
+warning: unused variable: `entity`
+   --> src\interactive.rs:605:22
+    |
+605 |                 for (entity, (pos, zone)) in gw.world
+    |                      ^^^^^^ help: if this is intentional, prefix it with an underscore: `_entity`
+
+warning: unused variable: `resources`
+   --> src\tax_system.rs:191:45
+    |
+191 |         .map(|(_entity, (pos, construction, resources))| {
+    |                                             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_resources`
+
+warning: unused variable: `r_mul_f`
+  --> src\climate.rs:77:9
+   |
+77 |     let r_mul_f = _mm_set1_ps(r_mul);
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_r_mul_f`
+
+warning: unused variable: `g_mul_f`
+  --> src\climate.rs:78:9
+   |
+78 |     let g_mul_f = _mm_set1_ps(g_mul);
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_g_mul_f`
+
+warning: unused variable: `b_mul_f`
+  --> src\climate.rs:79:9
+   |
+79 |     let b_mul_f = _mm_set1_ps(b_mul);
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_b_mul_f`
+
+warning: unused variable: `ambient_f`
+  --> src\climate.rs:80:9
+   |
+80 |     let ambient_f = _mm_set1_ps(ambient * 255.0);
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_ambient_f`
+
+warning: unused variable: `max_f`
+  --> src\climate.rs:81:9
+   |
+81 |     let max_f = _mm_set1_ps(255.0);
+   |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_max_f`
+
+warning: unused variable: `min_f`
+  --> src\climate.rs:82:9
+   |
+82 |     let min_f = _mm_set1_ps(0.0);
+   |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_min_f`
+
+warning: unused variable: `p0`
+  --> src\climate.rs:89:13
+   |
+89 |         let p0 = _mm_cvtepi32_ps(_mm_unpacklo_epi16(
+   |             ^^ help: if this is intentional, prefix it with an underscore: `_p0`
+
+warning: unused variable: `p1`
+  --> src\climate.rs:93:13
+   |
+93 |         let p1 = _mm_cvtepi32_ps(_mm_unpacklo_epi16(
+   |             ^^ help: if this is intentional, prefix it with an underscore: `_p1`
+
+Some errors have detailed explanations: E0252, E0432.
+For more information about an error, try `rustc --explain E0252`.
+warning: `citybound_native` (lib) generated 22 warnings
+error: could not compile `citybound_native` (lib) due to 2 previous errors; 22 warnings emitted

@@ -1,0 +1,99 @@
+﻿cargo :     Checking citybound_native v0.10.0 (C:\Users\Fa\Desktop\IAF\citybound\refactor)
+En línea: 1 Carácter: 58
++ ... ers\Fa\Desktop\IAF\citybound\refactor; cargo check --lib 2>&1 | Out-F ...
++                                            ~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Checking ci...bound\refactor):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: the type `[[Vec<u64>; 16]; 16]` does not permit zero-initialization
+   --> src\ecs.rs:113:22
+    |
+113 |             unsafe { std::mem::zeroed() };
+    |                      ^^^^^^^^^^^^^^^^^^
+    |                      |
+    |                      this code causes undefined behavior when executed
+    |                      help: use `MaybeUninit<T>` instead, and only call `assume_init` after initialization is done
+    |
+    = note: `std::ptr::Unique<u8>` must be non-null
+    = note: because `std::ptr::NonNull<u8>` must be non-null
+    = note: `#[warn(invalid_value)]` on by default
+
+warning: the type `[Vec<RenderCacheEntry>; 6]` does not permit zero-initialization
+  --> src\render_cache.rs:49:80
+   |
+49 |         let mut buckets: [Vec<RenderCacheEntry>; NUM_RENDER_LAYERS] = unsafe { std::mem::zeroed() };
+   |                                                                                ^^^^^^^^^^^^^^^^^^
+   |                                                                                |
+   |                                                                                this code causes undefined behavior when executed
+   |                                                                                help: use `MaybeUninit<T>` instead, and only call 
+`assume_init` after initialization is done
+   |
+   = note: `std::ptr::Unique<u8>` must be non-null
+   = note: because `std::ptr::NonNull<u8>` must be non-null
+
+warning: creating a shared reference to mutable static
+  --> src\rng_pool.rs:79:10
+   |
+79 |         *RNG_POOL.data.get_unchecked(idx)
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ shared reference to mutable static
+   |
+   = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is 
+created for it while the shared reference lives
+   = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+   = note: `#[warn(static_mut_refs)]` (part of `#[warn(rust_2024_compatibility)]`) on by default
+
+warning: creating a shared reference to mutable static
+   --> src\rng_pool.rs:131:48
+    |
+131 |             let _val = std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i));
+    |                                                ^^^^^^^^^^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is 
+created for it while the shared reference lives
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+
+warning: creating a shared reference to mutable static
+   --> src\rng_pool.rs:132:37
+    |
+132 |             std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 4));
+    |                                     ^^^^^^^^^^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is 
+created for it while the shared reference lives
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+
+warning: creating a shared reference to mutable static
+   --> src\rng_pool.rs:133:37
+    |
+133 |             std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 8));
+    |                                     ^^^^^^^^^^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is 
+created for it while the shared reference lives
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+
+warning: creating a shared reference to mutable static
+   --> src\rng_pool.rs:134:37
+    |
+134 |             std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 12));
+    |                                     ^^^^^^^^^^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is 
+created for it while the shared reference lives
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+
+warning: the type `[[Vec<u32>; 128]; 128]` does not permit zero-initialization
+   --> src\traffic_lanes.rs:298:52
+    |
+298 |             let mut grid: [[Vec<u32>; 128]; 128] = std::mem::zeroed();
+    |                                                    ^^^^^^^^^^^^^^^^^^
+    |                                                    |
+    |                                                    this code causes undefined behavior when executed
+    |                                                    help: use `MaybeUninit<T>` instead, and only call `assume_init` after initialization is 
+done
+    |
+    = note: `std::ptr::Unique<u8>` must be non-null
+    = note: because `std::ptr::NonNull<u8>` must be non-null
+
+warning: `citybound_native` (lib) generated 8 warnings
+    Finished `dev` profile [optimized + debuginfo] target(s) in 5.23s

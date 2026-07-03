@@ -1,0 +1,35 @@
+﻿cargo :     Checking citybound_native v0.10.0 (C:\Users\Fa\Desktop\IAF\citybound\refactor)
+En línea: 1 Carácter: 58
++ ... ers\Fa\Desktop\IAF\citybound\refactor; cargo check --lib 2>&1 | Out-F ...
++                                            ~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Checking ci...bound\refactor):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+error: expected `{`, found keyword `for`
+   --> src\interactive.rs:607:17
+    |
+607 |                 for (entity, (pos, zone)) in gw.world
+    |                 ^^^ expected `{`
+    |
+help: you might have meant to write this as part of a block
+    |
+607 ~                 { for (entity, (pos, zone)) in gw.world
+608 |                     .query::<(&Position, &ZoneComponent)>()
+...
+617 |                     }
+618 ~                 } }
+    |
+
+error: unexpected closing delimiter: `}`
+  --> src\climate.rs:99:5
+   |
+70 |                                r_mul: f32, g_mul: f32, b_mul: f32, ambient: f32) {
+   |                                                                                  - this delimiter might not be properly closed...
+...
+88 | }
+   | - ...as it matches this but it has different indentation
+...
+99 |     }
+   |     ^ unexpected closing delimiter
+
+error: could not compile `citybound_native` (lib) due to 2 previous errors

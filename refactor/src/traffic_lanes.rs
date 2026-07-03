@@ -363,6 +363,10 @@ impl LaneManager {
     }
 
     fn build_spatial_grid(&mut self) {
+        for cell in self.spatial_grid.iter_mut() { cell.clear(); }
+        for lane in &self.lanes {
+            let steps = lane.length.max(1.0) as i32;
+            for i in 0..=steps.min(128) {
                 let t = i as f32 / steps as f32;
                 let (x, y) = lane.position_at(t);
                 let gx = x as usize % 128;
@@ -374,7 +378,6 @@ impl LaneManager {
             }
         }
     }
-
     #[inline]
     pub fn lanes_near(&self, x: f32, y: f32, radius: f32) -> Vec<u32> {
         let gx = x as usize % 128;

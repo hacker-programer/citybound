@@ -871,29 +871,31 @@ impl CpuBackend {
         let y0 = cmd.y0 as usize;
         let x1 = cmd.x1 as usize;
         let y1 = cmd.y1 as usize;
+        // Destructure to avoid borrow conflicts
+        let work = &mut self.work_buffer;
+        let atlas = &self.atlas;
         match cmd.primitive_type {
-            0 => self.draw_rect(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color, cmd.flags),
-            1 => self.draw_line(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color),
+            0 => Self::draw_rect_static(work, w, h, x0, y0, x1, y1, cmd.color, cmd.flags),
+            1 => Self::draw_line_static(work, w, h, x0, y0, x1, y1, cmd.color),
             2 => {
                 if x0 < w && y0 < h {
-                    let old = self.work_buffer[y0 * w + x0];
-                    self.work_buffer[y0 * w + x0] = blend_pixel(old, cmd.color);
+                    let old = work[y0 * w + x0];
+                    work[y0 * w + x0] = blend_pixel(old, cmd.color);
                 }
             }
             3 => {
-                if cmd.texture_id < self.atlas.entries.len() as u16 {
-                    self.draw_sprite(&mut self.work_buffer, w, h, cmd);
+                if (cmd.texture_id as usize) < atlas.entries.len() {
+                    Self::draw_sprite_static(work, w, h, cmd, atlas);
                 }
             }
             5 => {
-                self.draw_gradient(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color, cmd.flags);
+                Self::draw_gradient_static(work, w, h, x0, y0, x1, y1, cmd.color, cmd.flags);
             }
             _ => {}
         }
     }
 
-
-    fn draw_rect(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32, flags: u8) {
+    fn draw_rect_static(fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32, flags: u8) {
         let x_start = x0.min(fb_w);
         let x_end = x1.min(fb_w);
         let y_start = y0.min(fb_h);
@@ -917,7 +919,7 @@ impl CpuBackend {
         let _ = fb_h;
     }
 
-    fn draw_line(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
+    fn draw_line_static(fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
         let mut x = x0 as isize;
         let mut y = y0 as isize;
         let ex = x1 as isize;
@@ -938,8 +940,8 @@ impl CpuBackend {
         }
     }
 
-    fn draw_sprite(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, cmd: &RenderCommand) {
-        let entry = &self.atlas.entries[cmd.texture_id as usize];
+    fn draw_sprite_static(fb: &mut [u32], fb_w: usize, fb_h: usize, cmd: &RenderCommand, atlas: &TextureAtlas) {
+        let entry = &atlas.entries[cmd.texture_id as usize];
         let dx = cmd.x1 - cmd.x0;
         let dy = cmd.y1 - cmd.y0;
         if dx <= 0 || dy <= 0 { return; }
@@ -952,7 +954,7 @@ impl CpuBackend {
                 let sx = cmd.x0 as usize + px;
                 if sx >= fb_w { break; }
                 let u = px as f32 / dx as f32;
-                let texel = self.atlas.sample_uv(entry, u, v);
+                let texel = atlas.sample_uv(entry, u, v);
                 if texel & 0xFF_00_00_00 != 0 {
                     fb[row + sx] = blend_pixel(fb[row + sx], texel);
                 }
@@ -960,12 +962,11 @@ impl CpuBackend {
         }
     }
 
-    fn draw_gradient(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, base_color: u32, _flags: u8) {
+    fn draw_gradient_static(fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, base_color: u32, _flags: u8) {
         let x_start = x0.min(fb_w);
         let x_end = x1.min(fb_w);
         let y_start = y0.min(fb_h);
         let y_end = y1.min(fb_h);
-
         let h = (y_end - y_start).max(1);
         for y in y_start..y_end {
             let t = (y - y_start) as f32 / h as f32;
@@ -977,23 +978,6 @@ impl CpuBackend {
         }
     }
 
-    pub fn swap_buffers(&mut self) {
-        self.framebuffer.copy_from_slice(&self.work_buffer);
-    }
-
-    /// Resize del framebuffer
-    pub fn resize(&mut self, width: u32, height: u32) {
-        let pixels = (width as usize) * (height as usize);
-        self.framebuffer.resize(pixels, 0);
-        self.work_buffer.resize(pixels, 0);
-        self.width = width;
-    }
-}
-
-// ---------------------------------------------------------------------------
-
-
-// ---------------------------------------------------------------------------
 // EJECUCIÓN DE COMANDO EN TILE (rayon)
 // ---------------------------------------------------------------------------
 

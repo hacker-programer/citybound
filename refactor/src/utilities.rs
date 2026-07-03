@@ -51,6 +51,12 @@ pub enum UtilitySourceType {
 pub struct UtilityGrid {
     pub values: [[f32; UTILITY_GRID_SIZE]; UTILITY_GRID_SIZE],
     pub source_type: UtilitySourceType,
+/// Grilla de utilidades (presión de agua o voltaje)
+#[repr(align(64))]
+pub struct UtilityGrid {
+    /// Valores en heap: índice = y * UTILITY_GRID_SIZE + x
+    pub values: Vec<f32>,
+    pub source_type: UtilitySourceType,
     /// Posiciones de fuentes (en coordenadas de mundo)
     pub sources: Vec<(f32, f32)>,
 }
@@ -58,7 +64,7 @@ pub struct UtilityGrid {
 impl UtilityGrid {
     pub fn new(source_type: UtilitySourceType) -> Self {
         UtilityGrid {
-            values: [[0.0_f32; UTILITY_GRID_SIZE]; UTILITY_GRID_SIZE],
+            values: vec![0.0_f32; UTILITY_GRID_SIZE * UTILITY_GRID_SIZE],
             source_type,
             sources: Vec::with_capacity(8),
         }
@@ -70,52 +76,55 @@ impl UtilityGrid {
         let gy = (world_y / 4.0) as usize;
         if gx < UTILITY_GRID_SIZE && gy < UTILITY_GRID_SIZE {
             self.sources.push((world_x, world_y));
-            self.values[gy][gx] = MAX_PRESSURE;
+            self.values[gy * UTILITY_GRID_SIZE + gx] = MAX_PRESSURE;
         }
     }
 
     /// Propaga presión/voltaje desde las fuentes usando distancia Manhattan
     pub fn propagate(&mut self) {
-        // Reiniciar (excepto fuentes)
-        let mut new_values = [[0.0_f32; UTILITY_GRID_SIZE]; UTILITY_GRID_SIZE];
+        let total = UTILITY_GRID_SIZE * UTILITY_GRID_SIZE;
+        let mut new_values = vec![0.0_f32; total];
 
         // Marcar fuentes
         for (wx, wy) in &self.sources {
             let gx = (*wx / 4.0) as usize;
             let gy = (*wy / 4.0) as usize;
             if gx < UTILITY_GRID_SIZE && gy < UTILITY_GRID_SIZE {
-                new_values[gy][gx] = MAX_PRESSURE;
+                new_values[gy * UTILITY_GRID_SIZE + gx] = MAX_PRESSURE;
             }
         }
 
         // Propagar: cada celda toma el máximo de (vecino - pérdida)
         for _iteration in 0..8 {
-            let mut next = new_values;
+            let mut next = new_values.clone();
 
             for gy in 0..UTILITY_GRID_SIZE {
                 for gx in 0..UTILITY_GRID_SIZE {
+                    let idx = gy * UTILITY_GRID_SIZE + gx;
                     let mut max_neighbor = 0.0_f32;
 
-                    // Revisar 4 vecinos
                     if gy > 0 {
-                        max_neighbor = max_neighbor.max(new_values[gy-1][gx] - PRESSURE_LOSS_PER_CELL);
+                        max_neighbor = max_neighbor.max(new_values[(gy-1) * UTILITY_GRID_SIZE + gx] - PRESSURE_LOSS_PER_CELL);
                     }
                     if gy < UTILITY_GRID_SIZE - 1 {
-                        max_neighbor = max_neighbor.max(new_values[gy+1][gx] - PRESSURE_LOSS_PER_CELL);
+                        max_neighbor = max_neighbor.max(new_values[(gy+1) * UTILITY_GRID_SIZE + gx] - PRESSURE_LOSS_PER_CELL);
                     }
                     if gx > 0 {
-                        max_neighbor = max_neighbor.max(new_values[gy][gx-1] - PRESSURE_LOSS_PER_CELL);
+                        max_neighbor = max_neighbor.max(new_values[gy * UTILITY_GRID_SIZE + (gx-1)] - PRESSURE_LOSS_PER_CELL);
                     }
                     if gx < UTILITY_GRID_SIZE - 1 {
-                        max_neighbor = max_neighbor.max(new_values[gy][gx+1] - PRESSURE_LOSS_PER_CELL);
+                        max_neighbor = max_neighbor.max(new_values[gy * UTILITY_GRID_SIZE + (gx+1)] - PRESSURE_LOSS_PER_CELL);
                     }
 
-                    next[gy][gx] = next[gy][gx].max(max_neighbor.max(0.0));
+                    next[idx] = next[idx].max(max_neighbor);
                 }
             }
 
             new_values = next;
         }
+
+        self.values = new_values;
+    }
 
         self.values = new_values;
     }

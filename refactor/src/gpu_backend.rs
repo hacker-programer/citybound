@@ -862,8 +862,9 @@ impl CpuBackend {
                 }
             }
         }
-        let _ = rayon::current_thread_pool;
+        let _ = rayon::current_thread_pool; // dummy reference to keep rayon imported
     }
+
 
     #[inline(always)]
     fn execute_one(&mut self, cmd: &RenderCommand, w: usize, h: usize) {

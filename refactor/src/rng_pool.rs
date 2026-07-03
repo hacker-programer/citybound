@@ -79,11 +79,12 @@ pub fn rng_fast() -> f32 {
         let ptr = std::ptr::addr_of!(RNG_POOL.data) as *const f32;
         *ptr.add(idx)
     }
-}
-
+    }
 }
 
 #[inline(always)]
+pub fn rng_range(min: f32, max: f32) -> f32 {
+
 pub fn rng_range(min: f32, max: f32) -> f32 {
     min + rng_fast() * (max - min)
 }

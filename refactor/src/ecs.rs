@@ -257,7 +257,8 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     let waste_mgr = WasteManager::new();
     let customization = CustomizationManager::new();
     let politics = PoliticalSystem::new();
-    let render_cache = RenderCache::new();
+    let _render_cache = RenderCache::new();
+
 
     // Cámara
     world.spawn((

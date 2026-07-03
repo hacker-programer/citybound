@@ -181,6 +181,8 @@ fn generate_pollution(gw: &mut GameWorld) {
     for (_entity, (pos, zone)) in gw.world
         .query::<(&Position, &ZoneComponent)>()
         .iter()
+    {
+        if zone.zone_type == ZoneType::Industrial && zone.density > 0 {
             let gx = pos.x as usize;
             let gy = pos.y as usize;
             if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {
@@ -203,9 +205,6 @@ fn generate_pollution(gw: &mut GameWorld) {
         }
     }
 }
-
-fn update_land_values(gw: &mut GameWorld) {
-    for y in 0..HEATMAP_SIZE {
         for x in 0..HEATMAP_SIZE {
             let idx = y * HEATMAP_SIZE + x;
             let mut value = gw.land_value_map.values[idx];

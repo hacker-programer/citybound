@@ -23,7 +23,7 @@ codegen-units = 4
 [features]
 default = []
 # Activa soporte GPU real via wgpu (Vulkan/DX12/Metal/GLES)
-gpu = ["dep:wgpu", "dep:pollster", "dep:raw-window-handle", "bytemuck"]
+gpu = ["dep:wgpu", "dep:pollster", "dep:raw-window-handle"]
 # Activa compute shaders para físicas aceleradas
 compute = ["gpu"]
 # Perfil completo con todo activado
@@ -37,7 +37,7 @@ serde = { version = "1.0", features = ["derive"] }
 libm = "0.2"
 rand = { version = "0.8", default-features = false, features = ["small_rng"] }
 arrayvec = { version = "0.7", default-features = false }
-bytemuck = { version = "1", features = ["derive"], optional = true }
+bytemuck = { version = "1", features = ["derive"] }
 smallvec = "1"
 rayon = "1.9"
 cpal = "0.15"

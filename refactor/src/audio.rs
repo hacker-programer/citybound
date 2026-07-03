@@ -291,6 +291,7 @@ fn generate_noise(duration_secs: f32, sample_rate: u32) -> AudioBuffer {
 
 /// Wrapper público alrededor de AudioEngine.
 /// Mantiene compatibilidad con el código existente que espera `AudioPlayer`.
+#[allow(dead_code)]
 pub struct AudioPlayer {
     engine: AudioEngine,
     effects: Arc<SoundEffects>,

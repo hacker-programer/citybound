@@ -86,8 +86,8 @@ pub struct LegalCase {
     pub corruption_level: f32,   // 0.0 = limpio, 1.0 = totalmente corrupto
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]`npub enum CaseRuling {
-    Pending,
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CaseRuling {
     Dismissed,
     Settled { amount: f64 },       // acuerdo extrajudicial
     PlaintiffWon { amount: f64 },   // ganó el demandante

@@ -4537,17 +4537,12 @@ impl BuildingCatalog {
         BuildingCatalog { templates }
     }
     /// Obtiene un template por ID (acceso O(1))
-    #[inline(always)]
     pub fn get(&self, id: u16) -> Option<&BuildingTemplate> {
         self.templates.get(id as usize)
     }
 
-    }
-
     /// Busca edificios por categoría
-    pub fn by_category(&self, category: BuildingCategory) -> Vec<&BuildingTemplate> {
-        self.templates.iter().filter(|t| t.category == category).collect()
-    }
+
 
     /// Busca edificios cuyo nombre coincide parcialmente (case-insensitive)
     pub fn search(&self, query: &str) -> Vec<&BuildingTemplate> {

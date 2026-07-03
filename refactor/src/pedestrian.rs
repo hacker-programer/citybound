@@ -406,8 +406,8 @@ impl PedestrianSystem {
 
             // Spawn determinista según posición y tick (evita RNG costoso)
             let seed = (bx * 1000.0 + by * 100.0 + time_of_day as f32) as u64;
-            let roll = ((seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407)) as f32
-                / u64::MAX as f32);
+            let roll = (seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407)) as f32
+                / u64::MAX as f32;
 
             if roll < spawn_chance && self.active_count < MAX_PEDESTRIANS - 1 {
                 // Destino: otro edificio aleatorio

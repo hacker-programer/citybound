@@ -278,11 +278,11 @@ pub fn mobil_decision(
     else if self_benefit < -params.lane_change_threshold && new_lane_accel > current_lane_accel {
         LaneChangeDecision::ChangeLeft
     } else { LaneChangeDecision::Stay }
+}
 
 // ---------------------------------------------------------------------------
 // GESTOR DE CARRILES v0.10.0 — spatial_grid en heap [FIX STACK OVERFLOW]
 // ---------------------------------------------------------------------------
-
 pub struct LaneManager {
     pub lanes: Vec<Lane>,
     pub intersections: Vec<Intersection>,

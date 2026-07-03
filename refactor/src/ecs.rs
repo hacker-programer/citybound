@@ -296,11 +296,9 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         (50.0, 60.0, BuildingType::Hospital),
         (55.0, 60.0, BuildingType::School),
         (60.0, 60.0, BuildingType::Police),
-    let politics = PoliticalSystem::new();
-
-    // Cámara
     ];
 
+    for &(bx, by, btype) in &buildings {
     for &(bx, by, btype) in &buildings {
         let color = crate::render_cache::building_color(btype);
         world.spawn((

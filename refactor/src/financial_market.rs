@@ -220,17 +220,6 @@ impl WaterFuturesMarket {
     }
 
     /// Actualiza el precio del agua según modo (mercado vs costo)
-    pub fn tick(&mut self, rng: &mut RngPool, water_reserves: f32, water_demand: f32) {
-        if self.market_controlled {
-            // MECÁNICA DISTÓPICA: Precio determinado por especulación, no por costo real
-            let supply_demand_ratio = if water_demand > 0.0 {
-                water_reserves / water_demand
-            } else {
-                10.0
-            };
-
-            // Escasez = pánico en el mercado
-    /// Actualiza el precio del agua según modo (mercado vs costo)
     pub fn tick(&mut self, water_reserves: f32, water_demand: f32) {
         if self.market_controlled {
             // MECÁNICA DISTÓPICA: Precio determinado por especulación, no por costo real
@@ -258,31 +247,16 @@ impl WaterFuturesMarket {
             self.spot_price = (self.spot_price * speculation_factor)
                 .max(self.production_cost * 0.5)  // no puede caer debajo de 50% del costo
                 .min(self.production_cost * 20.0); // puede subir 2000%
+
+            self.price_history.push(self.spot_price);
+            if self.price_history.len() > 256 {
+                self.price_history.remove(0);
+            }
+        } else {
+            // Precio normal = costo de producción
             self.spot_price = self.production_cost;
-    /// Privatiza el suministro de agua
-    pub fn privatize(&mut self, corporation: &str, injection_amount: f64) -> f64 {
-        self.is_privatized = true;
-        self.market_controlled = true;
-        self.corporate_owner = Some(corporation.to_string());
-        // La corporación inyecta capital fresco a las arcas municipales
-        injection_amount
+        }
     }
-    }
-
-    /// Nacionaliza el agua de vuelta
-    pub fn nationalize(&mut self) -> f64 {
-        // Cuesta caro recomprar
-        let buyback_cost = self.spot_price as f64 * 1_000_000_000.0; // ~mil millones
-        self.is_privatized = false;
-        self.market_controlled = false;
-        self.corporate_owner = None;
-        buyback_cost
-    }
-}
-
-// ---------------------------------------------------------------------------
-// BOLSA DE VALORES LOCAL
-// ---------------------------------------------------------------------------
 
 /// Una empresa listada en la bolsa local
 #[derive(Debug, Clone)]

@@ -892,7 +892,9 @@ impl CpuBackend {
     }
 
     fn draw_rect(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32, flags: u8) {
-
+        let x_start = x0.min(fb_w);
+        let x_end = x1.min(fb_w);
+        let y_start = y0.min(fb_h);
         let y_end = y1.min(fb_h);
         if x_start >= x_end || y_start >= y_end { return; }
         let has_alpha = flags & FLAG_ALPHA_BLEND != 0;
@@ -913,9 +915,6 @@ impl CpuBackend {
         let _ = fb_h;
     }
 
-    fn draw_line(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
-        let mut x = x0 as isize;
-        let mut y = y0 as isize;
         let ex = x1 as isize;
         let ey = y1 as isize;
         let dx = (ex - x).abs();

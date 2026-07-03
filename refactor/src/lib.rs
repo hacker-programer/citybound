@@ -49,6 +49,7 @@ pub mod flow_field;
 pub mod bitboard;
 pub mod audio;
 pub mod traffic_lanes;
+pub mod interactive;
 pub mod supply_chain;
 pub mod land_value;
 pub mod utilities;

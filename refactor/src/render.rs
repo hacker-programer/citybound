@@ -651,9 +651,10 @@ fn get_glyph(ch: char) -> [u8; 7] {
 
 // ---------------------------------------------------------------------------
 // UTILIDADES
-// ---------------------------------------------------------------------------
-
+#[allow(dead_code)]
 #[inline(always)]
+fn multiply_alpha(color: u32, alpha: f32) -> u32 {
+
 fn multiply_alpha(color: u32, alpha: f32) -> u32 {
     let a = (((color >> 24) & 0xFF) as f32 * alpha) as u32;
     (a << 24) | (color & 0x00_FF_FF_FF)

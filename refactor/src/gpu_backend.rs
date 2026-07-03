@@ -976,13 +976,24 @@ impl CpuBackend {
                 fb[row + x] = darkened;
             }
         }
+
+    pub fn swap_buffers(&mut self) {
+        self.framebuffer.copy_from_slice(&self.work_buffer);
     }
 
+    pub fn resize(&mut self, width: u32, height: u32) {
+        let pixels = (width as usize) * (height as usize);
+        self.framebuffer.resize(pixels, 0);
+        self.work_buffer.resize(pixels, 0);
+        self.width = width;
+        self.height = height;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // EJECUCIÓN DE COMANDO EN TILE (rayon)
 // ---------------------------------------------------------------------------
 
-#[inline(always)]
-fn execute_cmd_on_tile(
     cmd: &RenderCommand,
     fb: &mut [u32],
     tile_x0: usize, tile_y0: usize,

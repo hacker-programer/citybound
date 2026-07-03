@@ -160,11 +160,12 @@ impl SpatialGrid {
         let max_y = (cy + cell_radius).min(SPATIAL_GRID_DIM - 1);
         SpatialQueryIter { grid: self, min_x, max_x, min_y, max_y, current_cx: min_x, current_cy: min_y, current_idx: 0, done: false }
     }
-}
-
 pub struct SpatialQueryIter<'a> {
     grid: &'a SpatialGrid,
     min_x: usize, max_x: usize,
+    #[allow(dead_code)]
+    min_y: usize, max_y: usize,
+
     min_y: usize, max_y: usize,
     current_cx: usize, current_cy: usize,
     current_idx: usize,

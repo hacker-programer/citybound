@@ -636,8 +636,8 @@ impl RenderCommandPool {
             count[z] -= 1;
             self.sorted[count[z]] = i;
         }
-        let temp = self.commands.clone();
-        for (i, &idx) in self.sorted.iter().enumerate() {
+        let mut temp = self.commands.clone();
+
             temp[i] = self.commands[idx];
         }
         self.commands = temp;

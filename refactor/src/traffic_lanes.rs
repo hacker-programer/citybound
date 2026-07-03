@@ -279,11 +279,6 @@ pub fn mobil_decision(
         LaneChangeDecision::ChangeLeft
     } else { LaneChangeDecision::Stay }
 }
-
-// ---------------------------------------------------------------------------
-// GESTOR DE CARRILES v0.9.0 — Array fijo [FASE 6]
-// ---------------------------------------------------------------------------
-
     } else { LaneChangeDecision::Stay }
 }
 

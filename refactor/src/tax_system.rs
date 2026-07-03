@@ -15,6 +15,8 @@
 
 use crate::ecs::{GameWorld, Position, ResourceStorage, ConstructionState, BuildingType};
 
+// ---------------------------------------------------------------------------
+// CONSTANTES
 
 // ---------------------------------------------------------------------------
 // CONSTANTES

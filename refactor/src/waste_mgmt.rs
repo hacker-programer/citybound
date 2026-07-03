@@ -342,7 +342,8 @@ impl WasteManager {
 }
 // TESTS
 mod tests {
-    use super::*;
+    #[test]
+    fn test_landfill_deposit() {
 
     #[test]
     fn test_landfill_deposit() {

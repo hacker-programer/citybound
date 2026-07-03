@@ -604,9 +604,8 @@ pub fn process_design_input(
                 let mut previous = Vec::new();
 
                 for (_entity, (pos, zone)) in gw.world
-
-                for (entity, (pos, zone)) in gw.world
                     .query::<(&Position, &ZoneComponent)>()
+
                     .iter()
                 {
                     if pos.x >= snapped_x - half as f32

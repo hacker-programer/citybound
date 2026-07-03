@@ -859,12 +859,6 @@ impl CpuBackend {
         }
     }
 
-    #[inline(always)]
-    fn execute_one(&mut self, cmd: &RenderCommand, w: usize, h: usize) {
-        let x0 = cmd.x0 as usize;
-        let y0 = cmd.y0 as usize;
-        // Copiar resultado final al framebuffer
-        self.framebuffer.copy_from_slice(&self.work_buffer);
     }
 
     #[inline(always)]

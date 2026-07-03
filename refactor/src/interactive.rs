@@ -445,6 +445,9 @@ impl DesignTool {
                 y,
                 building_type: btype,
                 money,
+                food,
+                goods,
+            });
         }
     }
 }

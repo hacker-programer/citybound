@@ -345,29 +345,30 @@ impl JudicialSystem {
         }
 
         // Bufetes de abogados: patent trolls drenan innovación
+        // Recolectar demandas a presentar para evitar conflicto de borrow
+        let mut troll_lawsuits: Vec<(String, f64)> = Vec::with_capacity(8);
         for firm in &self.law_firms {
             if firm.is_patent_troll {
-                // Patent trolls generan casos contra empresas tech
                 if rng_pool::rng_fast() < 0.05 * dt {
-                    let _case_id = self.file_lawsuit(
-                        CaseType::Corporate,
-                        &firm.name,
-                        "TechCorp",
-                        "Patent infringement claim",
-                        firm.annual_revenue * 0.1,
-                        CourtLevel::District,
-                        false,
-                    );
-                    events.push(JudicialEvent::PatentTrollAction {
-                        firm_name: firm.name.clone(),
-                        message: "Patent troll filed infringement lawsuit against tech sector".to_string(),
-                    });
+                    troll_lawsuits.push((firm.name.clone(), firm.annual_revenue * 0.1));
                 }
             }
         }
-
-        events
-    }
+        for (firm_name, amount) in troll_lawsuits {
+            let _case_id = self.file_lawsuit(
+                CaseType::Corporate,
+                &firm_name,
+                "TechCorp",
+                "Patent infringement claim",
+                amount,
+                CourtLevel::District,
+                false,
+            );
+            events.push(JudicialEvent::PatentTrollAction {
+                firm_name,
+                message: "Patent troll filed infringement lawsuit against tech sector".to_string(),
+            });
+        }
     /// Determina el fallo de un caso basado en su tipo y nivel de corrupción
     /// (Función libre para evitar conflictos de borrow checker)
     fn determine_ruling_impl(case: &LegalCase, corruption: f32) -> CaseRuling {

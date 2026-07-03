@@ -11,16 +11,15 @@
 // Para añadir una nueva plataforma:
 // 1. Implementar PlatformBackend trait
 // 2. Añadir feature flag en Cargo.toml
-// 3. Seleccionar backend en time de compilación con #[cfg(...)]
-
-use std::time::Instant;
+// 3. Seleccionar backend en tiempo de compilación con #[cfg(...)]
 
 // ---------------------------------------------------------------------------
 // EVENTOS DE PLATAFORMA UNIFICADOS
 // ---------------------------------------------------------------------------
 
 /// Evento de input unificado para todas las plataformas
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// NOTA: No derivamos Eq porque contiene f32
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlatformEvent {
     KeyPressed(PlatformKey),
     KeyReleased(PlatformKey),
@@ -41,8 +40,8 @@ pub enum PlatformEvent {
 pub enum PlatformKey {
     // Letras
     A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
-    // Números
-    N0, N1, N2, N3, N4, N5, N6, N7, N8, N9,
+    // Números (estilo Key0..Key9 para coincidir con input.rs)
+    Key0, Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9,
     // Función
     F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
     // Navegación
@@ -51,6 +50,8 @@ pub enum PlatformKey {
     LShift, RShift, LCtrl, RCtrl, LAlt, RAlt,
     // Especiales
     Escape, Enter, Space, Backspace, Tab, Delete, Home, End, PageUp, PageDown,
+    // Símbolos
+    Minus, Equals, BracketLeft, BracketRight,
     // Touch virtual (Android)
     Back, Menu,
 }
@@ -123,14 +124,12 @@ mod desktop {
         fn poll_events(&mut self) -> Vec<PlatformEvent> {
             self.event_queue.clear();
 
-            // Teclas
-            self.window.get_keys().map(|keys| {
-                for key in keys {
-                    self.event_queue.push(PlatformEvent::KeyPressed(map_key(*key)));
-                }
-            });
+            // Teclas presionadas — get_keys() devuelve Vec<Key>, iteramos directamente
+            let keys: Vec<Key> = self.window.get_keys();
+            for key in &keys {
+                self.event_queue.push(PlatformEvent::KeyPressed(map_key(*key)));
+            }
 
-            // Keys released (approximate via polling)
             // Mouse
             if let Some((x, y)) = self.window.get_mouse_pos(minifb::MouseMode::Clamp) {
                 self.event_queue.push(PlatformEvent::MouseMoved { x: x as f32, y: y as f32 });
@@ -186,11 +185,11 @@ mod desktop {
             Key::S => PlatformKey::S, Key::T => PlatformKey::T, Key::U => PlatformKey::U,
             Key::V => PlatformKey::V, Key::W => PlatformKey::W, Key::X => PlatformKey::X,
             Key::Y => PlatformKey::Y, Key::Z => PlatformKey::Z,
-            Key::Key0 => PlatformKey::N0, Key::Key1 => PlatformKey::N1,
-            Key::Key2 => PlatformKey::N2, Key::Key3 => PlatformKey::N3,
-            Key::Key4 => PlatformKey::N4, Key::Key5 => PlatformKey::N5,
-            Key::Key6 => PlatformKey::N6, Key::Key7 => PlatformKey::N7,
-            Key::Key8 => PlatformKey::N8, Key::Key9 => PlatformKey::N9,
+            Key::Key0 => PlatformKey::Key0, Key::Key1 => PlatformKey::Key1,
+            Key::Key2 => PlatformKey::Key2, Key::Key3 => PlatformKey::Key3,
+            Key::Key4 => PlatformKey::Key4, Key::Key5 => PlatformKey::Key5,
+            Key::Key6 => PlatformKey::Key6, Key::Key7 => PlatformKey::Key7,
+            Key::Key8 => PlatformKey::Key8, Key::Key9 => PlatformKey::Key9,
             Key::F1 => PlatformKey::F1, Key::F2 => PlatformKey::F2,
             Key::F3 => PlatformKey::F3, Key::F4 => PlatformKey::F4,
             Key::F5 => PlatformKey::F5, Key::F6 => PlatformKey::F6,
@@ -207,6 +206,11 @@ mod desktop {
             Key::Tab => PlatformKey::Tab, Key::Delete => PlatformKey::Delete,
             Key::Home => PlatformKey::Home, Key::End => PlatformKey::End,
             Key::PageUp => PlatformKey::PageUp, Key::PageDown => PlatformKey::PageDown,
+            // Símbolos
+            Key::Minus => PlatformKey::Minus,
+            Key::Equal => PlatformKey::Equals,
+            Key::LeftBracket => PlatformKey::BracketLeft,
+            Key::RightBracket => PlatformKey::BracketRight,
             _ => PlatformKey::Escape, // fallback
         }
     }
@@ -229,8 +233,6 @@ mod android {
 
     impl PlatformBackend for AndroidBackend {
         fn new(title: &str, width: u32, height: u32) -> Self {
-            // En Android, la ventana se crea vía NativeActivity
-            // Este backend se conecta a ANativeWindow para renderizado
             AndroidBackend {
                 width,
                 height,
@@ -249,24 +251,12 @@ mod android {
 
         fn present_frame(&mut self, buffer: &[u32], width: u32, height: u32) {
             // TODO: Blit al ANativeWindow mediante ndk
-            // Por ahora, no-op
         }
 
-        fn set_title(&mut self, _title: &str) {
-            // Android no tiene título de ventana
-        }
-
-        fn inner_size(&self) -> (u32, u32) {
-            (self.width, self.height)
-        }
-
-        fn scale_factor(&self) -> f64 {
-            1.0
-        }
-
-        fn set_cursor_visible(&mut self, _visible: bool) {
-            // Android no tiene cursor
-        }
+        fn set_title(&mut self, _title: &str) {}
+        fn inner_size(&self) -> (u32, u32) { (self.width, self.height) }
+        fn scale_factor(&self) -> f64 { 1.0 }
+        fn set_cursor_visible(&mut self, _visible: bool) {}
     }
 }
 

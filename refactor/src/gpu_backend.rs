@@ -877,14 +877,14 @@ impl CpuBackend {
             0 => self.draw_rect(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color, cmd.flags),
             1 => self.draw_line(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color),
             2 => {
+            2 => {
                 if x0 < w && y0 < h {
                     self.work_buffer[y0 * w + x0] = blend_pixel(self.work_buffer[y0 * w + x0], cmd.color);
                 }
-                    self.draw_sprite(&mut self.work_buffer, w, h, cmd);
-
+            }
             3 => {
                 if cmd.texture_id < self.atlas.entries.len() as u16 {
-                    self.draw_sprite(w, h, cmd);
+                    self.draw_sprite(&mut self.work_buffer, w, h, cmd);
                 }
             }
             5 => {
@@ -895,9 +895,7 @@ impl CpuBackend {
     }
 
     fn draw_rect(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32, flags: u8) {
-        let x_start = x0.min(fb_w);
-        let x_end = x1.min(fb_w);
-        let y_start = y0.min(fb_h);
+
         let y_end = y1.min(fb_h);
         if x_start >= x_end || y_start >= y_end { return; }
         let has_alpha = flags & FLAG_ALPHA_BLEND != 0;

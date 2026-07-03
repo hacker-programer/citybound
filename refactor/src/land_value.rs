@@ -407,14 +407,15 @@ mod tests {
 
     #[test]
     fn test_pollution_decay() {
+    #[test]
+    fn test_pollution_decay() {
         let mut map = PollutionHeatmap::new();
-        map.values[10][10] = 5.0;
+        map.values[10 * HEATMAP_SIZE + 10] = 5.0;
 
         map.diffuse_and_decay();
         let after = map.get(10, 10);
         assert!(after < 5.0, "Contaminación debe decaer: {}", after);
     }
-
     #[test]
     fn test_pollution_spread() {
         let mut map = PollutionHeatmap::new();

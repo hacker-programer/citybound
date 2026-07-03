@@ -279,7 +279,6 @@ pub fn mobil_decision(
         LaneChangeDecision::ChangeLeft
     } else { LaneChangeDecision::Stay }
 }
-    } else { LaneChangeDecision::Stay }
 }
 
 // ---------------------------------------------------------------------------

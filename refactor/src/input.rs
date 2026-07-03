@@ -82,8 +82,55 @@ pub enum GameKey {
     F6 = 62, F7 = 63, F8 = 64, F9 = 65, F10 = 66, F11 = 67, F12 = 68,
     BracketLeft = 60,
     BracketRight = 61,
-}
+    /// Procesa un evento de plataforma unificado (PlatformEvent → InputState)
+    /// Permite que el sistema de input funcione con cualquier backend de plataforma
+    pub fn process_platform_event(&mut self, event: &platform::PlatformEvent) {
+        use platform::{PlatformEvent, PlatformKey as Pk, MouseButton as PMb};
 
+        match *event {
+            PlatformEvent::KeyPressed(key) => {
+                if let Some(gk) = map_platform_key(key) {
+                    self.keys_pressed |= 1u128 << (gk as u8);
+                    self.keys_down |= 1u128 << (gk as u8);
+                }
+            }
+            PlatformEvent::KeyReleased(key) => {
+                if let Some(gk) = map_platform_key(key) {
+                    self.keys_released |= 1u128 << (gk as u8);
+                    self.keys_down &= !(1u128 << (gk as u8));
+                }
+            }
+            PlatformEvent::MouseMoved { x, y } => {
+                self.mouse_x = x;
+                self.mouse_y = y;
+                self.mouse_inside = true;
+            }
+            PlatformEvent::MouseDown(button) => {
+                self.prev_mouse_left = self.mouse_left;
+                self.prev_mouse_right = self.mouse_right;
+                self.prev_mouse_middle = self.mouse_middle;
+                match button {
+                    PMb::Left => self.mouse_left = true,
+                    PMb::Right => self.mouse_right = true,
+                    PMb::Middle => self.mouse_middle = true,
+                }
+            }
+            PlatformEvent::MouseUp(button) => {
+                self.prev_mouse_left = self.mouse_left;
+                self.prev_mouse_right = self.mouse_right;
+                self.prev_mouse_middle = self.mouse_middle;
+                match button {
+                    PMb::Left => self.mouse_left = false,
+                    PMb::Right => self.mouse_right = false,
+                    PMb::Middle => self.mouse_middle = false,
+                }
+            }
+            PlatformEvent::MouseWheel(delta) => {
+                self.scroll_delta = delta;
+            }
+            _ => {} // Touch events, resize, focus — ignorados por ahora
+        }
+    }
 impl InputState {
     /// Actualiza el estado de input desde la ventana (una vez por frame)
     pub fn update(&mut self, window: &Window) {

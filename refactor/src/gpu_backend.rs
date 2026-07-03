@@ -869,7 +869,16 @@ impl CpuBackend {
 
     #[inline(always)]
     fn execute_one(&mut self, cmd: &RenderCommand, w: usize, h: usize) {
-                }
+        let x0 = cmd.x0.max(0) as usize;
+        let y0 = cmd.y0.max(0) as usize;
+        let x1 = cmd.x1.min(w as i16 - 1).max(0) as usize;
+        let y1 = cmd.y1.min(h as i16 - 1).max(0) as usize;
+        if x0 >= x1 || y0 >= y1 { return; }
+        let atlas = &self.atlas;
+        let work = &mut self.work_buffer;
+        match cmd.primitive_type {
+            0 | 1 => {
+                Self::draw_rect_static(work, w, h, x0, y0, x1, y1, cmd.color, cmd.flags);
             }
             3 => {
                 if (cmd.texture_id as usize) < atlas.entries.len() {

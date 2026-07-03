@@ -1,12 +1,12 @@
-// Módulo ECS - Entity Component System v0.10.0 [FASE 7]
+﻿// M├│dulo ECS - Entity Component System v0.10.0 [FASE 7]
 //
-// FASE 7: Nuevos tipos de edificios (Hospital, Escuela, Policía)
+// FASE 7: Nuevos tipos de edificios (Hospital, Escuela, Polic├¡a)
 // - RenderCache integrado con rebuild_from_world
 // - Spatial Hashing + Query Fusion
 //
 // GameWorld con todos los sistemas integrados:
-// [#361] LaneManager - Tráfico con carriles
-// [#392] DesignTool - Diseño urbano interactivo
+// [#361] LaneManager - Tr├ífico con carriles
+// [#392] DesignTool - Dise├▒o urbano interactivo
 // [M#1..M#10] 10 sistemas de realismo
 
 use crate::object_pool::EntityPool;
@@ -30,7 +30,7 @@ use rand::rngs::SmallRng;
 use rand::SeedableRng;
 
 // ---------------------------------------------------------------------------
-// COMPONENTES (alineados a 64B para caché L1)
+// COMPONENTES (alineados a 64B para cach├® L1)
 // ---------------------------------------------------------------------------
 
 #[derive(Copy, Clone, Debug)]
@@ -75,7 +75,7 @@ pub struct ResourceStorage { pub money: f32, pub food: f32, pub goods: f32 }
 #[repr(align(64))]
 pub struct ConstructionState { pub progress: f32, pub building_type: BuildingType }
 
-/// [FASE 7]: Nuevos tipos de edificios públicos
+/// [FASE 7]: Nuevos tipos de edificios p├║blicos
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BuildingType { 
     House, Apartment, Shop, Office, Factory, Farm,
@@ -94,7 +94,7 @@ pub struct Lifetime { pub remaining_ticks: u32 }
 pub struct QuadIndex(pub u32);
 
 // ---------------------------------------------------------------------------
-// SPATIAL GRID — Búsqueda O(1) de entidades por posición [FASE 6]
+// SPATIAL GRID ÔÇö B├║squeda O(1) de entidades por posici├│n [FASE 6]
 // ---------------------------------------------------------------------------
 
 pub const SPATIAL_CELL_SIZE: f32 = 8.0;
@@ -114,9 +114,10 @@ impl SpatialGrid {
         SpatialGrid { cells, dirty: true }
     }
 
-    #[inline(always)]
-    fn cell_index(x: f32, y: f32) -> (usize, usize) {
+        SpatialGrid { cells, dirty: true }
+    }
 
+    #[inline(always)]
     fn cell_index(x: f32, y: f32) -> (usize, usize) {
         let cx = (x / SPATIAL_CELL_SIZE) as usize % SPATIAL_GRID_DIM;
         let cy = (y / SPATIAL_CELL_SIZE) as usize % SPATIAL_GRID_DIM;
@@ -146,8 +147,7 @@ impl SpatialGrid {
     }
 
     #[inline]
-    pub fn query_near(&self, x: f32, y: f32, radius: f32) -> SpatialQueryIter<'_> {
-
+    pub fn query_near(&self, x: f32, y: f32, radius: f32) -> SpatialQueryIter {
         let (cx, cy) = Self::cell_index(x, y);
         let cell_radius = ((radius / SPATIAL_CELL_SIZE).ceil() as usize).min(SPATIAL_GRID_DIM / 2);
         let min_x = if cx >= cell_radius { cx - cell_radius } else { 0 };
@@ -159,13 +159,10 @@ impl SpatialGrid {
 }
 
 pub struct SpatialQueryIter<'a> {
-
     grid: &'a SpatialGrid,
     min_x: usize, max_x: usize,
-    #[allow(dead_code)]
     min_y: usize, max_y: usize,
     current_cx: usize, current_cy: usize,
-
     current_idx: usize,
     done: bool,
 }
@@ -258,10 +255,9 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     let waste_mgr = WasteManager::new();
     let customization = CustomizationManager::new();
     let politics = PoliticalSystem::new();
-    let _render_cache = RenderCache::new();
+    let render_cache = RenderCache::new();
 
-
-    // Cámara
+    // C├ímara
     world.spawn((
         Camera { offset_x: grid_size as f32 / 2.0, offset_y: grid_size as f32 / 2.0, zoom: 1.0 },
         Position::new(0.0, 0.0),
@@ -298,7 +294,7 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         (40.0, 36.0, BuildingType::Farm),
         (60.0, 45.0, BuildingType::House),
         (64.0, 45.0, BuildingType::Shop),
-        // [FASE 7]: Edificios públicos
+        // [FASE 7]: Edificios p├║blicos
         (50.0, 60.0, BuildingType::Hospital),
         (55.0, 60.0, BuildingType::School),
         (60.0, 60.0, BuildingType::Police),
@@ -438,7 +434,7 @@ mod tests {
             .any(|(_, cs)| cs.building_type == BuildingType::Police);
         assert!(has_hospital, "Debe haber hospital");
         assert!(has_school, "Debe haber escuela");
-        assert!(has_police, "Debe haber policía");
+        assert!(has_police, "Debe haber polic├¡a");
     }
 
     #[test]

@@ -464,9 +464,25 @@ pub fn process_design_input(
     window_width: u32,
     window_height: u32,
 ) {
+) {
+    if input.is_key_pressed(GameKey::Tab) {
+        tool.toggle();
+    }
+
+    if !tool.active {
+        return;
+    }
+
+    // Cambiar modo con teclas
+    if input.is_key_pressed(GameKey::Key1) {
+        if input.is_key_down(GameKey::Shift) {
+            tool.cycle_building();
+        } else {
+            tool.set_paint_mode();
+            tool.cycle_zone();
+        }
     }
     if input.is_key_pressed(GameKey::Key2) {
-        if input.is_key_down(GameKey::Shift) {
             tool.set_building_mode();
         } else {
             tool.set_paint_mode();

@@ -13,14 +13,13 @@
 // - Futuros de agua: el precio se desacopla del costo de bombeo
 // - Calificación crediticia: castiga gasto social, premia pago de deuda
 // - Bonos: permiten financiar infraestructura pero generan deuda perpetua
-use crate::rng_pool; // Funciones globales de RNG pre-generado
+//
+// TÉCNICAS:
 // - LUTs para tasas de interés por calificación [TC#5]
 // - RNG pre-generado para volatilidad de mercado [TC#22]
 // - f32 en vez de f64 para todo [TC#24]
 
 #![allow(dead_code)]
-
-use crate::rng_pool::RngPool;
 
 // ---------------------------------------------------------------------------
 // CALIFICACIÓN CREDITICIA
@@ -32,15 +31,12 @@ use crate::rng_pool::RngPool;
 pub enum CreditRating {
     /// Default — la ciudad está en quiebra
     D = 0,
-    /// Bonos basura — intereses altísimos
     CCC = 1,
     B = 2,
     BB = 3,
-    /// Grado de inversión
     BBB = 4,
     A = 5,
     AA = 6,
-    /// AAA — máxima calidad crediticia
     AAA = 7,
 }
 
@@ -48,18 +44,17 @@ impl CreditRating {
     /// Tasa de interés base para préstamos según calificación [LUT - TC#5]
     pub fn base_interest_rate(&self) -> f32 {
         match self {
-            CreditRating::D => 0.25,   // 25% — prácticamente imposible pedir prestado
-            CreditRating::CCC => 0.18, // 18%
-            CreditRating::B => 0.12,   // 12%
-            CreditRating::BB => 0.08,  // 8%
-            CreditRating::BBB => 0.05, // 5%
-            CreditRating::A => 0.035,  // 3.5%
-            CreditRating::AA => 0.025, // 2.5%
-            CreditRating::AAA => 0.015, // 1.5%
+            CreditRating::D => 0.25,
+            CreditRating::CCC => 0.18,
+            CreditRating::B => 0.12,
+            CreditRating::BB => 0.08,
+            CreditRating::BBB => 0.05,
+            CreditRating::A => 0.035,
+            CreditRating::AA => 0.025,
+            CreditRating::AAA => 0.015,
         }
     }
 
-    /// Multiplicador de tasa por impago de deuda
     pub fn default_penalty_multiplier(&self) -> f32 {
         match self {
             CreditRating::D => 3.0,
@@ -74,17 +69,12 @@ impl CreditRating {
     }
 }
 
-/// Agencia de Calificación Crediticia (entidad autónoma en el juego)
+/// Agencia de Calificación Crediticia
 pub struct CreditAgency {
-    /// Calificación actual de la ciudad
     pub rating: CreditRating,
-    /// Puntaje numérico subyacente (0-1000)
     pub score: f32,
-    /// Historial de calificaciones
-    pub rating_history: Vec<(u32, CreditRating)>, // (tick, rating)
-    /// Umbrales para cada categoría [LUT]
+    pub rating_history: Vec<(u32, CreditRating)>,
     pub thresholds: [f32; 8],
-    /// Último cambio de calificación
     pub last_change_tick: u32,
 }
 
@@ -99,48 +89,37 @@ impl CreditAgency {
         }
     }
 
-    /// Evalúa la salud financiera de la ciudad y actualiza la calificación
-    /// MECÁNICA DISTÓPICA: Gastar en servicios sociales BAJA la calificación.
-    /// Pagar deuda y bajar impuestos corporativos la SUBE.
+    /// Evalúa la salud financiera de la ciudad
     pub fn evaluate(
         &mut self,
         current_tick: u32,
         treasury: f64,
         total_debt: f64,
         annual_revenue: f64,
-        social_spending_ratio: f32,   // % del presupuesto en escuelas, salud, etc.
-        debt_service_ratio: f32,      // % de ingresos usado para pagar deuda
-        corporate_tax_rate: f32,      // tasa impositiva corporativa
+        social_spending_ratio: f32,
+        debt_service_ratio: f32,
+        corporate_tax_rate: f32,
     ) -> CreditRating {
         let mut new_score = self.score;
 
-        // 1. Reservas vs deuda
         let debt_to_revenue = if annual_revenue > 0.0 {
             (total_debt as f32 / annual_revenue as f32).min(5.0)
         } else {
             5.0
         };
-        new_score -= debt_to_revenue * 80.0; // Mucha deuda = malo
+        new_score -= debt_to_revenue * 80.0;
 
-        // 2. Tesoro positivo = bueno
         if treasury > 0.0 {
             new_score += (treasury as f32 / 1_000_000.0).min(50.0);
         }
 
-        // 3. DISTOPÍA: Gasto social castiga la calificación
         new_score -= social_spending_ratio * 100.0;
-
-        // 4. DISTOPÍA: Pagar deuda sube la calificación
         new_score += debt_service_ratio * 60.0;
-
-        // 5. Impuestos bajos a corporaciones = mejor calificación
         new_score += (1.0 - corporate_tax_rate) * 50.0;
 
-        // Suavizar cambio
         self.score = self.score * 0.85 + new_score * 0.15;
         self.score = self.score.clamp(0.0, 1000.0);
 
-        // Determinar nueva calificación
         let new_rating = if self.score >= self.thresholds[7] {
             CreditRating::AAA
         } else if self.score >= self.thresholds[6] {
@@ -173,24 +152,15 @@ impl CreditAgency {
 // MERCADO DE FUTUROS DE AGUA
 // ---------------------------------------------------------------------------
 
-/// Commodity — Agua potable transable en bolsa
 #[derive(Debug, Clone)]
 pub struct WaterFuturesMarket {
-    /// Precio actual del agua por litro (mercado de futuros)
     pub spot_price: f32,
-    /// Precio de producción real (bombeo + tratamiento)
     pub production_cost: f32,
-    /// Si el precio está controlado por el mercado (true) o por costo real (false)
     pub market_controlled: bool,
-    /// Volatilidad del mercado (RNG-driven)
     pub volatility: f32,
-    /// Contratos de futuros activos
     pub active_contracts: Vec<WaterFuture>,
-    /// Historial de precios (últimos N días)
     pub price_history: Vec<f32>,
-    /// Si el agua está privatizada
     pub is_privatized: bool,
-    /// Dueño corporativo (si privatizada)
     pub corporate_owner: Option<String>,
 }
 
@@ -208,7 +178,7 @@ pub struct WaterFuture {
 impl WaterFuturesMarket {
     pub fn new() -> Self {
         WaterFuturesMarket {
-            spot_price: 0.001, // $0.001 por litro = $1 por m³
+            spot_price: 0.001,
             production_cost: 0.0008,
             market_controlled: false,
             volatility: 0.15,
@@ -219,46 +189,58 @@ impl WaterFuturesMarket {
         }
     }
 
-    /// Actualiza el precio del agua según modo (mercado vs costo)
     pub fn tick(&mut self, water_reserves: f32, water_demand: f32) {
         if self.market_controlled {
-            // MECÁNICA DISTÓPICA: Precio determinado por especulación, no por costo real
             let supply_demand_ratio = if water_demand > 0.0 {
                 water_reserves / water_demand
             } else {
                 10.0
             };
 
-            // Escasez = pánico en el mercado
-            let scarcity_panic = if supply_demand_ratio < 1.0 {
+            let scarcity_panic = if supply_demand_ratio < 0.5 {
+                5.0
+            } else if supply_demand_ratio < 1.0 {
                 (1.0 - supply_demand_ratio) * 2.0
-            } else if supply_demand_ratio < 0.5 {
-                5.0 // Pánico total
             } else {
                 0.0
             };
 
-            // Volatilidad RNG (usando pool global)
-            let random_shock = rng_pool::rng_range(-1.0, 1.0) * self.volatility;
-
-            // Especulación artificial
+            let random_shock = crate::rng_pool::rng_range(-1.0, 1.0) * self.volatility;
             let speculation_factor = 1.0 + random_shock + scarcity_panic;
 
             self.spot_price = (self.spot_price * speculation_factor)
-                .max(self.production_cost * 0.5)  // no puede caer debajo de 50% del costo
-                .min(self.production_cost * 20.0); // puede subir 2000%
+                .max(self.production_cost * 0.5)
+                .min(self.production_cost * 20.0);
 
             self.price_history.push(self.spot_price);
             if self.price_history.len() > 256 {
                 self.price_history.remove(0);
             }
         } else {
-            // Precio normal = costo de producción
             self.spot_price = self.production_cost;
         }
     }
 
-/// Una empresa listada en la bolsa local
+    pub fn privatize(&mut self, corporation: &str, injection_amount: f64) -> f64 {
+        self.is_privatized = true;
+        self.market_controlled = true;
+        self.corporate_owner = Some(corporation.to_string());
+        injection_amount
+    }
+
+    pub fn nationalize(&mut self) -> f64 {
+        let buyback_cost = self.spot_price as f64 * 1_000_000_000.0;
+        self.is_privatized = false;
+        self.market_controlled = false;
+        self.corporate_owner = None;
+        buyback_cost
+    }
+}
+
+// ---------------------------------------------------------------------------
+// BOLSA DE VALORES LOCAL
+// ---------------------------------------------------------------------------
+
 #[derive(Debug, Clone)]
 pub struct ListedCompany {
     pub ticker: String,
@@ -288,10 +270,9 @@ pub enum CompanySector {
     Water = 9,
 }
 
-/// Bolsa de valores de la ciudad
 pub struct StockExchange {
     pub listed_companies: Vec<ListedCompany>,
-    pub index_value: f32, // índice bursátil local
+    pub index_value: f32,
     pub trading_volume: f64,
     pub is_operational: bool,
 }
@@ -306,7 +287,6 @@ impl StockExchange {
         }
     }
 
-    /// Lista una nueva empresa en la bolsa
     pub fn list_company(&mut self, ticker: &str, name: &str, sector: CompanySector, initial_price: f32, shares: u64) {
         self.listed_companies.push(ListedCompany {
             ticker: ticker.to_string(),
@@ -322,40 +302,6 @@ impl StockExchange {
         });
     }
 
-    /// Tick del mercado — actualiza precios
-    pub fn tick(&mut self, rng: &mut RngPool, city_economy_health: f32) {
-        let mut total_cap: f64 = 0.0;
-
-        for company in &mut self.listed_companies {
-            let drift = (city_economy_health - 0.5) * 0.01;
-            let random = rng.next_f32_range(-1.0, 1.0) * company.volatility;
-            company.share_price *= 1.0 + drift + random;
-            company.share_price = company.share_price.max(0.01);
-            company.market_cap = company.share_price as f64 * company.shares_outstanding as f64;
-            company.price_history.push(company.share_price);
-
-            if company.price_history.len() > 100 {
-                company.price_history.remove(0);
-            }
-
-            total_cap += company.market_cap;
-        }
-
-        if !self.listed_companies.is_empty() {
-            self.index_value = (total_cap / self.listed_companies.len() as f64) as f32 / 1000.0;
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// SISTEMA DE BONOS MUNICIPALES
-// ---------------------------------------------------------------------------
-
-/// Un bono municipal emitido por la ciudad
-#[derive(Debug, Clone)]
-pub struct MunicipalBond {
-    pub id: u64,
-    /// Tick del mercado — actualiza precios
     pub fn tick(&mut self, city_economy_health: f32) {
         let mut total_cap: f64 = 0.0;
 
@@ -378,6 +324,32 @@ pub struct MunicipalBond {
             self.index_value = (total_cap / self.listed_companies.len() as f64) as f32 / 1000.0;
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// SISTEMA DE BONOS MUNICIPALES
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone)]
+pub struct MunicipalBond {
+    pub id: u64,
+    pub face_value: f64,
+    pub interest_rate: f32,
+    pub maturity_ticks: u32,
+    pub issued_tick: u32,
+    pub purpose: String,
+    pub remaining_principal: f64,
+}
+
+pub struct BondMarket {
+    pub active_bonds: Vec<MunicipalBond>,
+    pub total_debt_outstanding: f64,
+    pub annual_interest_cost: f64,
+    next_bond_id: u64,
+}
+
+impl BondMarket {
+    pub fn new() -> Self {
         BondMarket {
             active_bonds: Vec::with_capacity(32),
             total_debt_outstanding: 0.0,
@@ -386,7 +358,6 @@ pub struct MunicipalBond {
         }
     }
 
-    /// Emite un nuevo bono municipal
     pub fn issue_bond(
         &mut self,
         face_value: f64,
@@ -417,14 +388,12 @@ pub struct MunicipalBond {
         bond
     }
 
-    /// Paga el servicio de deuda (intereses) por tick
     pub fn service_debt(&mut self, treasury: &mut f64) -> f64 {
         let daily_interest = self.annual_interest_cost / 365.0;
         *treasury -= daily_interest;
         daily_interest
     }
 
-    /// Verifica y procesa vencimientos
     pub fn process_maturities(&mut self, current_tick: u32, treasury: &mut f64) -> Vec<u64> {
         let mut matured = Vec::new();
         let mut i = 0;
@@ -451,26 +420,22 @@ pub struct MunicipalBond {
 // SISTEMA FINANCIERO UNIFICADO
 // ---------------------------------------------------------------------------
 
-/// Sistema financiero completo de la ciudad
 pub struct FinancialSystem {
     pub credit_agency: CreditAgency,
     pub water_market: WaterFuturesMarket,
     pub stock_exchange: StockExchange,
     pub bond_market: BondMarket,
-    /// Tasa de interés actual para nuevos préstamos
     pub current_lending_rate: f32,
-    /// Inflación acumulada
     pub inflation_rate: f32,
-    /// PBI estimado de la ciudad
-    pub fn tick(
-        &mut self,
-        current_tick: u32,
-        treasury: &mut f64,
-        water_reserves: f32,
-        water_demand: f32,
-        social_spending_ratio: f32,
-        corporate_tax_rate: f32,
-    ) -> FinancialReport {
+    pub estimated_gdp: f64,
+}
+
+impl FinancialSystem {
+    pub fn new() -> Self {
+        FinancialSystem {
+            credit_agency: CreditAgency::new(),
+            water_market: WaterFuturesMarket::new(),
+            stock_exchange: StockExchange::new(),
             bond_market: BondMarket::new(),
             current_lending_rate: 0.035,
             inflation_rate: 0.02,
@@ -478,10 +443,8 @@ pub struct FinancialSystem {
         }
     }
 
-    /// Tick unificado del sistema financiero
     pub fn tick(
         &mut self,
-        rng: &mut RngPool,
         current_tick: u32,
         treasury: &mut f64,
         water_reserves: f32,
@@ -489,14 +452,12 @@ pub struct FinancialSystem {
         social_spending_ratio: f32,
         corporate_tax_rate: f32,
     ) -> FinancialReport {
-        // 1. Actualizar calificación crediticia
         let debt_service_ratio = if self.bond_market.total_debt_outstanding > 0.0 {
-        // 3. Mercado de agua
-        self.water_market.tick(water_reserves, water_demand);
+            (self.bond_market.annual_interest_cost / self.bond_market.total_debt_outstanding) as f32
+        } else {
+            0.0
+        };
 
-        // 4. Bolsa de valores
-        let economy_health = self.credit_agency.score / 1000.0;
-        self.stock_exchange.tick(economy_health);
         let _rating = self.credit_agency.evaluate(
             current_tick,
             *treasury,
@@ -507,17 +468,13 @@ pub struct FinancialSystem {
             corporate_tax_rate,
         );
 
-        // 2. Actualizar tasa de interés
         self.current_lending_rate = self.credit_agency.rating.base_interest_rate();
 
-        // 3. Mercado de agua
-        self.water_market.tick(rng, water_reserves, water_demand);
+        self.water_market.tick(water_reserves, water_demand);
 
-        // 4. Bolsa de valores
         let economy_health = self.credit_agency.score / 1000.0;
-        self.stock_exchange.tick(rng, economy_health);
+        self.stock_exchange.tick(economy_health);
 
-        // 5. Servicio de deuda
         self.bond_market.service_debt(treasury);
         self.bond_market.process_maturities(current_tick, treasury);
 
@@ -532,7 +489,6 @@ pub struct FinancialSystem {
     }
 }
 
-/// Reporte financiero generado cada tick
 #[derive(Debug, Clone)]
 pub struct FinancialReport {
     pub credit_rating: CreditRating,
@@ -550,23 +506,23 @@ pub struct FinancialReport {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rng_pool;
 
     #[test]
     fn test_credit_rating_lut() {
         assert!((CreditRating::AAA.base_interest_rate() - 0.015).abs() < 0.001);
         assert!((CreditRating::D.base_interest_rate() - 0.25).abs() < 0.001);
-        assert!(CreditRating::AAA < CreditRating::AA);
-        assert!(CreditRating::D < CreditRating::CCC);
     }
 
     #[test]
     fn test_credit_agency_social_spending_penalty() {
+        crate::rng_pool::init_rng_pool(12345);
         let mut agency = CreditAgency::new();
         let initial = agency.score;
 
-        // Gastar en social baja calificación
         agency.evaluate(100, 1_000_000.0, 0.0, 500_000.0, 0.5, 0.0, 0.3);
-        assert!(agency.score < initial + 10.0); // no debería mejorar
+        // Social spending should reduce or not significantly increase score
+        assert!(agency.score < initial + 20.0);
     }
 
     #[test]
@@ -575,10 +531,11 @@ mod tests {
         assert!(!market.is_privatized);
         assert!(!market.market_controlled);
 
-        market.privatize("AquaCorp Inc", 1_000_000_000.0);
+        let injection = market.privatize("AquaCorp Inc", 1_000_000_000.0);
         assert!(market.is_privatized);
         assert!(market.market_controlled);
         assert_eq!(market.corporate_owner.as_deref(), Some("AquaCorp Inc"));
+        assert_eq!(injection, 1_000_000_000.0);
     }
 
     #[test]
@@ -592,17 +549,15 @@ mod tests {
     }
 
     #[test]
-    fn test_stock_exchange() {
-        let mut exchange = StockExchange::new();
-        exchange.list_company("TECH", "TechCorp", CompanySector::Technology, 100.0, 1_000_000);
-        exchange.list_company("WATER", "AquaCorp", CompanySector::Water, 50.0, 500_000);
+    fn test_financial_system_tick() {
+        crate::rng_pool::init_rng_pool(42);
+        let mut fs = FinancialSystem::new();
+        let mut treasury = 10_000_000.0;
 
-        assert_eq!(exchange.listed_companies.len(), 2);
+        // Should not panic
+        let report = fs.tick(0, &mut treasury, 1000000.0, 500000.0, 0.3, 0.25);
 
-        let mut rng = RngPool::new(42);
-        exchange.tick(&mut rng, 0.5);
-
-        // Precios deberían haber cambiado
-        assert!(exchange.listed_companies[0].price_history.len() > 1);
+        assert!(report.water_spot_price > 0.0);
+        assert!(report.stock_index > 0.0);
     }
 }

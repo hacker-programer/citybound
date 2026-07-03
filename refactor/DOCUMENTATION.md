@@ -10,6 +10,147 @@
 > **Última compilación limpia:** ✅ 0 errores, 0 warnings (cargo check 2025-06-25)
 > **Versión:** 0.15.0 | **Rust:** 1.96.0 stable | **Edición:** 2021
 > **Plataformas:** Windows, Android, macOS, Linux
+
+---
+
+## 🔥 FIX CRÍTICO: Stack Overflow (RESUELTO v0.15.0)
+
+El binario de v0.14.x crasheaba inmediatamente con `STATUS_STACK_OVERFLOW (0xc00000fd)`.
+La causa raíz era que `GameWorld` contenía múltiples structs con arrays masivos **inline**
+(asignados en el stack). El stack por defecto de Windows es 1 MB, y el mundo ocupaba ~1.5 MB.
+
+### Estructuras migradas del stack al heap:
+
+| Estructura | Array antiguo (stack) | Nuevo (heap) | Ahorro stack |
+|-----------|----------------------|--------------|-------------|
+| `TerrainMap` | `[f32; 16384] + [u8; 16384] + [u32; 16384]` | `Vec<f32> + Vec<u8> + Vec<u32>` | **144 KB** |
+| `FlowField` | `[FlowCell; 16384]` (128KB × 2) | `Vec<FlowCell>` | **256 KB** |
+| `GameWorld` | Retornado por valor en `create_world()` | `Box<GameWorld>` | **Todo el mundo** |
+
+### Cambios realizados:
+- `ecs.rs:create_world()` → retorna `Box<GameWorld>` (todo en heap)
+- `main.rs` → almacena `Box<GameWorld>`, acceso por `&world` / `&mut world`
+- `terrain.rs` → `Vec<T>` en vez de `[T; 16384]`
+- `flow_field.rs` → `Vec<FlowCell>` en vez de `[FlowCell; 16384]`
+
+---
+
+## 📁 ESTRUCTURA DEL PROYECTO
+
+```
+refactor/
+├── Cargo.toml                     # v0.15.0 — wgpu opcional, LTO fat, panic=abort
+├── DOCUMENTATION.md               # Este archivo
+├── src/
+│   ├── main.rs                    # Punto de entrada — game loop, minifb, Box<GameWorld>
+│   ├── lib.rs                     # Re-exporta todos los módulos públicos
+│   ├── ecs.rs                     # GameWorld, SpatialGrid, componentes, create_world()
+│   ├── buildings.rs               # Catálogo 150+ edificios distópicos con BuildingEffects
+│   ├── gpu_backend.rs             # GPU adaptativa Tier 0-3, CPU SIMD + wgpu
+│   ├── sim.rs                     # Tick de simulación (paso fijo)
+│   ├── render.rs                  # Renderizado software con culling
+│   ├── render_cache.rs            # Pre-sort estático por capa Z
+│   ├── simd_render.rs             # Auto-vectorización SIMD para fill
+│   ├── luts.rs                    # LUTs trigonométricas (3600 entradas)
+│   ├── object_pool.rs             # Pool de entidades preasignadas (10000)
+│   ├── bump_alloc.rs              # Bump allocator por frame
+│   ├── rng_pool.rs                # RNG pre-generado (4096 valores) + splitmix64
+│   ├── flow_fields.rs             # Flow fields O(1) para pathfinding
+│   ├── bitboard.rs                # Bitboard para ocupación de grilla
+│   ├── quadtree.rs                # Quadtree espacial para colisiones
+│   ├── terrain.rs                 # TerrainMap con ruido Perlin pre-generado (heap)
+│   ├── traffic_lanes.rs           # Tráfico con carriles IDM+MOBIL
+│   ├── pedestrian.rs              # Modelo de fuerzas sociales para peatones
+│   ├── input.rs                   # Input con bitfield y debounce
+│   ├── platform.rs                # Abstracción cross-platform (Windows/Android)
+│   ├── interactive.rs             # Herramienta de diseño urbano interactivo
+│   ├── supply_chain.rs            # Cadena de suministro física
+│   ├── land_value.rs              # Valor del suelo, gentrificación, contaminación
+│   ├── utilities.rs               # Propagación de agua/electricidad
+│   ├── road_wear.rs               # Desgaste de infraestructura vial
+│   ├── labor_market.rs            # Mercado laboral, desempleo
+│   ├── tax_system.rs              # Impuestos milimétricos, bonos municipales
+│   ├── parking.rs                 # Estacionamiento físico y HOA
+│   ├── waste_mgmt.rs              # Clasificación de basura (orgánica/reciclable/tóxica)
+│   ├── customization.rs           # Personalización visual de edificios
+│   ├── politics.rs                # NIMBY, sindicatos, elecciones, aprobación
+│   ├── climate.rs                 # Ciclo día/noche, clima, viento
+│   ├── judicial.rs                # Sistema judicial, demandas, patent trolls
+│   ├── financial_market.rs        # Mercado financiero, bolsa, futuros de agua
+│   ├── audio.rs                   # Audio procedural con cpal
+│   ├── shaders.rs                 # Shaders HLSL/GLSL/WGSL (para GPU backend)
+│   └── persistence.rs             # Save/Load con bincode
+```
+
+---
+
+## 🏗️ ARQUITECTURA DE SISTEMAS
+
+### ECS (Entity Component System)
+- **Motor:** `hecs 0.10`
+- **Componentes:** Position, Velocity, Renderable, TrafficCar, Pedestrian, ZoneComponent,
+  ConstructionState, ResourceStorage, Camera, Lifetime
+- **SpatialGrid:** 16×16 celdas con query O(1) para radio dado
+- **EntityPool:** 10,000 entidades preasignadas (object pooling)
+
+### Simulación (sim.rs)
+- **Tick fijo:** 10 ticks/s (100ms por tick)
+- **Sistemas por tick:**
+  1. Tráfico (IDM + MOBIL lane changes)
+  2. Peatones (Social Force Model)
+  3. Cadena de suministro (recursos físicos)
+  4. Valor del suelo (gentrificación dinámica)
+  5. Desgaste de infraestructura
+  6. Mercado laboral
+  7. Impuestos y finanzas
+  8. Utilities (agua, electricidad)
+  9. Política (NIMBY, sindicatos)
+  10. Clima (viento, temperatura)
+
+### Renderizado
+- **Backend primario:** CPU SIMD (auto-vectorización SSE2/AVX)
+- **GPU opcional:** wgpu 0.19 (Vulkan/DX12/Metal/OpenGL ES) con feature flag "gpu"
+- **Tiers de hardware:**
+  - Tier 0: CPU only (celulares antiguos, Pentium)
+  - Tier 1: GPU integrada (Intel HD, Adreno, Mali)
+  - Tier 2: GPU media (GTX 1050+, Snapdragon 8xx)
+  - Tier 3: GPU high-end (RTX 3060+, Apple M1+)
+
+---
+
+## 🏢 CATÁLOGO DE EDIFICIOS (buildings.rs)
+
+150+ tipos con 15 categorías y efectos económicos, sociales, ambientales y de redes.
+
+### Categorías:
+- **Government:** Alcaldía, Oficina de Expropiación, Ministerio de Verdad
+- **Finance:** Agencia de Calificación Crediticia, Buzón Legal Offshore, Bolsa de Futuros de Agua
+- **Legal:** Firma Troll de Patentes, Tribunal de Demandas, Juzgado Automatizado
+- **Healthcare:** Hospital Público/Privado, Clínica Cibernética, Depto. de Denegación de Seguros
+- **Education:** Escuela, Universidad, Campus de IA
+- **Residential:** Casa, Apartamento, Torre Brutalista, Barrio Cerrado
+- **Commercial:** Tienda, Mall, Casino, Mercado Negro
+- **Industrial:** Fábrica, Fundición, Refinería, Matadero
+- **Energy:** Central de Carbón, Solar, Nuclear SMR, Planta Geotérmica
+- **Water:** Desalinizadora, Potabilizadora, Depuradora, Planta de Ósmosis
+- **Transport:** Hyperloop, Spaghetti Junction, Puerto, Aeropuerto
+- **Agriculture:** Granja, Invernadero Hidropónico, Monopolio de Semillas GMO
+- **Technology:** Data Center, Minería de Datos Biométricos, Centro de Smart Dust
+- **BlackMarket:** Granja de Clics, Mercado de Órganos 3D, Taller de Hackeo
+- **Military:** Base Aérea, Búnker de Comando, Fábrica de Municiones
+- **Religion:** Mega-Catedral de Cultos de IA, Monasterio Periférico
+- **Sports:** Estadio Olímpico, Hipódromo, Velódromo
+
+---
+
+## 🔬 REFERENCIAS
+
+- **IDM Traffic Model**: Treiber, M., Hennecke, A., Helbing, D. (2000). "Congested traffic states in empirical observations and microscopic simulations". *Physical Review E*, 62(2), 1805.
+- **MOBIL Lane Changes**: Kesting, A., Treiber, M., Helbing, D. (2007). "General lane-changing model MOBIL for car-following models". *Transportation Research Record*, 1999(1), 86-94.
+- **Social Force Model**: Helbing, D., Molnár, P. (1995). "Social force model for pedestrian dynamics". *Physical Review E*, 51(5), 4282.
+- **SplitMix64**: Steele, G. L., Lea, D., Flood, C. H. (2014). "Fast splittable pseudorandom number generators". *ACM SIGPLAN Notices*, 49(10), 453-472.
+- **Flow Fields**: Pinter, M. (2001). "Toward more realistic pathfinding". *Game Developer Magazine*, 8(3), 54-59.
+- **Bitboards**: Hyatt, R. (1999). "Rotated bitboards". *ICCA Journal*, 22(4), 213-222.
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │                        MAIN GAME LOOP                               │

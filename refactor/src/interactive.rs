@@ -433,9 +433,6 @@ impl DesignTool {
                     resources.goods,
                 ));
                 break;
-            }
-        }
-
         if let Some((entity, btype, money, food, goods)) = removed {
             gw.bitgrid.clear(0, x, y);
             let _ = gw.world.despawn(entity);
@@ -450,21 +447,13 @@ impl DesignTool {
             });
         }
     }
-    }
-    }
+}
 
 // ---------------------------------------------------------------------------
-// PROCESAMIENTO DE INPUT
 // PROCESAMIENTO DE INPUT
 // ---------------------------------------------------------------------------
 
 /// Procesa input para la herramienta de diseño
-pub fn process_design_input(
-    tool: &mut DesignTool,
-    gw: &mut GameWorld,
-    input: &InputState,
-    window_width: usize,
-    window_height: usize,
 ) {
     if input.is_key_pressed(GameKey::Tab) {
         tool.toggle();

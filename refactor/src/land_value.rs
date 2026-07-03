@@ -18,8 +18,8 @@
 // [TI#6]  Bitboards para consultas rápidas de zona
 
 use crate::ecs::{GameWorld, Position, ZoneComponent, ZoneType, ConstructionState,
+use crate::ecs::{GameWorld, Position, ZoneComponent, ZoneType, ConstructionState,
                   BuildingType, ResourceStorage, Renderable};
-use crate::bitboard::BitGrid;
 
 // ---------------------------------------------------------------------------
 // CONSTANTES

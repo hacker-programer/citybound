@@ -906,13 +906,93 @@ impl BuildingCatalog {
             requires_nearby: Some("Industrial"),
         });
 
-        // =========================================================================
-        // 5. RESIDUOS Y SANEAMIENTO
-        // =========================================================================
+            description: "Entierra basura. Si no tiene geomembrana, lixiviados envenenan napas. Genera metano explosivo.",
+            category: BuildingCategory::Waste,
+            style: ArchitectureStyle::Industrial,
+            width: 5, height: 4,
+            construction_cost: 4_000_000.0,
+            construction_time_days: 150,
+            max_occupancy: 30,
+            effects: BuildingEffects {
+                operating_cost_annual: 500_000.0,
+                jobs_created: 30,
+                land_value_multiplier: 0.05,
+                air_pollution: 0.2,
+                water_pollution: 0.3,
+                soil_pollution: 0.8,
+                happiness_effect: -0.05,
+                waste_generation: -50.0,  // Absorbe residuos
+                traffic_generation: 8.0,
+                ..Default::default()
+            },
+            requires_water: false,
+            requires_electricity: false,
+            requires_fiber: false,
+            requires_road_access: true,
+            nimby_radius: 20,
+            requires_nearby: None,
+        });
 
-        // 24: Vertedero Municipal
+        // 25: Incinerador de Residuos
         templates.push(BuildingTemplate {
-            id: 24,
-            name: "Vertedero Municipal",
-            description: "Entierra basura. Si no tiene geomembrana, lixiviados envenenan napas. Genera metano."
-     ... [Truncated por el sistema tras 3 iteraciones para ahorrar contexto]
+            id: 25,
+            name: "Incinerador de Residuos",
+            description: "Quema basura a 1200°C. Filtros fallan sin presupuesto. Dioxinas al aire.",
+            category: BuildingCategory::Waste,
+            style: ArchitectureStyle::Industrial,
+            width: 3, height: 3,
+            construction_cost: 8_000_000.0,
+            construction_time_days: 200,
+            max_occupancy: 80,
+            effects: BuildingEffects {
+                tax_revenue_annual: 500_000.0,
+                operating_cost_annual: 1_500_000.0,
+                jobs_created: 80,
+                land_value_multiplier: 0.1,
+                air_pollution: 0.4,
+                health_effect: -0.05,
+                electricity_consumption: 5.0,
+                waste_generation: -30.0,
+                traffic_generation: 5.0,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
+            requires_fiber: false,
+            requires_road_access: true,
+            nimby_radius: 15,
+            requires_nearby: Some("Industrial"),
+        });
+
+        BuildingCatalog { templates }
+    }
+
+    /// Obtiene un template por ID (acceso O(1))
+    #[inline(always)]
+    pub fn get(&self, id: u16) -> Option<&BuildingTemplate> {
+        self.templates.get(id as usize)
+    }
+
+    /// Busca edificios por categoría
+    pub fn by_category(&self, category: BuildingCategory) -> Vec<&BuildingTemplate> {
+        self.templates.iter().filter(|t| t.category == category).collect()
+    }
+
+    /// Busca edificios cuyo nombre coincide parcialmente (case-insensitive)
+    pub fn search(&self, query: &str) -> Vec<&BuildingTemplate> {
+        let q = query.to_lowercase();
+        self.templates.iter()
+            .filter(|t| t.name.to_lowercase().contains(&q))
+            .collect()
+    }
+
+    /// Total de templates en el catálogo
+    pub fn len(&self) -> usize {
+        self.templates.len()
+    }
+
+    /// Iterador sobre todos los templates
+    pub fn iter(&self) -> impl Iterator<Item = &BuildingTemplate> {
+        self.templates.iter()
+    }
+}

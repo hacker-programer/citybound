@@ -399,7 +399,6 @@ impl LaneManager {
     }
 
     pub fn closest_lane(&self, x: f32, y: f32) -> Option<&Lane> {
-    pub fn closest_lane(&self, x: f32, y: f32) -> Option<&Lane> {
         let nearby = self.lanes_near(x, y, 5.0);
         let mut best: Option<&Lane> = None;
         let mut best_dist: f32 = f32::MAX;

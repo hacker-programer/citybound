@@ -34,13 +34,12 @@
 // - persistence: Save/Load con bincode [FASE 7]
 
 pub mod ecs;
-// - politics: NIMBY, sindicatos, elecciones [M#10]
-// - climate: Ciclo día/noche con color grading [FASE 7]
-// - persistence: Save/Load con bincode [FASE 7]
-// - pedestrian: Peatones (Social Force Model, cruces, multitudes) [FASE 8 🆕]
+pub mod ecs;
+pub mod sim;
+pub mod render;
+pub mod render_cache;
+pub mod luts;
 pub mod object_pool;
-pub mod bump_alloc;
-pub mod input;
 pub mod terrain;
 pub mod quadtree;
 pub mod simd_render;

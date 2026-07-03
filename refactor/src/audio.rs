@@ -278,9 +278,31 @@ fn generate_noise(duration_secs: f32, sample_rate: u32) -> AudioBuffer {
     for _ in 0..num_samples {
         samples.push((rng.gen::<f32>() * 2.0 - 1.0) * 0.05); // Ruido blanco bajo
     }
+}
 
-    AudioBuffer {
-        samples,
-        sample_rate,
+// ─── AudioPlayer (wrapper público para main.rs) ──────────────────────────────
+
+/// Wrapper público alrededor de AudioEngine.
+/// Mantiene compatibilidad con el código existente que espera `AudioPlayer`.
+pub struct AudioPlayer {
+    engine: AudioEngine,
+    effects: Arc<SoundEffects>,
+}
+
+impl AudioPlayer {
+    pub fn init() -> Self {
+        let effects = Arc::new(generate_sound_effects(44100));
+        let mut engine = AudioEngine::new(Arc::clone(&effects));
+        let _ = engine.init(); // El stream puede fallar sin dispositivo; no es fatal
+        AudioPlayer { engine, effects }
+    }
+
+    pub fn play_ambient(&mut self) {
+        self.engine.set_ambient(true);
+        self.engine.play(AudioEvent::AmbientOn);
+    }
+
+    pub fn play(&mut self, event: AudioEvent) {
+        self.engine.play(event);
     }
 }

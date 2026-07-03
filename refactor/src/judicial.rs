@@ -90,8 +90,9 @@ pub struct LegalCase {
 pub enum CaseRuling {
     Pending,
     Dismissed,
-    PlaintiffWon { amount: f64 },   // ganÃ³ el demandante
-    DefendantWon,                   // ganÃ³ el demandado
+    Settled { amount: f64 },       // acuerdo extrajudicial
+    PlaintiffWon { amount: f64 },   // ganó el demandante
+    DefendantWon,                   // ganó el demandado
     HungJury,                       // jurado estancado
     Mistrial,                       // juicio nulo
 }

@@ -936,11 +936,11 @@ impl CpuBackend {
             if x == ex && y == ey { break; }
             let e2 = 2 * err;
             if e2 >= dy { if x == ex { break; } err += dy; x += sx; }
-            if e2 <= dx { if y == ey { break; } err += dx; y += sy; }
-        }
+    }
+
     fn draw_sprite(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, cmd: &RenderCommand) {
         let entry = &self.atlas.entries[cmd.texture_id as usize];
-        let dx = cmd.x1 - cmd.x0;
+
 
     fn draw_sprite(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, cmd: &RenderCommand) {
 

@@ -16,7 +16,7 @@
 // [TA#9]  Alineación a 64B
 // [TI#6]  Bitboards para detectar tráfico en celdas
 
-use crate::ecs::{GameWorld, Position, TrafficCar};
+
 use crate::ecs::{GameWorld, Position, TrafficCar};
 use crate::supply_chain::CargoTruck;
 

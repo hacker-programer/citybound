@@ -144,7 +144,8 @@ fn audio_callback_f32(
     data: &mut [f32],
     effects: &SoundEffects,
     active_ambient: &Mutex<bool>,
-    sample_rate: u32,
+    _sample_rate: u32,
+
 ) {
     let play_ambient = active_ambient.lock().map(|a| *a).unwrap_or(false);
 

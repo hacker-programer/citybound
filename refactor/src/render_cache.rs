@@ -46,10 +46,11 @@ pub struct RenderCache {
 
 impl RenderCache {
     pub fn new() -> Self {
-        let mut buckets: [Vec<RenderCacheEntry>; NUM_RENDER_LAYERS] = unsafe { std::mem::zeroed() };
-        for bucket in buckets.iter_mut() {
-            unsafe { std::ptr::write(bucket, Vec::with_capacity(4096)); }
-        }
+        let buckets: [Vec<RenderCacheEntry>; NUM_RENDER_LAYERS] = 
+            std::array::from_fn(|_| Vec::with_capacity(4096));
+        RenderCache { buckets, dirty: true }
+    }
+
         RenderCache { buckets, dirty: true }
     }
 

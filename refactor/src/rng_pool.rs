@@ -69,18 +69,23 @@ pub fn init_rng_pool(seed: u64) {
 /// Cicla sobre el array con acceso atómico lock-free [TI#4].
 /// Retorna valor en [0.0, 1.0).
 #[inline(always)]
+/// Obtiene un valor aleatorio del pool pre-generado.
+/// Cicla sobre el array con acceso atómico lock-free [TI#4].
+/// Retorna valor en [0.0, 1.0).
+#[inline(always)]
 pub fn rng_fast() -> f32 {
     // [TI#4]: Lock-free con Ordering::Relaxed - sin barreras de memoria
     let idx = RNG_INDEX.fetch_add(1, Ordering::Relaxed) % RNG_POOL_SIZE;
 
     // SAFETY: el pool está inicializado antes de cualquier llamada
-    // y solo es de lectura después de init
+    // y solo es de lectura después de init. Usamos addr_of! para evitar
+    // crear referencias compartidas al static mut.
     unsafe {
-        *RNG_POOL.data.get_unchecked(idx)
+        let ptr = std::ptr::addr_of!(RNG_POOL.data) as *const f32;
+        *ptr.add(idx)
     }
 }
 
-/// Obtiene un valor en rango [min, max) usando el pool
 #[inline(always)]
 pub fn rng_range(min: f32, max: f32) -> f32 {
     min + rng_fast() * (max - min)

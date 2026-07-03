@@ -151,6 +151,10 @@ impl InputState {
         }
     }
 
+    /// Actualiza el estado de input desde la ventana minifb (una vez por frame)
+    pub fn update(&mut self, window: &Window) {
+        let prev_keys = self.keys_down;
+
         // Guardar estado previo del mouse
         self.prev_mouse_left = self.mouse_left;
         self.prev_mouse_right = self.mouse_right;
@@ -186,12 +190,6 @@ impl InputState {
         // Detectar flancos
         self.keys_pressed = self.keys_down & !prev_keys;
         self.keys_released = !self.keys_down & prev_keys;
-    }
-
-    /// Tecla presionada (mantenida)
-    #[inline(always)]
-    pub fn is_key_down(&self, key: GameKey) -> bool {
-        (self.keys_down & (1u128 << (key as u8))) != 0
     }
 
     /// Tecla recién presionada en este frame (flanco)

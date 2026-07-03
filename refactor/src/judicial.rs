@@ -86,13 +86,12 @@ pub struct LegalCase {
     pub appeal_count: u8,
     pub is_class_action: bool,   // demanda colectiva
     pub corruption_level: f32,   // 0.0 = limpio, 1.0 = totalmente corrupto
+    pub corruption_level: f32,   // 0.0 = limpio, 1.0 = totalmente corrupto
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CaseRuling {
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CaseRuling {
     Pending,
-    Dismissed,
-    Settled { amount: f64 },       // acuerdo extrajudicial
     PlaintiffWon { amount: f64 },   // ganó el demandante
     DefendantWon,                   // ganó el demandado
     HungJury,                       // jurado estancado
@@ -316,7 +315,7 @@ impl JudicialSystem {
                 // Corrupción: reduce probabilidad de resolución justa
                 let fair_chance = resolve_chance * (1.0 - court.corruption_index);
 
-                if rand::random::<f32>() < fair_chance {
+                if rand::thread_rng().gen::<f32>() < fair_chance {
                     // Determinar fallo
                     let ruling = self.determine_ruling(case, court.corruption_index);
 
@@ -351,7 +350,7 @@ impl JudicialSystem {
         for firm in &self.law_firms {
             if firm.is_patent_troll {
                 // Patent trolls generan casos contra empresas tech
-                if rand::random::<f32>() < 0.05 * dt {
+                if rand::thread_rng().gen::<f32>() < 0.05 * dt {
                     let _case_id = self.file_lawsuit(
                         CaseType::Corporate,
                         &firm.name,
@@ -391,10 +390,10 @@ impl JudicialSystem {
         // La corrupción altera el resultado
         let adjusted = plaintiff_base + (corruption - 0.5) * 0.4;
 
-        if rand::random::<f32>() < adjusted {
-            let amount = case.damages_claimed * (0.3 + rand::random::<f32>() * 0.7);
+        if rand::thread_rng().gen::<f32>() < adjusted {
+            let amount = case.damages_claimed * (0.3 + rand::thread_rng().gen::<f32>() * 0.7);
             CaseRuling::PlaintiffWon { amount }
-        } else if rand::random::<f32>() < 0.3 {
+        } else if rand::thread_rng().gen::<f32>() < 0.3 {
             let amount = case.damages_claimed * 0.1;
             CaseRuling::Settled { amount }
         } else {

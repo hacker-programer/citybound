@@ -111,13 +111,23 @@ pub struct CourtHouse {
     pub judges_available: u32,
     pub budget_annual: f64,
     pub efficiency: f32,        // 0.0-1.0, qué tan rápido procesan casos
-    pub corruption_index: f32,  // 0.0-1.0
     pub backlog_penalty: f32,   // penalización por atraso judicial
 }
+
+/// Un bufete de abogados en la ciudad
+#[derive(Debug, Clone)]
+pub struct LawFirm {
+    pub id: u64,
+    pub x: f32, pub y: f32,
+    pub name: String,
+    pub specialization: CaseType,
+    pub lawyers_count: u32,
+    pub win_rate: f32,
     pub is_patent_troll: bool,   // bufete troll de patentes
-    pub is_offshore: bool,       // paraÃ­so fiscal
+    pub is_offshore: bool,       // paraíso fiscal
     pub annual_revenue: f64,
     pub influence_rating: f32,   // capacidad de lobby
+}
 }
 
 // ---------------------------------------------------------------------------

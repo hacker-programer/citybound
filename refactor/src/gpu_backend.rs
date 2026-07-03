@@ -488,14 +488,10 @@ fn detect_windows_gpu(mut caps: GpuCapabilities) -> GpuCapabilities {
     caps.supports_compute = true;
 
     // Detectar memoria total del sistema como proxy
-    // Detectar memoria total del sistema como proxy
     let total_ram_mb = 8192u64; // fallback: asumir 8GB mínimo
 
-    };
-
     if total_ram_mb >= 32768 {
-        caps.tier = 3;
-        caps.vram_mb = 8192;
+
         caps.max_texture_size = 4096;
         caps.compute_units = 32;
     } else if total_ram_mb >= 16384 {

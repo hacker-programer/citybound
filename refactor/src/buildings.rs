@@ -4534,13 +4534,13 @@ impl BuildingCatalog {
 
         BuildingCatalog { templates }
     }
-
-            requires_nearby: Some("Water"),
-        });
-
         BuildingCatalog { templates }
     }
+
     /// Obtiene un template por ID (acceso O(1))
+    #[inline(always)]
+    pub fn get(&self, id: u16) -> Option<&BuildingTemplate> {
+
     #[inline(always)]
     pub fn get(&self, id: u16) -> Option<&BuildingTemplate> {
         self.templates.get(id as usize)

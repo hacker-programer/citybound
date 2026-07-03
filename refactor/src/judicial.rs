@@ -128,7 +128,6 @@ pub struct LawFirm {
     pub annual_revenue: f64,
     pub influence_rating: f32,   // capacidad de lobby
 }
-}
 
 // ---------------------------------------------------------------------------
 // SISTEMA JUDICIAL CENTRAL

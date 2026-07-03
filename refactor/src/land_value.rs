@@ -257,7 +257,6 @@ fn update_land_values(gw: &mut GameWorld) {
             _ => {}
         }
     }
-
     // Clampear valores
     for y in 0..HEATMAP_SIZE {
         for x in 0..HEATMAP_SIZE {
@@ -266,6 +265,12 @@ fn update_land_values(gw: &mut GameWorld) {
         }
     }
 }
+
+fn apply_gentrification(gw: &mut GameWorld) {
+    let mut to_degrade: Vec<(f32, f32)> = Vec::with_capacity(32);
+
+    for (_entity, (pos, construction, storage)) in gw.world
+        .query::<(&Position, &ConstructionState, &ResourceStorage)>()
         .iter()
     {
         if construction.building_type != BuildingType::House
@@ -281,18 +286,18 @@ fn update_land_values(gw: &mut GameWorld) {
         let land_value = gw.land_value_map.values[gy * HEATMAP_SIZE + gx];
         let income = storage.money.max(1.0);
 
-        // Si el valor del suelo es muy alto comparado con ingresos
         if land_value > income * GENTRIFICATION_THRESHOLD {
-            to_degrade.push((pos.x, pos.y));
             to_degrade.push((pos.x, pos.y));
         }
     }
 
     for (x, y) in to_degrade {
+        let mut to_abandon: Vec<(f32, f32)> = Vec::new();
+        for (_entity, (pos, construction, _storage)) in gw.world
             .query::<(&Position, &mut ConstructionState, &ResourceStorage)>()
             .iter()
         {
-            if (_pos.x - x).abs() < 1.0 && (_pos.y - y).abs() < 1.0
+            if (pos.x - x).abs() < 1.0 && (pos.y - y).abs() < 1.0
                 && construction.progress > 0.3
             {
                 construction.progress -= 0.05;
@@ -311,9 +316,6 @@ fn update_land_values(gw: &mut GameWorld) {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// VISUALIZACIÓN EN RENDER
 // ---------------------------------------------------------------------------
 
 /// Colores ARGB para heatmap de valor del suelo

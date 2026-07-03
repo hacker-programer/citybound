@@ -487,7 +487,7 @@ fn hour_factor(hour: f32) -> f32 {
 #[inline(always)]
 pub fn should_cross(
     pedestrian_x: f32,
-    pedestrian_y: f32,
+    _pedestrian_y: f32,
     nearest_car_dist: f32,
     nearest_car_speed: f32,
     has_traffic_light: bool,

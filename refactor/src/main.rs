@@ -144,7 +144,7 @@ fn main() {
 
         interactive::process_design_input(
             &mut world.design_tool, &mut world, &input_state,
-            WINDOW_WIDTH, WINDOW_HEIGHT,
+            WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32,
         );
 
         if !world.design_tool.active

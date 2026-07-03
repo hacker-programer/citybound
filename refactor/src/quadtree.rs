@@ -265,7 +265,7 @@ impl Quadtree {
         // Verificar si hay espacio en las entidades del nodo
         if node.entity_count < MAX_ENTITIES_PER_NODE as u16 || node.depth >= MAX_DEPTH {
             // Insertar directamente
-            let insert_pos = if node.first_entity == 0 && node.entity_count == 0 {
+            if node.first_entity == 0 && node.entity_count == 0 {
                 // Primera entidad del nodo
                 node.first_entity = self.entity_ids.len() as u32;
                 self.entity_ids.push(handle);
@@ -279,15 +279,12 @@ impl Quadtree {
                 } else {
                     self.entity_ids.insert(pos, handle);
                     // Actualizar first_entity de nodos hermanos afectados
-                    // (simplificaci├│n: solo actualizamos este nodo)
+                    // (simplificación: solo actualizamos este nodo)
                 }
                 node.entity_count += 1;
                 return;
-            };
-        }
+            }
 
-        // Necesitamos subdividir
-        self.subdivide(node_idx);
         // Reintentar inserci├│n
         self.insert_into_node(node_idx, handle);
     }

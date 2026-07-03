@@ -333,15 +333,14 @@ impl WasteManager {
     }
 
     /// Verifica riesgo de explosión en vertederos
+    pub fn check_explosion_risks(&self) -> Vec<(f32, f32, f32)> {
+        self.landfills.iter()
             .filter(|l| l.explosion_risk)
             .map(|l| (l.x, l.y, l.methane_level))
             .collect()
     }
 }
 // TESTS
-// ---------------------------------------------------------------------------
-
-#[cfg(test)]
 mod tests {
     use super::*;
 

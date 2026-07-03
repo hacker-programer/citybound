@@ -87,7 +87,8 @@ unsafe fn apply_color_grading(fb: &mut [u32], width: usize, height: usize,
     }
 }
 
-}
+
+#[cfg(not(target_arch = "x86_64"))]
 
 #[cfg(not(target_arch = "x86_64"))]
 unsafe fn apply_color_grading(fb: &mut [u32], _width: usize, _height: usize, 

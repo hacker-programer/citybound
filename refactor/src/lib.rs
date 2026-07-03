@@ -56,8 +56,7 @@ pub mod utilities;
 pub mod road_wear;
 pub mod labor_market;
 pub mod tax_system;
-pub mod parking;
-pub mod waste_mgmt;
+pub mod platform; // 🆕 Capa de abstracción de plataforma (Windows/Android/macOS/Linux)
 pub mod customization;
 pub mod politics;
 pub mod climate;

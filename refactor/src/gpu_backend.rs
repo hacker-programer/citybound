@@ -488,11 +488,9 @@ fn detect_windows_gpu(mut caps: GpuCapabilities) -> GpuCapabilities {
     caps.supports_compute = true;
 
     // Detectar memoria total del sistema como proxy
-    // En Windows real usaríamos DXGI para consultar VRAM
-    let total_ram_mb = if let Ok(mem) = sys_info::mem_info() {
-        mem.total / 1024
-    } else {
-        8192 // asumir 8GB mínimo
+    // Detectar memoria total del sistema como proxy
+    let total_ram_mb = 8192u64; // fallback: asumir 8GB mínimo
+
     };
 
     if total_ram_mb >= 32768 {

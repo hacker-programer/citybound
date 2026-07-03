@@ -863,18 +863,12 @@ impl CpuBackend {
     fn execute_one(&mut self, cmd: &RenderCommand, w: usize, h: usize) {
         let x0 = cmd.x0 as usize;
         let y0 = cmd.y0 as usize;
-        let x1 = cmd.x1 as usize;
-        let y1 = cmd.y1 as usize;
-        // Destructure to avoid borrow conflicts
-        let work = &mut self.work_buffer;
-        let atlas = &self.atlas;
-        match cmd.primitive_type {
-            0 => Self::draw_rect_static(work, w, h, x0, y0, x1, y1, cmd.color, cmd.flags),
-            1 => Self::draw_line_static(work, w, h, x0, y0, x1, y1, cmd.color),
-            2 => {
-                if x0 < w && y0 < h {
-                    let old = work[y0 * w + x0];
-                    work[y0 * w + x0] = blend_pixel(old, cmd.color);
+        // Copiar resultado final al framebuffer
+        self.framebuffer.copy_from_slice(&self.work_buffer);
+    }
+
+    #[inline(always)]
+    fn execute_one(&mut self, cmd: &RenderCommand, w: usize, h: usize) {
                 }
             }
             3 => {

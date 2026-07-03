@@ -18,6 +18,7 @@
 
 use crate::ecs::{GameWorld, Renderable, Camera, ConstructionState, BuildingType, TrafficCar};
                   ConstructionState, BuildingType, TrafficCar};
+
 use crate::simd_render;
 
 // ---------------------------------------------------------------------------

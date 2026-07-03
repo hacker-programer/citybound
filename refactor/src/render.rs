@@ -670,14 +670,9 @@ fn building_color(btype: BuildingType) -> u32 {
         BuildingType::Factory => COLOR_BUILDING_FACTORY,
         BuildingType::Farm => COLOR_BUILDING_FARM,
         BuildingType::Hospital => COLOR_BUILDING_HOSPITAL,
-        BuildingType::School => COLOR_BUILDING_SCHOOL,
-        BuildingType::Police => COLOR_BUILDING_POLICE,
-    }
-}
 
-        BuildingType::Farm => COLOR_BUILDING_FARM,
-        BuildingType::Hospital => COLOR_BUILDING_HOSPITAL,
-        BuildingType::School => COLOR_BUILDING_SCHOOL,
+#[cfg(test)]
+
         BuildingType::Police => COLOR_BUILDING_POLICE,
     }
 }

@@ -906,11 +906,13 @@ impl BuildingCatalog {
             requires_nearby: Some("Industrial"),
         });
 
+        });
+
+        // 24: Vertedero Municipal
+        templates.push(BuildingTemplate {
+            id: 24,
+            name: "Vertedero Municipal",
             description: "Entierra basura. Si no tiene geomembrana, lixiviados envenenan napas. Genera metano explosivo.",
-            category: BuildingCategory::Waste,
-            style: ArchitectureStyle::Industrial,
-            width: 5, height: 4,
-            construction_cost: 4_000_000.0,
             construction_time_days: 150,
             max_occupancy: 30,
             effects: BuildingEffects {

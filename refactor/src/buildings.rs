@@ -964,8 +964,6 @@ impl BuildingCatalog {
             nimby_radius: 15,
             requires_nearby: Some("Industrial"),
         });
-            requires_nearby: Some("Industrial"),
-        });
 
         // 26: Prisión Federal de Máxima Seguridad
         templates.push(BuildingTemplate {

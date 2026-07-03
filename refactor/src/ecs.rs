@@ -353,6 +353,8 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         grid_size,
     }
 }
+
+pub fn rebuild_spatial_grid(game_world: &mut GameWorld) {
     game_world.spatial_grid.rebuild(&game_world.world);
 }
 

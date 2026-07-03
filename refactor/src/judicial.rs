@@ -18,6 +18,8 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
+use rand::Rng;
+
 
 // ---------------------------------------------------------------------------
 // TIPOS DE CASOS LEGALES

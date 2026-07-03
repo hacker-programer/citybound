@@ -259,15 +259,14 @@ impl WaterFuturesMarket {
                 .max(self.production_cost * 0.5)  // no puede caer debajo de 50% del costo
                 .min(self.production_cost * 20.0); // puede subir 2000%
             self.spot_price = self.production_cost;
-        }
-    }
-
     /// Privatiza el suministro de agua
-    pub fn privatize(&mut self, corporation: &str, injection_amount: f64) {
+    pub fn privatize(&mut self, corporation: &str, injection_amount: f64) -> f64 {
         self.is_privatized = true;
         self.market_controlled = true;
         self.corporate_owner = Some(corporation.to_string());
-        // Inyección de capital inmediata, pero pérdida de control
+        // La corporación inyecta capital fresco a las arcas municipales
+        injection_amount
+    }
     }
 
     /// Nacionaliza el agua de vuelta

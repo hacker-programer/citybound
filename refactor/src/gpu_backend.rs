@@ -988,6 +988,12 @@ impl CpuBackend {
 
 
 // ---------------------------------------------------------------------------
+
+#[inline(always)]
+fn execute_cmd_on_tile(
+    cmd: &RenderCommand,
+    fb: &mut [u32],
+    tile_x0: usize, tile_y0: usize,
     tile_x1: usize, tile_y1: usize,
     _fb_w: usize,
 ) {

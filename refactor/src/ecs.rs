@@ -296,9 +296,9 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         (50.0, 60.0, BuildingType::Hospital),
         (55.0, 60.0, BuildingType::School),
         (60.0, 60.0, BuildingType::Police),
-        (80.0, 25.0, BuildingType::Hospital),
-        (85.0, 25.0, BuildingType::School),
-        (90.0, 25.0, BuildingType::Police),
+    let politics = PoliticalSystem::new();
+
+    // Cámara
     ];
 
     for &(bx, by, btype) in &buildings {

@@ -880,7 +880,8 @@ impl CpuBackend {
                 if x0 < w && y0 < h {
                     self.work_buffer[y0 * w + x0] = blend_pixel(self.work_buffer[y0 * w + x0], cmd.color);
                 }
-            }
+                    self.draw_sprite(&mut self.work_buffer, w, h, cmd);
+
             3 => {
                 if cmd.texture_id < self.atlas.entries.len() as u16 {
                     self.draw_sprite(w, h, cmd);

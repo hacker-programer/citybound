@@ -78,7 +78,7 @@ fn main() {
     let _render_backend = gpu_backend::init_render_backend(WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32);
 
     // ===== INPUT =====
-    let mut input_state = input::InputState::new();
+    let mut input_state = input::InputState::default();
 
     // ===== VARIABLES DE CONTROL =====
     let mut sim_accumulator: u64 = 0;

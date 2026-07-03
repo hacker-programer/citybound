@@ -368,8 +368,9 @@ impl JudicialSystem {
                 message: "Patent troll filed infringement lawsuit against tech sector".to_string(),
             });
         }
-    }
 
+        events
+    }
     /// Determina el fallo de un caso basado en su tipo y nivel de corrupción
     fn determine_ruling(case: &LegalCase, corruption: f32) -> CaseRuling {
         // Probabilidad base de que gane el demandante

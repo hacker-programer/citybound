@@ -16,7 +16,7 @@
 // [TC#23] Pre-orden Z-Index (capas vía RenderCache)
 // [TA#17] get_unchecked
 
-use crate::ecs::{GameWorld, Position, Renderable, ZoneComponent, ZoneType, Camera,
+use crate::ecs::{GameWorld, Renderable, Camera, ConstructionState, BuildingType, TrafficCar};
                   ConstructionState, BuildingType, TrafficCar};
 use crate::simd_render;
 use crate::render_cache::{RenderCacheEntry, LAYER_ZONES, LAYER_BUILDINGS, LAYER_TRAFFIC};

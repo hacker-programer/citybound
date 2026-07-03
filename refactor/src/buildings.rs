@@ -1460,9 +1460,11 @@ impl BuildingCatalog {
                 electricity_consumption: 15.0,
                 waste_generation: 5.0,  // Lodos
                 happiness_effect: -0.02,
-                ..Default::default()
-            },
-            requires_water: true,
+            requires_fiber: false,
+            requires_road_access: true,
+            nimby_radius: 12,
+            requires_nearby: Some("Water"),
+
             requires_electricity: true,
             requires_fiber: false,
             requires_road_access: true,

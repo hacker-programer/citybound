@@ -185,13 +185,17 @@ pub fn tick_land_value(gw: &mut GameWorld) {
 fn generate_pollution(gw: &mut GameWorld) {
     for (_entity, (pos, zone)) in gw.world
         .query::<(&Position, &ZoneComponent)>()
+fn generate_pollution(gw: &mut GameWorld) {
+    for (_entity, (pos, zone)) in gw.world
+        .query::<(&Position, &ZoneComponent)>()
         .iter()
     {
         if zone.zone_type == ZoneType::Industrial && zone.density > 0 {
             let gx = pos.x as usize;
             let gy = pos.y as usize;
             if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {
-                gw.pollution_map.values[gy][gx] = (gw.pollution_map.values[gy][gx] + 0.5).min(10.0);
+                let idx = gy * HEATMAP_SIZE + gx;
+                gw.pollution_map.values[idx] = (gw.pollution_map.values[idx] + 0.5).min(10.0);
             }
         }
     }
@@ -204,7 +208,8 @@ fn generate_pollution(gw: &mut GameWorld) {
         let gx = pos.x as usize;
         let gy = pos.y as usize;
         if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {
-            gw.pollution_map.values[gy][gx] = (gw.pollution_map.values[gy][gx] + 0.01).min(10.0);
+            let idx = gy * HEATMAP_SIZE + gx;
+            gw.pollution_map.values[idx] = (gw.pollution_map.values[idx] + 0.01).min(10.0);
         }
     }
 }
@@ -212,13 +217,14 @@ fn generate_pollution(gw: &mut GameWorld) {
 fn update_land_values(gw: &mut GameWorld) {
     for y in 0..HEATMAP_SIZE {
         for x in 0..HEATMAP_SIZE {
-            let mut value = gw.land_value_map.values[y][x];
+            let idx = y * HEATMAP_SIZE + x;
+            let mut value = gw.land_value_map.values[idx];
 
             // Penalización por contaminación
-            let pollution = gw.pollution_map.values[y][x];
+            let pollution = gw.pollution_map.values[idx];
             value -= pollution * POLLUTION_VALUE_PENALTY;
 
-            gw.land_value_map.values[y][x] = value.max(1.0);
+            gw.land_value_map.values[idx] = value.max(1.0);
         }
     }
 
@@ -239,12 +245,12 @@ fn update_land_values(gw: &mut GameWorld) {
                         let nx = (gx as i32 + dx).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
                         let ny = (gy as i32 + dy).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
                         let dist = ((dx * dx + dy * dy) as f32).sqrt().max(1.0);
-                        gw.land_value_map.values[ny][nx] += PARK_VALUE_BOOST / dist;
+                        gw.land_value_map.values[ny * HEATMAP_SIZE + nx] += PARK_VALUE_BOOST / dist;
                     }
                 }
             }
             ZoneType::Road => {
-                gw.land_value_map.values[gy][gx] += ROAD_VALUE_BOOST;
+                gw.land_value_map.values[gy * HEATMAP_SIZE + gx] += ROAD_VALUE_BOOST;
             }
             ZoneType::Industrial => {
                 if zone.density > 0 {
@@ -253,7 +259,7 @@ fn update_land_values(gw: &mut GameWorld) {
                         for dx in -2i32..=2 {
                             let nx = (gx as i32 + dx).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
                             let ny = (gy as i32 + dy).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
-                            gw.land_value_map.values[ny][nx] -= INDUSTRIAL_VALUE_PENALTY;
+                            gw.land_value_map.values[ny * HEATMAP_SIZE + nx] -= INDUSTRIAL_VALUE_PENALTY;
                         }
                     }
                 }
@@ -265,7 +271,8 @@ fn update_land_values(gw: &mut GameWorld) {
     // Clampear valores
     for y in 0..HEATMAP_SIZE {
         for x in 0..HEATMAP_SIZE {
-            gw.land_value_map.values[y][x] = gw.land_value_map.values[y][x].clamp(1.0, MAX_LAND_VALUE);
+            let idx = y * HEATMAP_SIZE + x;
+            gw.land_value_map.values[idx] = gw.land_value_map.values[idx].clamp(1.0, MAX_LAND_VALUE);
         }
     }
 }
@@ -289,13 +296,14 @@ fn apply_gentrification(gw: &mut GameWorld) {
         let gy = pos.y as usize;
         if gx >= HEATMAP_SIZE || gy >= HEATMAP_SIZE { continue; }
 
-        let land_value = gw.land_value_map.values[gy][gx];
+        let land_value = gw.land_value_map.values[gy * HEATMAP_SIZE + gx];
         let income = storage.money.max(1.0);
 
         // Si el valor del suelo es muy alto comparado con ingresos
         if land_value > income * GENTRIFICATION_THRESHOLD {
             to_degrade.push((pos.x, pos.y));
         }
+    }
     }
 
     for (x, y) in to_degrade {

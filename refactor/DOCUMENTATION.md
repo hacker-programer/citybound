@@ -8,6 +8,91 @@
 
 ---
 
+## 🏗️ DIAGRAMA DE ARQUITECTURA (Sistemas y Flujo de Datos)
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                        MAIN GAME LOOP                               │
+│  main.rs: init → load → loop(tick, render, input) → save → exit    │
+└──────────────────────────────┬───────────────────────────────────────┘
+                               │
+            ┌──────────────────┼──────────────────┐
+            ▼                  ▼                  ▼
+    ┌───────────┐     ┌───────────────┐   ┌──────────────┐
+    │  INPUT    │     │  SIMULACIÓN   │   │   RENDER     │
+    │ input.rs  │     │   sim.rs      │   │ render.rs    │
+    │ ecs.rs    │     │ (tick loop)   │   │ render_cache │
+    └─────┬─────┘     └───────┬───────┘   │ simd_render  │
+          │                   │           │ luts.rs      │
+          ▼                   │           └──────────────┘
+    ┌───────────┐             │
+    │interactive│             │
+    │  design   │             │
+    └───────────┘             │
+                              │
+    ┌─────────────────────────┼─────────────────────────┐
+    │                         ▼                         │
+    │              SISTEMAS DE SIMULACIÓN               │
+    │  (ejecutados por sim.rs en orden cada tick)       │
+    └───────────────────────────────────────────────────┘
+                              │
+     ┌────────────────────────┼────────────────────────┐
+     │                        │                        │
+     ▼                        ▼                        ▼
+┌──────────┐          ┌──────────────┐          ┌──────────┐
+│ ECONOMÍA │          │ MOVILIDAD    │          │ ENTORNO  │
+├──────────┤          ├──────────────┤          ├──────────┤
+│tax_system│◄────────►│traffic_lanes │◄────────►│climate   │
+│finance   │          │flow_field    │          │terrain   │
+│land_value│          │parking       │          │utilities │
+│labor_mrkt│          │pedestrian    │          │waste_mgmt│
+│supply_ch │          │lane_manager  │          │pollution │
+└────┬─────┘          └──────┬───────┘          └────┬─────┘
+     │                       │                       │
+     └───────────────────────┼───────────────────────┘
+                             │
+                             ▼
+                    ┌────────────────┐
+                    │    SOCIEDAD    │
+                    ├────────────────┤
+                    │politics.rs     │
+                    │ - NIMBY        │
+                    │ - sindicatos   │
+                    │ - elecciones   │
+                    │ - vetos/recall │
+                    │customization   │
+                    │persistence     │
+                    └────────────────┘
+```
+
+### Matriz de Interacción entre Sistemas
+
+```
+                TAX LND ROAD UTIL LAB SUP PARK WAST POL CLIM PED FLOW TRAF
+TAX (impuestos)  ●   ↑   ·    ·   ↑   ↑   ·    ·   ↑   ·    ·   ·    ·
+LND (valor suelo) ↓   ●   ·    ·   ·   ·   ↑    ↓   ↑   ·    ·   ·    ↓
+ROAD (desgaste)   ·   ·   ●    ·   ·   ·   ·    ·   ·   ·    ·   ·    ↑
+UTIL (servicios)  ·   ·   ·    ●   ·   ·   ·    ↑   ·   ·    ·   ·    ·
+LAB (laboral)     ↑   ·   ·    ·   ●   ·   ·    ·   ·   ·    ·   ↓    ·
+SUP (supply ch)   ·   ·   ·    ·   ·   ●   ·    ·   ·   ·    ·   ·    ↑
+PARK (parking)    ·   ·   ·    ·   ·   ·   ●    ·   ↑   ·    ·   ·    ↑
+WAST (basura)     ·   ·   ·    ↓   ·   ·   ·    ●   ↑   ·    ·   ·    ·
+POL (política)    ↑   ·   ·    ·   ·   ·   ↑    ·   ●   ·    ·   ·    ·
+CLIM (clima)      ·   ·   ·    ·   ·   ·   ·    ·   ·   ●    ·   ·    ·
+PED (peatones)    ·   ·   ·    ·   ·   ·   ·    ·   ·   ·    ●   ↑    ·
+FLOW (flow field) ·   ·   ·    ·   ·   ·   ·    ·   ·   ·    ↓   ●    →
+TRAF (tráfico)    ·   ·   →    ·   ·   →   →    ·   ·   ·    ·   ·    ●
+
+Simbología:
+  ● = sistema consigo mismo (difusión, evolución temporal)
+  ↑ = afecta/se ve afectado por
+  ↓ = es afectado por
+  → = fluye hacia (dependencia de datos)
+  · = sin interacción directa
+```
+
+---
+
 ## 📐 MODELOS MATEMÁTICOS
 
 ### 1. Impuestos y Finanzas Municipales (`tax_system.rs`)
@@ -453,10 +538,117 @@ Multas:
 multa = violation_fine · (1 + reincidencia · 0.5)
 ```
 
-Juicios (nuevo):
+Juicios:
 - Si un ciudadano acumula >3 multas impagas → demanda legal
 - Costo del juicio para la ciudad: `legal_cost = 500 + complexity · 200`
 - Si la HOA pierde el juicio → se disuelve temporalmente (180 ticks)
+
+---
+
+### 12. Peatones y Flujo Peatonal (`pedestrian.rs`) 🆕
+
+#### 12.1 Modelo de Fuerza Social (Social Force Model)
+
+Cada peatón `p` está sujeto a fuerzas:
+
+```
+F_p = F_destino + Σ F_rep_peatones + F_rep_obstáculos + F_atracción + F_aleatoria
+```
+
+**Fuerza hacia el destino:**
+
+```
+F_destino = (1/τ) · (v0 · e_destino − v_actual)
+```
+
+Donde:
+- `τ = 0.5s`: tiempo de relajación
+- `v0 = 1.34 m/s`: velocidad deseada (≈ 4.8 km/h, caminata normal)
+- `e_destino`: vector unitario hacia el destino
+
+**Fuerza de repulsión entre peatones:**
+
+```
+F_rep_ij = A · exp[(r_ij − d_ij)/B] · n_ij · λ + k · g(r_ij − d_ij) · n_ij
+```
+
+Donde:
+- `A = 2.0`: intensidad de repulsión
+- `B = 0.3m`: rango de interacción
+- `r_ij = r_i + r_j`: suma de radios corporales (≈ 0.4m)
+- `d_ij`: distancia entre peatones
+- `λ = 0.7`: anisotropía (peatones detrás = menos influencia)
+- `k = 120 kg/s²`: constante de compresión
+- `g(x) = max(0, x)`: función rampa
+
+#### 12.2 Densidad de Multitud y Velocidad
+
+La velocidad efectiva se reduce con la densidad:
+
+```
+v_eff(ρ) = v0 · max(0.1, 1 − ρ/ρ_max)
+```
+
+Donde:
+- `ρ`: densidad local (peatones/m²)
+- `ρ_max = 5.4`: densidad de atasco
+- En condiciones normales: `v_eff ≈ 1.3 m/s`
+- En hora pico: `v_eff ≈ 0.6 m/s`
+
+#### 12.3 Cruce de Calles
+
+Un peatón decide cruzar si:
+
+```
+gap > T_cruce · v_vehículo
+```
+
+Donde:
+- `gap`: espacio libre en la calle
+- `T_cruce = ancho_calle / v0_peatón`: tiempo necesario para cruzar
+- `v_vehículo`: velocidad del vehículo más cercano
+
+Semáforos peatonales:
+```
+P(cruzar | semáforo) = {
+  1.0  si luz_peatonal = verde
+  0.2  si luz_peatonal = roja (imprudencia)
+  0.5  si no hay semáforo
+}
+```
+
+#### 12.4 Generación de Viajes Peatonales
+
+```
+viajes_desde_edificio(t, tipo) = {
+  house → shop:    0.15 · n_residentes · factor_hora(h)
+  house → work:    0.30 · n_residentes · factor_hora(h)
+  house → park:    0.05 · n_residentes · factor_hora(h)
+  shop → shop:     0.08 · n_visitantes · factor_hora(h)
+  office → shop:   0.12 · n_trabajadores · factor_hora(h) (almuerzo)
+  hospital → *:    0.20 · n_pacientes
+  school → *:      0.25 · n_estudiantes (salida)
+}
+
+factor_hora(h) = {
+  0.05  si 0≤h<5    (noche)
+  0.30  si 5≤h<7    (temprano)
+  1.00  si 7≤h<9    (hora pico AM)
+  0.40  si 9≤h<12   (mañana)
+  0.60  si 12≤h<14  (almuerzo)
+  0.40  si 14≤h<17  (tarde)
+  1.00  si 17≤h<19  (hora pico PM)
+  0.30  si 19≤h<22  (noche temprano)
+  0.10  si 22≤h<24  (noche)
+}
+```
+
+#### 12.5 Efecto en la Ciudad
+
+- **Comercio**: más peatones = más ventas en tiendas (+0.1% por peatón/hora)
+- **Tráfico**: los peatones en cruces reducen velocidad vehicular (factor 0.85 si cruce activo)
+- **Atropellos**: si `gap < 2.0m` y peatón cruza, probabilidad de accidente
+- **Percepción de seguridad**: calles con peatones = -5% criminalidad local
 
 ---
 
@@ -467,7 +659,7 @@ Juicios (nuevo):
 | `Cargo.toml` | ~70 | Definición del crate, dependencias, perfiles |
 | `lib.rs` | ~52 | Re-exporta todos los módulos |
 | `main.rs` | ~310 | Game loop, ventana, time warp |
-| `ecs.rs` | ~483 | ECS, GameWorld, componentes |
+| `ecs.rs` | ~475 | ECS, GameWorld, componentes |
 | `sim.rs` | ~300 | Tick principal de simulación |
 | `render.rs` | ~670 | Renderizado software |
 | `render_cache.rs` | ~150 | Pre-sort por capa |
@@ -483,6 +675,7 @@ Juicios (nuevo):
 | `bitboard.rs` | ~60 | Bitboards para colisiones |
 | `audio.rs` | ~200 | Audio procedural cpal |
 | `traffic_lanes.rs` | ~350 | Tráfico con carriles IDM+MOBIL |
+| `pedestrian.rs` | ~300 | Peatones: social force model, cruces, multitudes 🆕 |
 | `interactive.rs` | ~1083 | Herramienta de diseño |
 | `supply_chain.rs` | ~200 | Cadena de suministro |
 | `land_value.rs` | ~150 | Valor del suelo |
@@ -525,7 +718,7 @@ main.rs (Game Loop con Time Warp)
       ├── interactive::process_design_input()
       ├── ecs::process_input() (WASD)
       ├── sim::tick() × speed_multiplier
-      ├── Sistemas periódicos (tax, parking, waste, politics, wear)
+      ├── Sistemas periódicos (tax, parking, waste, politics, wear, pedestrian)
       ├── spatial_grid.rebuild()
       ├── render_cache.rebuild_from_world()
       ├── render::render_world_cached()
@@ -545,44 +738,12 @@ main.rs (Game Loop con Time Warp)
 | `Velocity` | `dx: f32, dy: f32` | 64B |
 | `Renderable` | `shape_type: u8, color: u32, size: f32, layer: u8` | 64B |
 | `TrafficCar` | `speed, max_speed, acceleration, lane_position, lane_id` | 64B |
+| `Pedestrian` | `dest_x, dest_y, speed, stress, state` 🆕 | 64B |
 | `ResourceStorage` | `money: f32, food: f32, goods: f32` | 64B |
 | `ConstructionState` | `progress: f32, building_type: BuildingType` | 64B |
 | `ZoneComponent` | `zone_type: ZoneType, density: u8` | 64B |
 | `Lifetime` | `remaining: f32` | 64B |
 | `Camera` | `x, y, zoom, speed` | 64B |
-
-### GameWorld
-
-El mundo contiene TODOS los subsistemas:
-
-```
-GameWorld {
-    world: hecs::World,
-    entity_pool: EntityPool,
-    sim_tick: u64,              // Tick actual
-    time_of_day: u16,           // Minutos (0-1439)
-    sim_speed: u8,              // Multiplicador velocidad (1/2/4/8)
-    terrain: TerrainMap,
-    spatial_grid: SpatialGrid,
-    quadtree: Quadtree,
-    flow_fields: FlowFieldManager,
-    bitgrid: BitGrid,
-    lane_manager: LaneManager,
-    design_tool: DesignTool,
-    finance: MunicipalFinance,
-    water_grid: UtilityGrid,
-    power_grid: UtilityGrid,
-    road_wear_grid: RoadWearGrid,
-    land_value_map: LandValueHeatmap,
-    pollution_map: PollutionHeatmap,
-    parking_mgr: ParkingManager,
-    waste_mgr: WasteManager,
-    customization_mgr: CustomizationManager,
-    politics: PoliticalSystem,
-    labor_market: LaborMarket,
-    render_cache: RenderCache,
-}
-```
 
 ---
 
@@ -613,6 +774,7 @@ codegen-units = 1
 
 - **IDM Traffic Model**: Treiber, M., Hennecke, A., Helbing, D. (2000). "Congested traffic states in empirical observations and microscopic simulations". *Physical Review E*, 62(2), 1805.
 - **MOBIL Lane Changes**: Kesting, A., Treiber, M., Helbing, D. (2007). "General lane-changing model MOBIL for car-following models". *Transportation Research Record*, 1999(1), 86-94.
+- **Social Force Model (Pedestrians)**: Helbing, D., Molnár, P. (1995). "Social force model for pedestrian dynamics". *Physical Review E*, 51(5), 4282. 🆕
 - **Land Value Tax**: George, H. (1879). *Progress and Poverty*. NY: D. Appleton & Co.
 - **Gentrification Dynamics**: Lees, L., Slater, T., Wyly, E. (2008). *Gentrification*. Routledge.
 - **Urban Heat Island**: Oke, T.R. (1982). "The energetic basis of the urban heat island". *Quarterly Journal of the Royal Meteorological Society*, 108(455), 1-24.

@@ -1440,7 +1440,6 @@ impl BuildingCatalog {
             nimby_radius: 8,
             requires_nearby: Some("Water"),
         });
-
         // 42: Depuradora de Aguas Residuales
         templates.push(BuildingTemplate {
             id: 42,
@@ -1456,23 +1455,20 @@ impl BuildingCatalog {
                 operating_cost_annual: 2_500_000.0,
                 jobs_created: 120,
                 land_value_multiplier: 0.3,
-                water_pollution: -0.3,  // REDUCE contaminación
+                water_pollution: -0.3,
                 electricity_consumption: 15.0,
-                waste_generation: 5.0,  // Lodos
+                waste_generation: 5.0,
                 happiness_effect: -0.02,
+                ..Default::default()
+            },
+            requires_water: true,
+            requires_electricity: true,
             requires_fiber: false,
             requires_road_access: true,
             nimby_radius: 12,
             requires_nearby: Some("Water"),
-
-            requires_electricity: true,
-            requires_fiber: false,
-            requires_road_access: true,
-            requires_nearby: Some("Water"),
         });
 
-        // =========================================================================
-        // =========================================================================
         // 5. TRANSPORTE, MOVILIDAD Y CAOS VIAL (43-60)
         // =========================================================================
 

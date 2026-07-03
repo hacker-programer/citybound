@@ -284,8 +284,13 @@ impl Quadtree {
                 node.entity_count += 1;
                 return;
             }
+        }
 
-        // Reintentar inserci├│n
+        // Necesitamos subdividir
+        self.subdivide(node_idx);
+        // Reintentar inserción
+        self.insert_into_node(node_idx, handle);
+
         self.insert_into_node(node_idx, handle);
     }
 

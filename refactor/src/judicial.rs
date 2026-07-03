@@ -109,11 +109,11 @@ pub struct CourtHouse {
     pub active_cases: u32,
     pub judges_available: u32,
     pub budget_annual: f64,
+    pub budget_annual: f64,
     pub efficiency: f32,        // 0.0-1.0, qué tan rápido procesan casos
+    pub corruption_index: f32,  // 0.0-1.0
     pub backlog_penalty: f32,   // penalización por atraso judicial
 }
-
-/// Un bufete de abogados en la ciudad
 #[derive(Debug, Clone)]
 pub struct LawFirm {
     pub id: u64,

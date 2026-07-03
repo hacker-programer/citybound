@@ -4,13 +4,7 @@
 // Modela peatones como agentes con fuerzas de destino, repulsión
 // interpersonal, evasión de obstáculos y cruce de calles.
 //
-use crate::ecs::{Position, PedestrianState};
-// - Helbing, D., Molnár, P. (1995). "Social force model for pedestrian dynamics".
-//   Physical Review E, 51(5), 4282.
-// - Helbing, D., Farkas, I., Vicsek, T. (2000). "Simulating dynamical features
-//   of escape panic". Nature, 407, 487-490.
-
-use crate::ecs::{Position, Velocity, Pedestrian, PedestrianState};
+use crate::ecs::PedestrianState;
 
 // ---------------------------------------------------------------------------
 // Constantes del modelo (calibradas según Helbing 1995)

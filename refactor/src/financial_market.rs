@@ -13,8 +13,7 @@
 // - Futuros de agua: el precio se desacopla del costo de bombeo
 // - Calificación crediticia: castiga gasto social, premia pago de deuda
 // - Bonos: permiten financiar infraestructura pero generan deuda perpetua
-//
-// TÉCNICAS:
+use crate::rng_pool; // Funciones globales de RNG pre-generado
 // - LUTs para tasas de interés por calificación [TC#5]
 // - RNG pre-generado para volatilidad de mercado [TC#22]
 // - f32 en vez de f64 para todo [TC#24]

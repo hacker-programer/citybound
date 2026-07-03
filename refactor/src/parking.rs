@@ -204,8 +204,6 @@ impl ParkingManager {
             crate::ecs::BuildingType::Farm => ParkingCapacity::new(ParkingType::None, 0),
             crate::ecs::BuildingType::Hospital => ParkingCapacity::new(ParkingType::Underground, 50),
             crate::ecs::BuildingType::School => ParkingCapacity::new(ParkingType::SurfaceLot, 30),
-            crate::ecs::BuildingType::Hospital => ParkingCapacity::new(ParkingType::Underground, 50),
-            crate::ecs::BuildingType::School => ParkingCapacity::new(ParkingType::SurfaceLot, 30),
             crate::ecs::BuildingType::Police => ParkingCapacity::new(ParkingType::GaragePrivate, 12),
         };
 

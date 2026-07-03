@@ -394,18 +394,8 @@ impl LaneManager {
         }
         result
     }
-        let min_y = if gy >= r { gy - r } else { 0 };
-        let max_y = (gy + r + 1).min(127);
-        for py in min_y..=max_y {
-            for px in min_x..=max_x {
-                for &lane_id in &self.spatial_grid[py][px] {
-                    if !result.contains(&lane_id) { result.push(lane_id); }
-                }
-            }
-        }
-        result
-    }
 
+    pub fn closest_lane(&self, x: f32, y: f32) -> Option<&Lane> {
     pub fn closest_lane(&self, x: f32, y: f32) -> Option<&Lane> {
         let nearby = self.lanes_near(x, y, 5.0);
         let mut best: Option<&Lane> = None;

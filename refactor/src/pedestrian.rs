@@ -430,6 +430,14 @@ impl PedestrianSystem {
             }
         }
     }
+
+    /// Verificar colisiones peatón-vehículo (devuelve conteo de atropellos)
+    pub fn check_vehicle_collisions(
+        &self,
+        vehicle_positions: &[(f32, f32)],
+        vehicle_speeds: &[(f32, f32)],
+    ) -> u32 {
+        let mut collisions = 0u32;
         for i in 0..self.active_count {
             let px = self.positions[i].0;
             let py = self.positions[i].1;

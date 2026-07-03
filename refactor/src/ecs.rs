@@ -113,7 +113,6 @@ impl SpatialGrid {
             std::array::from_fn(|_| std::array::from_fn(|_| Vec::with_capacity(64)));
         SpatialGrid { cells, dirty: true }
     }
-    }
 
     #[inline(always)]
     fn cell_index(x: f32, y: f32) -> (usize, usize) {

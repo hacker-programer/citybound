@@ -1,27 +1,20 @@
-// Citybound Native v0.10.0 — Punto de entrada principal
+// Citybound Native v0.12.0 — Punto de entrada principal
 //
-// FASE 7: FEATURES COMPLETAS
-// - RenderCache integrado en pipeline
-// - Audio procedural con cpal (real)
-// - Save/Load con bincode
-// - Panel de estadísticas
-// - Rayon para paralelismo
-// - MOBIL lane changes reales
-// - Ciclo día/noche con color grading
-// - Más edificios: Hospital, Escuela, Policía, Parque
+// ARQUITECTURA CROSS-PLATFORM:
+// - Capa de abstracción platform.rs para Windows, Android, macOS, Linux
+// - GameWorld en heap (Box) para evitar stack overflow
+// - Renderizado software con SIMD + framebuffer nativo
 //
-// ARQUITECTURA:
-// - ECS puro con hecs + SpatialGrid
-// - Framebuffer software rendering con SSE2
-// - Flow Fields + Bitboards + Lanes (tráfico A/B Street)
-// - Design Tool interactivo
-// - 10 sistemas de realismo [M#1..M#10]
+// PLATAFORMAS SOPORTADAS:
+// - Windows (native, DX12/Vulkan via wgpu)
+// - Android (NativeActivity, Vulkan)
+// - macOS (Metal)
+// - Linux (Vulkan/OpenGL)
 
 #![allow(unsafe_code)]
-#![cfg_attr(not(test), windows_subsystem = "windows")]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use citybound_native::*;
-use minifb::{Key, Window, WindowOptions, Scale, ScaleMode};
 use std::time::{Duration, Instant};
 
 pub const WINDOW_WIDTH: usize = 800;
@@ -37,18 +30,22 @@ fn main() {
         std::process::abort();
     }));
 
-    println!("Citybound Native v0.10.0 — City Builder Realista [Fase 7: Features]");
-    println!("RenderCache | Audio cpal | Save/Load | Stats | Rayon | MOBIL | Dia/Noche");
+    println!("Citybound Native v0.12.0 — City Builder Realista [Cross-Platform]");
+    println!("Plataforma: {} | Arquitectura: {}", 
+        platform::platform_name(), 
+        platform::arch_name());
+    println!("RenderCache | Audio | Save/Load | Stats | Rayon | MOBIL | Dia/Noche");
 
     // ===== FASE DE CARGA =====
     luts::init_trig_luts();
     rng_pool::init_rng_pool(42);
     bump_alloc::init_frame_allocator();
-    let mut audio_player = audio::AudioPlayer::init();
-    audio_player.play_ambient();
+    let _audio_player = audio::AudioPlayer::init();
 
     let mut pool = object_pool::EntityPool::new(1000);
-    let mut world = ecs::create_world(&mut pool);
+    // [FIX CRÍTICO]: GameWorld en heap para evitar stack overflow
+    // (el struct contiene múltiples grillas de 128x128 floats = ~65KB cada una)
+    let mut world = Box::new(ecs::create_world(&mut pool));
     sim::init_simulation(&mut world);
 
     // Intentar cargar partida guardada
@@ -75,7 +72,6 @@ fn main() {
         }
     }
 
-    // Rebuild render cache inicial
     world.render_cache.rebuild_from_world(&world.world);
 
     println!("Caché caliente. {} carriles, {} intersecciones.",
@@ -83,20 +79,14 @@ fn main() {
     println!("Tesoro inicial: ${:.0}", world.finance.treasury);
     println!("[Tab] Diseño | [WASD] Mover | [F5] Guardar | [F9] Cargar | [ESC] Salir");
 
-    // ===== VENTANA =====
-    let mut window = Window::new(
-        "Citybound Native v0.10 — City Builder (ESC para salir)",
-        WINDOW_WIDTH, WINDOW_HEIGHT,
-        WindowOptions {
-            scale: Scale::X2,
-            scale_mode: ScaleMode::AspectRatioStretch,
-            ..WindowOptions::default()
-        },
-    ).expect("No se pudo crear la ventana.");
+    // ===== PLATFORM: Crear ventana nativa =====
+    let mut window_system = platform::WindowSystem::new(
+        "Citybound Native v0.12 — City Builder (ESC para salir)",
+        WINDOW_WIDTH as u32,
+        WINDOW_HEIGHT as u32,
+    );
 
-    window.set_target_fps(TARGET_FPS as usize);
-
-    // [FASE 6]: Doble buffer con punteros (sin memcpy)
+    // Doble buffer con punteros (sin memcpy en swap)
     let mut buffer_a: Vec<u32> = vec![0xFF_1A_1A_2E; FB_SIZE];
     let mut buffer_b: Vec<u32> = vec![0xFF_1A_1A_2E; FB_SIZE];
     let mut front_ptr: *mut Vec<u32> = &mut buffer_a;
@@ -117,13 +107,21 @@ fn main() {
     let mut ticks_since_tax: u64 = 0;
     let mut ticks_since_waste: u64 = 0;
 
-    // Buffer stack para título (zero-allocation)
     let mut title_buf: [u8; 256] = [0; 256];
 
     // ===== BUCLE PRINCIPAL =====
-    while window.is_open() && !window.is_key_down(Key::Escape) {
+    while window_system.is_open() {
         bump_alloc::reset_frame();
-        input_state.update(&window);
+
+        // Poll events nativos (keyboard, mouse, touch, resize)
+        let events = window_system.poll_events();
+        for event in &events {
+            input_state.process_platform_event(event);
+        }
+
+        if input_state.is_key_pressed(input::GameKey::Escape) {
+            break;
+        }
 
         // F5: Guardar partida
         if input_state.is_key_pressed(input::GameKey::F5) {
@@ -168,7 +166,6 @@ fn main() {
             sim::tick(&mut world, dt);
             accumulator -= tick_dur;
 
-            // Sistemas periódicos
             ticks_since_tax += 1;
             if ticks_since_tax >= tax_system::TAX_COLLECTION_INTERVAL {
                 ticks_since_tax = 0;
@@ -199,10 +196,10 @@ fn main() {
             }
         }
 
-        // [FASE 6]: Rebuild spatial grid una vez por frame
+        // Rebuild spatial grid una vez por frame
         world.spatial_grid.rebuild(&world.world);
 
-        // [FASE 7]: Actualizar RenderCache (incremental)
+        // Actualizar RenderCache
         if world.render_cache.dirty {
             world.render_cache.rebuild_from_world(&world.world);
         }
@@ -211,10 +208,7 @@ fn main() {
         let backbuffer: &mut [u32] = unsafe { &mut *back_ptr };
         backbuffer.fill(0xFF_1A_1A_2E);
 
-        // [FASE 7]: Usar RenderCache
         render::render_world_cached(&world, backbuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
-
-        // [FASE 7]: Overlay de día/noche
         climate::apply_day_night_overlay(backbuffer, WINDOW_WIDTH, WINDOW_HEIGHT, world.time_of_day);
 
         interactive::render_design_overlay(
@@ -222,20 +216,15 @@ fn main() {
             WINDOW_WIDTH, WINDOW_HEIGHT, &world,
         );
 
-        // [FASE 7]: Panel de estadísticas
         render::render_stats_panel(&world, backbuffer, WINDOW_WIDTH, WINDOW_HEIGHT, current_fps);
 
-        // ===== SWAP: enviar backbuffer a pantalla sin memcpy =====
-        {
-            let front: &[u32] = unsafe { &*back_ptr };
-            window.update_with_buffer(front, WINDOW_WIDTH, WINDOW_HEIGHT)
-                .expect("Error al actualizar ventana");
-        }
+        // ===== PRESENT: enviar backbuffer a pantalla =====
+        window_system.present_frame(unsafe { &*back_ptr }, WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32);
 
         // Swap punteros (sin copiar datos)
         std::mem::swap(&mut front_ptr, &mut back_ptr);
 
-        // ===== ESTADÍSTICAS (zero-alloc) =====
+        // ===== ESTADÍSTICAS =====
         frame_count += 1;
         if fps_timer.elapsed() >= Duration::from_secs(1) {
             current_fps = frame_count as u32;
@@ -249,9 +238,8 @@ fn main() {
             let approval = world.politics.global_approval;
             let pop = world.world.query::<&ecs::ConstructionState>().iter().count();
 
-            // Zero-allocation title
             let title = write_fps_title(&mut title_buf, current_fps, cars, trucks, treasury, circling, approval, pop);
-            window.set_title(title);
+            window_system.set_title(title);
         }
     }
 
@@ -275,29 +263,23 @@ fn write_fps_title<'a>(
     approval: f32,
     pop: usize,
 ) -> &'a str {
-    let prefix = b"CB v0.10 ";
+    let prefix = b"CB v0.12 ";
     let mut pos = prefix.len();
     buf[..pos].copy_from_slice(prefix);
 
-    // FPS + población
     pos += write_u32(buf, pos, fps);
     buf[pos] = b'f'; pos += 1;
     buf[pos] = b' '; pos += 1;
     pos += write_usize(buf, pos, pop);
     buf[pos] = b'p'; pos += 1;
     buf[pos] = b' '; pos += 1;
-
-    // Cars
     pos += write_usize(buf, pos, cars);
     buf[pos] = b'c'; pos += 1;
     buf[pos] = b' '; pos += 1;
-
-    // Trucks
     pos += write_usize(buf, pos, trucks);
     buf[pos] = b't'; pos += 1;
     buf[pos] = b' '; pos += 1;
 
-    // Treasury
     let tk = treasury / 1000.0;
     let tki = tk as u32;
     buf[pos] = b'$'; pos += 1;
@@ -305,7 +287,6 @@ fn write_fps_title<'a>(
     buf[pos] = b'k'; pos += 1;
     buf[pos] = b' '; pos += 1;
 
-    // Approval
     let appr = (approval * 100.0) as u32;
     pos += write_u32(buf, pos, appr);
     buf[pos] = b'%'; pos += 1;

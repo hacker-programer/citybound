@@ -1,13 +1,17 @@
-﻿// M├│dulo ECS - Entity Component System v0.10.0 [FASE 7]
+// Módulo ECS - Entity Component System v0.10.0 [FASE 7]
 //
-// FASE 7: Nuevos tipos de edificios (Hospital, Escuela, Polic├¡a)
+// FASE 7: Nuevos tipos de edificios (Hospital, Escuela, Policía)
 // - RenderCache integrado con rebuild_from_world
 // - Spatial Hashing + Query Fusion
 //
 // GameWorld con todos los sistemas integrados:
-// [#361] LaneManager - Tr├ífico con carriles
-// [#392] DesignTool - Dise├▒o urbano interactivo
+// [#361] LaneManager - Tráfico con carriles
+// [#392] DesignTool - Diseño urbano interactivo
 // [M#1..M#10] 10 sistemas de realismo
+//
+// [FIX STACK OVERFLOW]: GameWorld se retorna como Box para mantenerlo en heap.
+// Los sub-structs con arrays masivos (TerrainMap, FlowField, UtilityGrid)
+// usan Vec<T> en vez de [T; N] para evitar stack overflow.
 
 use crate::object_pool::EntityPool;
 use crate::input::InputState;
@@ -30,7 +34,7 @@ use rand::rngs::SmallRng;
 use rand::SeedableRng;
 
 // ---------------------------------------------------------------------------
-// COMPONENTES (alineados a 64B para cach├® L1)
+// COMPONENTES (alineados a 64B para caché L1)
 // ---------------------------------------------------------------------------
 
 #[derive(Copy, Clone, Debug)]
@@ -71,20 +75,20 @@ pub struct TrafficCar { pub speed: f32, pub max_speed: f32, pub acceleration: f3
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum PedestrianState {
-    Idle,       // Quieto (llegó a destino o esperando)
-    Walking,    // Caminando hacia destino
-    Crossing,   // Cruzando calle
-    Panicking,  // Huyendo (estrés > 0.8, desastre)
+    Idle,
+    Walking,
+    Crossing,
+    Panicking,
 }
 
 /// Peatón individual con modelo de fuerza social
 #[derive(Copy, Clone, Debug)]
 #[repr(align(64))]
 pub struct Pedestrian {
-    pub dest_x: f32,      // Destino X
-    pub dest_y: f32,      // Destino Y
-    pub speed: f32,        // Velocidad actual
-    pub stress: f32,       // Nivel de estrés [0,1]
+    pub dest_x: f32,
+    pub dest_y: f32,
+    pub speed: f32,
+    pub stress: f32,
     pub state: PedestrianState,
 }
 #[derive(Copy, Clone, Debug)]
@@ -95,11 +99,11 @@ pub struct ResourceStorage { pub money: f32, pub food: f32, pub goods: f32 }
 #[repr(align(64))]
 pub struct ConstructionState { pub progress: f32, pub building_type: BuildingType }
 
-/// [FASE 7]: Nuevos tipos de edificios p├║blicos
+/// [FASE 7]: Nuevos tipos de edificios públicos
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BuildingType { 
     House, Apartment, Shop, Office, Factory, Farm,
-    Hospital, School, Police,  // [FASE 7]
+    Hospital, School, Police,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -114,7 +118,7 @@ pub struct Lifetime { pub remaining_ticks: u32 }
 pub struct QuadIndex(pub u32);
 
 // ---------------------------------------------------------------------------
-// SPATIAL GRID ÔÇö B├║squeda O(1) de entidades por posici├│n [FASE 6]
+// SPATIAL GRID — Búsqueda O(1) de entidades por posición [FASE 6]
 // ---------------------------------------------------------------------------
 
 pub const SPATIAL_CELL_SIZE: f32 = 8.0;
@@ -218,7 +222,7 @@ pub struct GameWorld {
     pub pool: EntityPool,
     pub sim_tick: u64,
     pub time_of_day: u16,
-    pub sim_speed: u8,          // 1, 2, 4, 8 — multiplicador de velocidad
+    pub sim_speed: u8,
     pub rng: SmallRng,
     pub terrain: TerrainMap,
     pub quadtree: Quadtree,
@@ -238,7 +242,10 @@ pub struct GameWorld {
     pub politics: PoliticalSystem,
     pub grid_size: i32,
 }
-pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
+
+/// Crea un mundo nuevo. Retorna Box<GameWorld> para mantener los datos en heap,
+/// evitando stack overflow (GameWorld > 1.5MB con todos los sub-sistemas).
+pub fn create_world(_pool: &mut EntityPool) -> Box<GameWorld> {
     let mut world = hecs::World::new();
     let grid_size: i32 = 128;
 
@@ -275,7 +282,7 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     let politics = PoliticalSystem::new();
     let _render_cache = RenderCache::new();
 
-    // C├ímara
+    // Cámara
     world.spawn((
         Camera { offset_x: grid_size as f32 / 2.0, offset_y: grid_size as f32 / 2.0, zoom: 1.0 },
         Position::new(0.0, 0.0),
@@ -302,7 +309,7 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         ));
     }
 
-    // [FASE 7]: Edificios iniciales con nuevos tipos
+    // Edificios iniciales
     let buildings: [(f32, f32, BuildingType); 11] = [
         (30.0, 30.0, BuildingType::House),
         (35.0, 30.0, BuildingType::Shop),
@@ -312,7 +319,6 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         (40.0, 36.0, BuildingType::Farm),
         (60.0, 45.0, BuildingType::House),
         (64.0, 45.0, BuildingType::Shop),
-        // [FASE 7]: Edificios p├║blicos
         (50.0, 60.0, BuildingType::Hospital),
         (55.0, 60.0, BuildingType::School),
         (60.0, 60.0, BuildingType::Police),
@@ -352,11 +358,10 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     let mut spatial_grid = SpatialGrid::new();
     spatial_grid.rebuild(&world);
 
-    // [FASE 7]: Inicializar RenderCache
     let mut render_cache = RenderCache::new();
     render_cache.rebuild_from_world(&world);
 
-    GameWorld {
+    Box::new(GameWorld {
         world,
         spatial_grid,
         render_cache,
@@ -371,7 +376,7 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         finance, parking_mgr, waste_mgr,
         customization, politics,
         grid_size,
-    }
+    })
 }
 
 pub fn rebuild_spatial_grid(game_world: &mut GameWorld) {
@@ -450,7 +455,7 @@ mod tests {
             .any(|(_, cs)| cs.building_type == BuildingType::Police);
         assert!(has_hospital, "Debe haber hospital");
         assert!(has_school, "Debe haber escuela");
-        assert!(has_police, "Debe haber polic├¡a");
+        assert!(has_police, "Debe haber policía");
     }
 
     #[test]

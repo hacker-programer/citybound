@@ -1,23 +1,33 @@
-    /// Actualiza estado de vertederos y contaminación (llamado cada tick)
-    pub fn update(&mut self, dt: f32) {
-        for landfill in self.landfills.iter_mut() {
-            landfill.tick(dt);
-        }
+// Sistema de Clasificación de Basura Brutal
+//
+// Implementa:
+// - Residuos orgánicos (generan gas metano si no se ventilan)
+// - Reciclables (se venden a otras ciudades)
+// - Tóxicos (envenenan suelo y agua sin geomembranas)
+// - Vertederos con niveles de gas metano
+// - Plantas de reciclaje que generan ingresos
+// - Contaminación de napas freáticas
+//
+// TÉCNICAS APLICADAS:
+// [TC#2]  Pre-reserva de capacidad
+// [TA#7]  Flow fields para propagación de contaminación
+// [TC#26] Inlining agresivo
 
-        // Contaminación de napas decae muy lentamente (décadas)
-        self.groundwater_contamination = (self.groundwater_contamination - 0.0001 * dt).max(0.0);
+use crate::ecs::GameWorld;
 
-        // Basura sin recolectar atrae plagas (aumenta lentamente si no se gestiona)
-        if self.uncollected_waste > 0.0 {
-            self.uncollected_waste += 0.1 * dt;
-        }
-    }
 
-    /// Alias de update() para compatibilidad con el game loop
-    #[inline(always)]
-    pub fn tick(&mut self, dt: f32) {
-        self.update(dt);
-    }
+
+// ---------------------------------------------------------------------------
+// TIPOS DE RESIDUOS
+// ---------------------------------------------------------------------------
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum WasteType {
+    /// Restos de comida, jardinería → genera metano
+    Organic,
+    /// Plástico, vidrio, metal, papel → reciclable
+    Recyclable,
+    /// Químicos, baterías, electrónicos → tóxico
     Toxic,
     /// Residuos generales no reciclables
     General,
@@ -316,9 +326,13 @@ impl WasteManager {
         }
     }
 
+    /// Alias de update() para compatibilidad con el game loop
+    #[inline(always)]
+    pub fn tick(&mut self, dt: f32) {
+        self.update(dt);
+    }
+
     /// Verifica riesgo de explosión en vertederos
-    pub fn check_explosion_risks(&self) -> Vec<(f32, f32, f32)> {
-        self.landfills.iter()
             .filter(|l| l.explosion_risk)
             .map(|l| (l.x, l.y, l.methane_level))
             .collect()

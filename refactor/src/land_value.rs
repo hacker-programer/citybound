@@ -198,8 +198,8 @@ fn generate_pollution(gw: &mut GameWorld) {
         .iter()
     {
         let gx = pos.x as usize;
+        let gx = pos.x as usize;
         let gy = pos.y as usize;
-        if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {
         if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {
             let idx = gy * HEATMAP_SIZE + gx;
             gw.pollution_map.values[idx] = (gw.pollution_map.values[idx] + 0.01).min(10.0);

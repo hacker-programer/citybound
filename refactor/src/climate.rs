@@ -13,7 +13,7 @@
 // - Atardecer (18:00-20:00): rojo-anaranjado
 // - Noche (20:00-5:00): azul oscuro, reducción de brillo
 
-use crate::simd_render;
+/// Aplica overlay de día/noche al framebuffer completo
 
 /// Aplica overlay de día/noche al framebuffer completo
 pub fn apply_day_night_overlay(fb: &mut [u32], width: usize, height: usize, time_of_day: u16) {

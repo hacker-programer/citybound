@@ -284,18 +284,27 @@ pub fn mobil_decision(
 // GESTOR DE CARRILES v0.9.0 — Array fijo [FASE 6]
 // ---------------------------------------------------------------------------
 
+    } else { LaneChangeDecision::Stay }
+}
+
+// ---------------------------------------------------------------------------
+// GESTOR DE CARRILES v0.10.0 — spatial_grid en heap [FIX STACK OVERFLOW]
+// ---------------------------------------------------------------------------
+
 pub struct LaneManager {
     pub lanes: Vec<Lane>,
     pub intersections: Vec<Intersection>,
-    pub spatial_grid: [[Vec<u32>; 128]; 128],
+    /// Grilla espacial 128x128 en heap: índice = y * 128 + x
+    pub spatial_grid: Vec<Vec<u32>>,
     pub idm_params: [Option<IdmParams>; MAX_VEHICLES],
     pub mobil_params: MobilParams,
 }
 
 impl LaneManager {
     pub fn new() -> Self {
-        let spatial_grid: [[Vec<u32>; 128]; 128] = 
-            std::array::from_fn(|_| std::array::from_fn(|_| Vec::with_capacity(4)));
+        let spatial_grid: Vec<Vec<u32>> = (0..128*128)
+            .map(|_| Vec::with_capacity(4))
+            .collect();
 
         LaneManager {
             lanes: Vec::with_capacity(MAX_LANES),
@@ -305,7 +314,6 @@ impl LaneManager {
             mobil_params: MobilParams::default(),
         }
     }
-
     pub fn generate_default_network(&mut self) {
         let mut next_id: u32 = 0;
         let highway_y: f32 = 64.0;

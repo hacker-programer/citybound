@@ -1311,9 +1311,15 @@ pub fn init_render_backend(width: u32, height: u32) -> ActiveBackend {
     ActiveBackend::CpuSimd(CpuBackend::new(width, height))
 }
 
+}
+
 // ---------------------------------------------------------------------------
 // TESTS
 // ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+
 
 #[cfg(test)]
 mod tests {

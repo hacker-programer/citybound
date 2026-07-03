@@ -675,11 +675,8 @@ fn building_color(btype: BuildingType) -> u32 {
 }
 
 #[cfg(test)]
+mod tests {
 
-#[cfg(test)]
-
-        BuildingType::Police => COLOR_BUILDING_POLICE,
-    }
 }
 
 #[cfg(test)]

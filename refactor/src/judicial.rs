@@ -317,7 +317,7 @@ impl JudicialSystem {
                     // Determinar fallo
                     let ruling = self.determine_ruling(case, court.corruption_index);
 
-                    match ruling {
+                    let ruling = Self::determine_ruling_impl(case, court.corruption_index);
                         CaseRuling::PlaintiffWon { amount } | CaseRuling::Settled { amount } => {
                             *city_treasury -= amount * 0.3; // La ciudad paga indirectamente
                             self.total_damages_paid += amount;

@@ -104,6 +104,7 @@ impl InputState {
     /// Procesa un evento de plataforma unificado (PlatformEvent → InputState)
     /// Permite que el sistema de input funcione con cualquier backend de plataforma
     pub fn process_platform_event(&mut self, event: &crate::platform::PlatformEvent) {
+        use crate::platform::{PlatformEvent, MouseButton as PMb};
 
         match *event {
             PlatformEvent::KeyPressed(key) => {
@@ -149,10 +150,6 @@ impl InputState {
             _ => {} // Touch events, resize, focus — ignorados por ahora
         }
     }
-
-    /// Actualiza el estado de input desde la ventana minifb (una vez por frame)
-    pub fn update(&mut self, window: &Window) {
-        let prev_keys = self.keys_down;
 
         // Guardar estado previo del mouse
         self.prev_mouse_left = self.mouse_left;

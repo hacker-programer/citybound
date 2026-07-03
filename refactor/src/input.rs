@@ -6,6 +6,10 @@
 //
 // TÉCNICA COMÚN #19 (aplicaciones): Event Delegation
 // Usamos bitfields para detectar múltiples teclas simultáneamente
+//
+// ARQUITECTURA DUAL:
+// - Backend minifb (desktop Windows/macOS/Linux)
+// - Backend platform (Android/alternativo via PlatformEvent)
 
 #![allow(dead_code)]
 
@@ -13,6 +17,10 @@ use minifb::{Key, MouseButton as MinifbMouseButton, MouseMode, Window};
 
 // Re-export para uso en otros módulos
 pub use minifb::MouseButton;
+
+// ---------------------------------------------------------------------------
+// INPUT STATE (bitfield para caché-friendly)
+// ---------------------------------------------------------------------------
 
 /// Estado de input para un frame
 #[derive(Clone, Debug, Default)]
@@ -40,7 +48,11 @@ pub struct InputState {
     pub mouse_inside: bool,
 }
 
-// Mapeo de teclas comunes a índices de bitfield (máximo 128 teclas)
+// ---------------------------------------------------------------------------
+// GAME KEY ENUM (índices de bitfield, máximo 128)
+// ---------------------------------------------------------------------------
+
+/// Mapeo de teclas comunes a índices de bitfield
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum GameKey {
@@ -82,20 +94,28 @@ pub enum GameKey {
     F6 = 62, F7 = 63, F8 = 64, F9 = 65, F10 = 66, F11 = 67, F12 = 68,
     BracketLeft = 60,
     BracketRight = 61,
+}
+
+// ---------------------------------------------------------------------------
+// IMPL INPUT STATE
+// ---------------------------------------------------------------------------
+
+impl InputState {
     /// Procesa un evento de plataforma unificado (PlatformEvent → InputState)
     /// Permite que el sistema de input funcione con cualquier backend de plataforma
-    pub fn process_platform_event(&mut self, event: &platform::PlatformEvent) {
-        use platform::{PlatformEvent, PlatformKey as Pk, MouseButton as PMb};
+    #[cfg(feature = "platform_events")]
+    pub fn process_platform_event(&mut self, event: &crate::platform::PlatformEvent) {
+        use crate::platform::{PlatformEvent, PlatformKey as Pk, MouseButton as PMb};
 
         match *event {
             PlatformEvent::KeyPressed(key) => {
-                if let Some(gk) = map_platform_key(key) {
+                if let Some(gk) = map_platform_key_internal(key) {
                     self.keys_pressed |= 1u128 << (gk as u8);
                     self.keys_down |= 1u128 << (gk as u8);
                 }
             }
             PlatformEvent::KeyReleased(key) => {
-                if let Some(gk) = map_platform_key(key) {
+                if let Some(gk) = map_platform_key_internal(key) {
                     self.keys_released |= 1u128 << (gk as u8);
                     self.keys_down &= !(1u128 << (gk as u8));
                 }
@@ -131,8 +151,8 @@ pub enum GameKey {
             _ => {} // Touch events, resize, focus — ignorados por ahora
         }
     }
-impl InputState {
-    /// Actualiza el estado de input desde la ventana (una vez por frame)
+
+    /// Actualiza el estado de input desde la ventana minifb (una vez por frame)
     pub fn update(&mut self, window: &Window) {
         let prev_keys = self.keys_down;
 
@@ -222,7 +242,67 @@ impl InputState {
     }
 }
 
-/// Mapa estático de teclas minifb 0.27 -> GameKey
+// ---------------------------------------------------------------------------
+// MAPEO DE TECLAS PLATFORM → GAMEKEY
+// ---------------------------------------------------------------------------
+
+/// Convierte PlatformKey a GameKey (para uso interno y cross-platform)
+#[allow(dead_code)]
+fn map_platform_key_internal(key: crate::platform::PlatformKey) -> Option<GameKey> {
+    use crate::platform::PlatformKey as Pk;
+    Some(match key {
+        Pk::Escape => GameKey::Escape,
+        Pk::Space => GameKey::Space,
+        Pk::Enter => GameKey::Enter,
+        Pk::Tab => GameKey::Tab,
+        Pk::Backspace => GameKey::Backspace,
+        Pk::Delete => GameKey::Delete,
+        Pk::Left => GameKey::Left,
+        Pk::Right => GameKey::Right,
+        Pk::Up => GameKey::Up,
+        Pk::Down => GameKey::Down,
+        Pk::LShift | Pk::RShift => GameKey::Shift,
+        Pk::LCtrl | Pk::RCtrl => GameKey::Control,
+        Pk::LAlt | Pk::RAlt => GameKey::Alt,
+        Pk::Key1 => GameKey::Key1,
+        Pk::Key2 => GameKey::Key2,
+        Pk::Key3 => GameKey::Key3,
+        Pk::Key4 => GameKey::Key4,
+        Pk::Key5 => GameKey::Key5,
+        Pk::Key6 => GameKey::Key6,
+        Pk::Key7 => GameKey::Key7,
+        Pk::Key8 => GameKey::Key8,
+        Pk::Key9 => GameKey::Key9,
+        Pk::Key0 => GameKey::Key0,
+        Pk::A => GameKey::A, Pk::B => GameKey::B, Pk::C => GameKey::C,
+        Pk::D => GameKey::D, Pk::E => GameKey::E, Pk::F => GameKey::F,
+        Pk::G => GameKey::G, Pk::H => GameKey::H, Pk::I => GameKey::I,
+        Pk::J => GameKey::J, Pk::K => GameKey::K, Pk::L => GameKey::L,
+        Pk::M => GameKey::M, Pk::N => GameKey::N, Pk::O => GameKey::O,
+        Pk::P => GameKey::P, Pk::Q => GameKey::Q, Pk::R => GameKey::R,
+        Pk::S => GameKey::S, Pk::T => GameKey::T, Pk::U => GameKey::U,
+        Pk::V => GameKey::V, Pk::W => GameKey::W, Pk::X => GameKey::X,
+        Pk::Y => GameKey::Y, Pk::Z => GameKey::Z,
+        Pk::Minus => GameKey::Minus,
+        Pk::Equals => GameKey::Equals,
+        Pk::PageUp => GameKey::PageUp,
+        Pk::PageDown => GameKey::PageDown,
+        Pk::Home => GameKey::Home,
+        Pk::End => GameKey::End,
+        Pk::F1 => GameKey::F1, Pk::F2 => GameKey::F2, Pk::F3 => GameKey::F3,
+        Pk::F4 => GameKey::F4, Pk::F5 => GameKey::F5, Pk::F6 => GameKey::F6,
+        Pk::F7 => GameKey::F7, Pk::F8 => GameKey::F8, Pk::F9 => GameKey::F9,
+        Pk::F10 => GameKey::F10, Pk::F11 => GameKey::F11, Pk::F12 => GameKey::F12,
+        Pk::BracketLeft => GameKey::BracketLeft,
+        Pk::BracketRight => GameKey::BracketRight,
+        _ => return None,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// MAPA ESTÁTICO DE TECLAS MINIFB → GAMEKEY
+// ---------------------------------------------------------------------------
+
 static KEY_MAP: &[(Key, GameKey)] = &[
     (Key::Escape, GameKey::Escape),
     (Key::Space, GameKey::Space),
@@ -250,50 +330,25 @@ static KEY_MAP: &[(Key, GameKey)] = &[
     (Key::Key8, GameKey::Key8),
     (Key::Key9, GameKey::Key9),
     (Key::Key0, GameKey::Key0),
-    (Key::A, GameKey::A),
-    (Key::B, GameKey::B),
-    (Key::C, GameKey::C),
-    (Key::D, GameKey::D),
-    (Key::E, GameKey::E),
-    (Key::F, GameKey::F),
-    (Key::G, GameKey::G),
-    (Key::H, GameKey::H),
-    (Key::I, GameKey::I),
-    (Key::J, GameKey::J),
-    (Key::K, GameKey::K),
-    (Key::L, GameKey::L),
-    (Key::M, GameKey::M),
-    (Key::N, GameKey::N),
-    (Key::O, GameKey::O),
-    (Key::P, GameKey::P),
-    (Key::Q, GameKey::Q),
-    (Key::R, GameKey::R),
-    (Key::S, GameKey::S),
-    (Key::T, GameKey::T),
-    (Key::U, GameKey::U),
-    (Key::V, GameKey::V),
-    (Key::W, GameKey::W),
-    (Key::X, GameKey::X),
-    (Key::Y, GameKey::Y),
-    (Key::Z, GameKey::Z),
+    (Key::A, GameKey::A), (Key::B, GameKey::B), (Key::C, GameKey::C),
+    (Key::D, GameKey::D), (Key::E, GameKey::E), (Key::F, GameKey::F),
+    (Key::G, GameKey::G), (Key::H, GameKey::H), (Key::I, GameKey::I),
+    (Key::J, GameKey::J), (Key::K, GameKey::K), (Key::L, GameKey::L),
+    (Key::M, GameKey::M), (Key::N, GameKey::N), (Key::O, GameKey::O),
+    (Key::P, GameKey::P), (Key::Q, GameKey::Q), (Key::R, GameKey::R),
+    (Key::S, GameKey::S), (Key::T, GameKey::T), (Key::U, GameKey::U),
+    (Key::V, GameKey::V), (Key::W, GameKey::W), (Key::X, GameKey::X),
+    (Key::Y, GameKey::Y), (Key::Z, GameKey::Z),
     (Key::Minus, GameKey::Minus),
     (Key::Equal, GameKey::Equals),
     (Key::PageUp, GameKey::PageUp),
     (Key::PageDown, GameKey::PageDown),
     (Key::Home, GameKey::Home),
     (Key::End, GameKey::End),
-    (Key::F1, GameKey::F1),
-    (Key::F2, GameKey::F2),
-    (Key::F3, GameKey::F3),
-    (Key::F4, GameKey::F4),
-    (Key::F5, GameKey::F5),
-    (Key::F6, GameKey::F6),
-    (Key::F7, GameKey::F7),
-    (Key::F8, GameKey::F8),
-    (Key::F9, GameKey::F9),
-    (Key::F10, GameKey::F10),
-    (Key::F11, GameKey::F11),
-    (Key::F12, GameKey::F12),
+    (Key::F1, GameKey::F1), (Key::F2, GameKey::F2), (Key::F3, GameKey::F3),
+    (Key::F4, GameKey::F4), (Key::F5, GameKey::F5), (Key::F6, GameKey::F6),
+    (Key::F7, GameKey::F7), (Key::F8, GameKey::F8), (Key::F9, GameKey::F9),
+    (Key::F10, GameKey::F10), (Key::F11, GameKey::F11), (Key::F12, GameKey::F12),
     (Key::LeftBracket, GameKey::BracketLeft),
     (Key::RightBracket, GameKey::BracketRight),
 ];

@@ -109,12 +109,11 @@ pub struct SpatialGrid {
 
 impl SpatialGrid {
     pub fn new() -> Self {
-        let mut cells: [[Vec<u64>; SPATIAL_GRID_DIM]; SPATIAL_GRID_DIM] =
-            unsafe { std::mem::zeroed() };
-        for row in cells.iter_mut() {
-            for cell in row.iter_mut() {
-                unsafe { std::ptr::write(cell, Vec::with_capacity(64)); }
-            }
+        let cells: [[Vec<u64>; SPATIAL_GRID_DIM]; SPATIAL_GRID_DIM] = 
+            std::array::from_fn(|_| std::array::from_fn(|_| Vec::with_capacity(64)));
+        SpatialGrid { cells, dirty: true }
+    }
+
         }
         SpatialGrid { cells, dirty: true }
     }

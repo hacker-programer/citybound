@@ -1466,17 +1466,14 @@ impl BuildingCatalog {
         });
 
         // =========================================================================
+        // =========================================================================
         // 5. TRANSPORTE, MOVILIDAD Y CAOS VIAL (43-60)
         // =========================================================================
 
         // 43: Plataforma Hyperloop Subterránea
         templates.push(BuildingTemplate {
-
-        // =========================================================================
-
-        // 43: Plataforma Hyperloop Subterránea
-        templates.push(BuildingTemplate {
             id: 43,
+
             name: "Hyperloop Subterráneo",
             description: "Cápsulas al vacío a 1000km/h. Si un sismo microfractura el tubo, la implosión mata 500 NPCs en un frame.",
             category: BuildingCategory::Transport,

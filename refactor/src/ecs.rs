@@ -347,7 +347,7 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         sim_speed: 1,
         rng: SmallRng::seed_from_u64(42),
         terrain, quadtree, flow_fields, bitgrid,
-        terrain, quadtree, flow_fields, bitgrid,
+        lane_manager, design_tool,
         lane_manager, design_tool,
         water_grid, power_grid, road_wear,
         land_value_map, pollution_map,

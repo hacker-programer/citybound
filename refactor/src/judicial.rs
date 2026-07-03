@@ -373,7 +373,7 @@ impl JudicialSystem {
 
     /// Determina el fallo de un caso basado en su tipo y nivel de corrupciÃ³n
     fn determine_ruling(&self, case: &LegalCase, corruption: f32) -> CaseRuling {
-        // Probabilidad base de que gane el demandante
+    fn determine_ruling(&self, case: &LegalCase, corruption: f64) -> CaseRuling {
         let plaintiff_base = match case.case_type {
             CaseType::CivilDamages => 0.50,
             CaseType::Environmental => 0.35, // DifÃ­cil probar daÃ±o ambiental

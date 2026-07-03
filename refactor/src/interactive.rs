@@ -417,16 +417,6 @@ impl DesignTool {
             entity_ids,
         });
     }
-
-    /// Ejecuta una acción de eliminar edificio
-    pub fn execute_remove_building(&mut self, gw: &mut GameWorld, x: f32, y: f32) {
-        let mut removed = None;
-
-        for (entity, (pos, construction, resources)) in gw.world
-            .query::<(&Position, &ConstructionState, &ResourceStorage)>()
-            .iter()
-        {
-            if (pos.x - x).abs() < 0.5 && (pos.y - y).abs() < 0.5 {
     /// Ejecuta una acción de eliminar edificio
     pub fn execute_remove_building(&mut self, gw: &mut GameWorld, x: f32, y: f32) {
         let mut removed = None;
@@ -453,6 +443,13 @@ impl DesignTool {
             self.push_action(DesignAction::RemoveBuilding {
                 x,
                 y,
+                building_type: btype,
+                money,
+                food,
+                goods,
+            });
+        }
+    }
                 building_type: btype,
                 money,
                 food,

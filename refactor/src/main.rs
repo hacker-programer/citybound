@@ -55,10 +55,9 @@ fn main() {
             std::process::exit(1);
         }
     };
-
     window.set_fps_target(TARGET_FPS);
-    )));
 
+    // ===== FRAMEBUFFER =====
     // ===== FRAMEBUFFER =====
     let mut framebuffer: Vec<u32> = vec![0xFF_1A_1A_2Eu32; FB_SIZE];
 

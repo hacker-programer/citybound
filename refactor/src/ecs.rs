@@ -64,7 +64,6 @@ pub enum ZoneType { Residential, Commercial, Industrial, Agricultural, Road, Par
 pub struct ZoneComponent { pub zone_type: ZoneType, pub density: u8 }
 
 #[derive(Copy, Clone, Debug)]
-#[derive(Copy, Clone, Debug)]
 #[repr(align(64))]
 pub struct TrafficCar { pub speed: f32, pub max_speed: f32, pub acceleration: f32, pub lane_position: f32, pub lane_id: u32 }
 

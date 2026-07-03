@@ -165,9 +165,8 @@ pub struct SpatialQueryIter<'a> {
     min_x: usize, max_x: usize,
     #[allow(dead_code)]
     min_y: usize, max_y: usize,
-
-    min_y: usize, max_y: usize,
     current_cx: usize, current_cy: usize,
+
     current_idx: usize,
     done: bool,
 }

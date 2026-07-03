@@ -15,10 +15,9 @@
 // [TC#21] Distancias²
 // [TC#23] Pre-orden Z-Index (capas vía RenderCache)
 // [TA#17] get_unchecked
-
 use crate::ecs::{GameWorld, Renderable, Camera, ConstructionState, BuildingType, TrafficCar};
-                  ConstructionState, BuildingType, TrafficCar};
 
+use crate::simd_render;
 use crate::simd_render;
 
 // ---------------------------------------------------------------------------

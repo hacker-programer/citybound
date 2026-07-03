@@ -92,18 +92,21 @@ fn main() {
 
         // ---- INPUT ----
         // Resetear flancos
+        // ---- INPUT ----
+        // Resetear flancos
         input_state.keys_pressed = 0;
         input_state.keys_released = 0;
 
         // Capturar teclas presionadas
-        window.get_keys().map(|keys| {
-            for key in keys {
-                if let Some(gk) = map_minifb_key(key) {
-                    let bit = 1u128 << (gk as u8);
-                    if input_state.keys_down & bit == 0 {
-                        input_state.keys_pressed |= bit;
-                    }
-                    input_state.keys_down |= bit;
+        for key in window.get_keys() {
+            if let Some(gk) = map_minifb_key(key) {
+                let bit = 1u128 << (gk as u8);
+                if input_state.keys_down & bit == 0 {
+                    input_state.keys_pressed |= bit;
+                }
+                input_state.keys_down |= bit;
+            }
+        }
                 }
             }
         });

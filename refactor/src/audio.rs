@@ -278,7 +278,14 @@ fn generate_noise(duration_secs: f32, sample_rate: u32) -> AudioBuffer {
     for _ in 0..num_samples {
         samples.push((rng.gen::<f32>() * 2.0 - 1.0) * 0.05); // Ruido blanco bajo
     }
+
+    AudioBuffer {
+        samples,
+        sample_rate,
+    }
 }
+
+// ─── AudioPlayer (wrapper público para main.rs) ──────────────────────────────
 
 // ─── AudioPlayer (wrapper público para main.rs) ──────────────────────────────
 

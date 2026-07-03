@@ -1,0 +1,24 @@
+# Citybound Native — Configuración de compilación
+# Stack overflow fix: Windows default 1MB → 8MB, Android → 16MB
+
+[target.'cfg(all(target_os = "windows", target_env = "msvc"))']
+rustflags = ["-C", "link-args=/STACK:8388608"]
+
+[target.'cfg(all(target_os = "windows", target_env = "gnu"))']
+rustflags = ["-C", "link-args=-Wl,--stack,8388608"]
+
+[target.'cfg(target_os = "android")']
+rustflags = ["-C", "link-args=-Wl,-z,stack-size=16777216"]
+
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-args=-Wl,-z,stack-size=8388608"]
+
+[target.'cfg(target_os = "macos")']
+rustflags = ["-C", "link-args=-Wl,-stack_size,0x800000"]
+
+[build]
+# Compilación más rápida para desarrollo
+rustflags = ["-C", "target-feature=+sse4.2,+popcnt"]
+
+[profile.dev.package."*"]
+opt-level = 2

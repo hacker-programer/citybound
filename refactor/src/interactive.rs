@@ -286,7 +286,8 @@ impl DesignTool {
                     ));
                     game_world.bitgrid.set(0, *x, *y);
                 }
-                DesignAction::ClearZone { x1, y1, x2, y2, previous_zones } => {
+                DesignAction::ClearZone { x1: _, y1: _, x2: _, y2: _, previous_zones } => {
+
                     // Restaurar zonas anteriores
                     for (zx, zy, ztype, density) in previous_zones {
                         game_world.world.spawn((

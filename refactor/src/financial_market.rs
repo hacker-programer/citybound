@@ -230,6 +230,17 @@ impl WaterFuturesMarket {
             };
 
             // Escasez = pánico en el mercado
+    /// Actualiza el precio del agua según modo (mercado vs costo)
+    pub fn tick(&mut self, water_reserves: f32, water_demand: f32) {
+        if self.market_controlled {
+            // MECÁNICA DISTÓPICA: Precio determinado por especulación, no por costo real
+            let supply_demand_ratio = if water_demand > 0.0 {
+                water_reserves / water_demand
+            } else {
+                10.0
+            };
+
+            // Escasez = pánico en el mercado
             let scarcity_panic = if supply_demand_ratio < 1.0 {
                 (1.0 - supply_demand_ratio) * 2.0
             } else if supply_demand_ratio < 0.5 {
@@ -238,8 +249,8 @@ impl WaterFuturesMarket {
                 0.0
             };
 
-            // Volatilidad RNG
-            let random_shock = rng.next_f32_range(-1.0, 1.0) * self.volatility;
+            // Volatilidad RNG (usando pool global)
+            let random_shock = rng_pool::rng_range(-1.0, 1.0) * self.volatility;
 
             // Especulación artificial
             let speculation_factor = 1.0 + random_shock + scarcity_panic;
@@ -247,13 +258,6 @@ impl WaterFuturesMarket {
             self.spot_price = (self.spot_price * speculation_factor)
                 .max(self.production_cost * 0.5)  // no puede caer debajo de 50% del costo
                 .min(self.production_cost * 20.0); // puede subir 2000%
-
-            self.price_history.push(self.spot_price);
-            if self.price_history.len() > 256 {
-                self.price_history.remove(0);
-            }
-        } else {
-            // Precio normal = costo de producción
             self.spot_price = self.production_cost;
         }
     }

@@ -482,11 +482,10 @@ pub fn process_design_input(
         }
     }
     if input.is_key_pressed(GameKey::Key2) {
-            tool.set_building_mode();
-        } else {
-            tool.set_paint_mode();
-            tool.current_zone = ZoneType::Commercial;
-        }
+        tool.set_building_mode();
+    } else {
+        tool.set_paint_mode();
+        tool.current_zone = ZoneType::Commercial;
     }
     if input.is_key_pressed(GameKey::Key3) {
         tool.set_paint_mode();

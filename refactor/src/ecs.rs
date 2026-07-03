@@ -299,7 +299,6 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     ];
 
     for &(bx, by, btype) in &buildings {
-    for &(bx, by, btype) in &buildings {
         let color = crate::render_cache::building_color(btype);
         world.spawn((
             Position::new(bx, by),
@@ -340,22 +339,20 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     GameWorld {
         world,
         spatial_grid,
+        render_cache,
         pool: EntityPool::new(1000),
         sim_tick: 0, time_of_day: 7 * 60,
         sim_speed: 1,
         rng: SmallRng::seed_from_u64(42),
         terrain, quadtree, flow_fields, bitgrid,
         lane_manager, design_tool,
-        terrain, quadtree, flow_fields, bitgrid,
-        lane_manager, design_tool,
         water_grid, power_grid, road_wear,
+        land_value_map, pollution_map,
         finance, parking_mgr, waste_mgr,
         customization, politics,
         grid_size,
     }
 }
-
-pub fn rebuild_spatial_grid(game_world: &mut GameWorld) {
     game_world.spatial_grid.rebuild(&game_world.world);
 }
 

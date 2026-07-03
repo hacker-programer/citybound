@@ -403,8 +403,7 @@ impl JudicialSystem {
     /// El alcalde puede sobornar jueces para influir en casos
     pub fn corrupt_court(&mut self, court_id: u64, bribe_amount: f64) -> bool {
         if let Some(court) = self.courthouses.iter_mut().find(|c| c.id == court_id) {
-            court.corruption_index = (court.corruption_index + bribe_amount / 1_000_000.0).min(1.0);
-            return true;
+            court.corruption_index = (court.corruption_index + bribe_amount as f32 / 1_000_000.0).min(1.0);
         }
         false
     }

@@ -203,12 +203,11 @@ fn generate_pollution(gw: &mut GameWorld) {
             let idx = gy * HEATMAP_SIZE + gx;
             gw.pollution_map.values[idx] = (gw.pollution_map.values[idx] + 0.01).min(10.0);
         }
+        }
     }
-}
 }
 
 fn update_land_values(gw: &mut GameWorld) {
-    for y in 0..HEATMAP_SIZE {
         for x in 0..HEATMAP_SIZE {
             let idx = y * HEATMAP_SIZE + x;
             let mut value = gw.land_value_map.values[idx];

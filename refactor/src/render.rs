@@ -648,20 +648,18 @@ fn get_glyph(ch: char) -> [u8; 7] {
         _ => [0x00; 7],
     }
 }
-
 // ---------------------------------------------------------------------------
 // UTILIDADES
+// ---------------------------------------------------------------------------
+
 #[allow(dead_code)]
 #[inline(always)]
 fn multiply_alpha(color: u32, alpha: f32) -> u32 {
-
-fn multiply_alpha(color: u32, alpha: f32) -> u32 {
     let a = (((color >> 24) & 0xFF) as f32 * alpha) as u32;
     (a << 24) | (color & 0x00_FF_FF_FF)
+}
+
 #[allow(dead_code)]
-fn building_color(btype: BuildingType) -> u32 {
-
-
 #[inline(always)]
 fn building_color(btype: BuildingType) -> u32 {
     match btype {
@@ -670,6 +668,13 @@ fn building_color(btype: BuildingType) -> u32 {
         BuildingType::Shop => COLOR_BUILDING_SHOP,
         BuildingType::Office => COLOR_BUILDING_OFFICE,
         BuildingType::Factory => COLOR_BUILDING_FACTORY,
+        BuildingType::Farm => COLOR_BUILDING_FARM,
+        BuildingType::Hospital => COLOR_BUILDING_HOSPITAL,
+        BuildingType::School => COLOR_BUILDING_SCHOOL,
+        BuildingType::Police => COLOR_BUILDING_POLICE,
+    }
+}
+
         BuildingType::Farm => COLOR_BUILDING_FARM,
         BuildingType::Hospital => COLOR_BUILDING_HOSPITAL,
         BuildingType::School => COLOR_BUILDING_SCHOOL,

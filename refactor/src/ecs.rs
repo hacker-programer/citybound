@@ -198,6 +198,7 @@ pub struct GameWorld {
     pub pool: EntityPool,
     pub sim_tick: u64,
     pub time_of_day: u16,
+    pub sim_speed: u8,          // 1, 2, 4, 8 — multiplicador de velocidad
     pub rng: SmallRng,
     pub terrain: TerrainMap,
     pub quadtree: Quadtree,
@@ -217,7 +218,6 @@ pub struct GameWorld {
     pub politics: PoliticalSystem,
     pub grid_size: i32,
 }
-
 pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
     let mut world = hecs::World::new();
     let grid_size: i32 = 128;

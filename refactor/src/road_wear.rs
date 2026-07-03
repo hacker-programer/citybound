@@ -50,7 +50,8 @@ pub const WEAR_UPDATE_INTERVAL: u64 = 5;
 /// Grid que rastrea el desgaste del asfalto por celda
 #[repr(align(64))]
 pub struct RoadWearGrid {
-    pub values: [[f32; WEAR_GRID_SIZE]; WEAR_GRID_SIZE],
+    /// Valores en heap: índice = y * WEAR_GRID_SIZE + x
+    pub values: Vec<f32>,
     /// Presupuesto de mantenimiento (0.0 - 1.0)
     pub maintenance_budget: f32,
 }
@@ -58,7 +59,7 @@ pub struct RoadWearGrid {
 impl RoadWearGrid {
     pub fn new() -> Self {
         RoadWearGrid {
-            values: [[0.0_f32; WEAR_GRID_SIZE]; WEAR_GRID_SIZE],
+            values: vec![0.0_f32; WEAR_GRID_SIZE * WEAR_GRID_SIZE],
             maintenance_budget: 0.5,
         }
     }
@@ -66,7 +67,7 @@ impl RoadWearGrid {
     #[inline(always)]
     pub fn get(&self, x: usize, y: usize) -> f32 {
         if x < WEAR_GRID_SIZE && y < WEAR_GRID_SIZE {
-            unsafe { *self.values.get_unchecked(y).get_unchecked(x) }
+            unsafe { *self.values.get_unchecked(y * WEAR_GRID_SIZE + x) }
         } else {
             0.0
         }
@@ -78,12 +79,11 @@ impl RoadWearGrid {
 
         for y in 0..WEAR_GRID_SIZE {
             for x in 0..WEAR_GRID_SIZE {
-                self.values[y][x] = (self.values[y][x] - repair_rate).max(0.0);
+                let idx = y * WEAR_GRID_SIZE + x;
+                self.values[idx] = (self.values[idx] - repair_rate).max(0.0);
             }
         }
     }
-
-    /// Calcula el factor de velocidad (1.0 = sin penalización, 0.4 = máxima penalización)
     #[inline(always)]
     pub fn speed_factor(&self, x: usize, y: usize) -> f32 {
         let wear = self.get(x, y);

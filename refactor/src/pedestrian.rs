@@ -388,19 +388,21 @@ impl PedestrianSystem {
 
     /// Generar viajes peatonales desde edificios según hora del día
     pub fn generate_trips(
+    /// Generar viajes peatonales desde edificios según hora del día
+    pub fn generate_trips(
         &mut self,
         building_positions: &[(f32, f32, u8)], // (x, y, building_type_id)
         time_of_day: u16, // minutos (0-1439)
     ) {
-pub fn should_cross(
-    _pedestrian_x: f32,
-    _pedestrian_y: f32,
-    nearest_car_dist: f32,
-    nearest_car_speed: f32,
-    has_traffic_light: bool,
-    light_is_green: bool,
-    road_width: f32,
-) -> bool {
+        let hour = time_of_day as f32 / 60.0;
+        let factor = hour_factor(hour);
+
+        for &(bx, by, btype) in building_positions {
+            // Simplificado: cada edificio genera peatones según tipo y hora
+            let spawn_chance = match btype {
+                0 => 0.10 * factor, // House → residentes saliendo
+                1 => 0.20 * factor, // Shop → compradores
+                2 => 0.05 * factor, // Factory → pocos peatones
                 3 => 0.12 * factor, // Apartment
                 4 => 0.15 * factor, // Office → trabajadores
                 5 => 0.03 * factor, // Farm
@@ -430,14 +432,6 @@ pub fn should_cross(
             }
         }
     }
-
-    /// Verificar colisiones peatón-vehículo (devuelve conteo de atropellos)
-    pub fn check_vehicle_collisions(
-        &self,
-        vehicle_positions: &[(f32, f32)],
-        vehicle_speeds: &[(f32, f32)],
-    ) -> u32 {
-        let mut collisions = 0u32;
         for i in 0..self.active_count {
             let px = self.positions[i].0;
             let py = self.positions[i].1;

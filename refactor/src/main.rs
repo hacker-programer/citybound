@@ -271,7 +271,7 @@ fn write_fps_title<'a>(
     cars: usize,
     trucks: usize,
     treasury: f32,
-    circling: usize,
+    _circling: usize,
     approval: f32,
     pop: usize,
 ) -> &'a str {

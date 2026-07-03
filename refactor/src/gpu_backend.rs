@@ -1308,9 +1308,8 @@ pub fn init_render_backend(width: u32, height: u32) -> ActiveBackend {
     println!("══════════════════════════════════════════════════");
 
     // Por ahora siempre CPU SIMD (GPU real requiere ventana nativa con raw-window-handle)
+    // Por ahora siempre CPU SIMD (GPU real requiere ventana nativa con raw-window-handle)
     ActiveBackend::CpuSimd(CpuBackend::new(width, height))
-}
-
 }
 
 // ---------------------------------------------------------------------------
@@ -1318,6 +1317,8 @@ pub fn init_render_backend(width: u32, height: u32) -> ActiveBackend {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+mod tests {
+
 mod tests {
 
 

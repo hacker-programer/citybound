@@ -1,4 +1,4 @@
-// Citybound Native - Biblioteca central v0.10.0 [FASE 7]
+// Citybound Native - Biblioteca central v0.13.0 [FASE 8: GPU ADAPTATIVA]
 //
 // Re-exporta todos los módulos públicos para uso en main.rs y tests.
 //
@@ -6,6 +6,11 @@
 // - ecs: Entity Component System (hecs)
 // - sim: Sistemas de simulación (tiempo, tráfico, economía, suelo)
 // - render: Renderizado software al framebuffer (con SIMD) + RenderCache
+// - gpu_backend: Aceleración GPU adaptativa [FASE 8]
+//   * Detecta hardware: Tier 0(CPU) a Tier 3(High-end GPU)
+//   * Atlas de texturas combinado
+//   * Pool de comandos de render preasignados
+//   * Alpha blending rápido sin branch
 // - render_cache: Pre-sort estático de entidades por capa
 // - luts: Look-up tables trigonométricas precalculadas
 // - object_pool: Pool de entidades preasignadas
@@ -32,6 +37,10 @@
 // - politics: NIMBY, sindicatos, elecciones [M#10]
 // - climate: Ciclo día/noche con color grading [FASE 7]
 // - persistence: Save/Load con bincode [FASE 7]
+// - financial_market: Mercado financiero [v0.12]
+// - buildings: Catálogo de edificios distópicos [v0.12]
+// - pedestrian: Modelo de fuerzas sociales para peatones [v0.12]
+// - judicial: Sistema judicial [v0.12]
 
 pub mod ecs;
 pub mod sim;
@@ -56,13 +65,20 @@ pub mod utilities;
 pub mod road_wear;
 pub mod labor_market;
 pub mod tax_system;
-pub mod platform; // Capa de abstracción de plataforma (Windows/Android/macOS/Linux)
-pub mod parking; // Estacionamiento físico y HOA [M#7]
-pub mod waste_mgmt; // Clasificación de basura [M#8]
+pub mod platform;
+pub mod parking;
+pub mod waste_mgmt;
 pub mod customization;
 pub mod politics;
-pub mod financial_market; // Mercado financiero: bolsa, futuros de agua, bonos, crédito
-pub mod buildings; // Catálogo de edificios con mecánicas distópicas [v0.12]
-pub mod pedestrian; // Social Force Model — peatones, cruces, multitudes
-pub mod judicial; // Sistema judicial: tribunales, demandas, patentes troll
-pub mod financial_market; // Mercado financiero: bolsa, futuros de agua, bonos, crédito
+pub mod financial_market;
+pub mod buildings;
+pub mod pedestrian;
+pub mod judicial;
+pub mod climate;
+pub mod persistence;
+
+// [FASE 8] GPU Backend Adaptativo
+pub mod gpu_backend;
+
+// [FASE 8] Shaders pre-compilados WGSL
+pub mod shaders;

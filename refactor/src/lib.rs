@@ -56,9 +56,11 @@ pub mod utilities;
 pub mod road_wear;
 pub mod labor_market;
 pub mod tax_system;
-pub mod platform; // 🆕 Capa de abstracción de plataforma (Windows/Android/macOS/Linux)
+pub mod platform; // Capa de abstracción de plataforma (Windows/Android/macOS/Linux)
+pub mod parking; // Estacionamiento físico y HOA [M#7]
+pub mod waste_mgmt; // Clasificación de basura [M#8]
 pub mod customization;
 pub mod politics;
 pub mod climate;
 pub mod persistence;
-pub mod pedestrian; // 🆕 Social Force Model — peatones, cruces, multitudes
+pub mod pedestrian; // Social Force Model — peatones, cruces, multitudes

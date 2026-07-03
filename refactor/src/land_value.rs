@@ -200,17 +200,17 @@ fn generate_pollution(gw: &mut GameWorld) {
         let gx = pos.x as usize;
         let gy = pos.y as usize;
         if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {
+        if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {
             let idx = gy * HEATMAP_SIZE + gx;
             gw.pollution_map.values[idx] = (gw.pollution_map.values[idx] + 0.01).min(10.0);
-        }
         }
     }
 }
 
 fn update_land_values(gw: &mut GameWorld) {
+    for y in 0..HEATMAP_SIZE {
         for x in 0..HEATMAP_SIZE {
             let idx = y * HEATMAP_SIZE + x;
-            let mut value = gw.land_value_map.values[idx];
 
             // Penalización por contaminación
             let pollution = gw.pollution_map.values[idx];

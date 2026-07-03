@@ -52,21 +52,24 @@ pub const HEATMAP_UPDATE_INTERVAL: u64 = 30;
 
 /// Mapa de calor de valor del suelo
 #[repr(align(64))]
+/// Mapa de calor de valor del suelo
+#[repr(align(64))]
 pub struct LandValueHeatmap {
-    pub values: [[f32; HEATMAP_SIZE]; HEATMAP_SIZE],
+    /// Valores en heap: índice = y * HEATMAP_SIZE + x
+    pub values: Vec<f32>,
 }
 
 impl LandValueHeatmap {
     pub fn new() -> Self {
         LandValueHeatmap {
-            values: [[10.0_f32; HEATMAP_SIZE]; HEATMAP_SIZE],
+            values: vec![10.0_f32; HEATMAP_SIZE * HEATMAP_SIZE],
         }
     }
 
     #[inline(always)]
     pub fn get(&self, x: usize, y: usize) -> f32 {
         if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
-            unsafe { *self.values.get_unchecked(y).get_unchecked(x) }
+            unsafe { *self.values.get_unchecked(y * HEATMAP_SIZE + x) }
         } else {
             10.0
         }
@@ -75,23 +78,24 @@ impl LandValueHeatmap {
     #[inline(always)]
     pub fn set(&mut self, x: usize, y: usize, value: f32) {
         if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
-            self.values[y][x] = value.clamp(0.0, MAX_LAND_VALUE);
+            self.values[y * HEATMAP_SIZE + x] = value.clamp(0.0, MAX_LAND_VALUE);
         }
     }
 
     /// Difusión: cada celda promedia con sus 4 vecinos
     pub fn diffuse(&mut self) {
-        let mut new_values = self.values;
+        let mut new_values = self.values.clone();
 
         for y in 1..(HEATMAP_SIZE - 1) {
             for x in 1..(HEATMAP_SIZE - 1) {
-                let center = self.values[y][x];
+                let idx = y * HEATMAP_SIZE + x;
+                let center = self.values[idx];
                 let avg_neighbors = (
-                    self.values[y-1][x] + self.values[y+1][x] +
-                    self.values[y][x-1] + self.values[y][x+1]
+                    self.values[(y-1) * HEATMAP_SIZE + x] + self.values[(y+1) * HEATMAP_SIZE + x] +
+                    self.values[y * HEATMAP_SIZE + (x-1)] + self.values[y * HEATMAP_SIZE + (x+1)]
                 ) / 4.0;
 
-                new_values[y][x] = center * (1.0 - DIFFUSION_RATE)
+                new_values[idx] = center * (1.0 - DIFFUSION_RATE)
                     + avg_neighbors * DIFFUSION_RATE;
             }
         }
@@ -103,20 +107,21 @@ impl LandValueHeatmap {
 /// Mapa de calor de contaminación
 #[repr(align(64))]
 pub struct PollutionHeatmap {
-    pub values: [[f32; HEATMAP_SIZE]; HEATMAP_SIZE],
+    /// Valores en heap: índice = y * HEATMAP_SIZE + x
+    pub values: Vec<f32>,
 }
 
 impl PollutionHeatmap {
     pub fn new() -> Self {
         PollutionHeatmap {
-            values: [[0.0_f32; HEATMAP_SIZE]; HEATMAP_SIZE],
+            values: vec![0.0_f32; HEATMAP_SIZE * HEATMAP_SIZE],
         }
     }
 
     #[inline(always)]
     pub fn get(&self, x: usize, y: usize) -> f32 {
         if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
-            unsafe { *self.values.get_unchecked(y).get_unchecked(x) }
+            unsafe { *self.values.get_unchecked(y * HEATMAP_SIZE + x) }
         } else {
             0.0
         }
@@ -124,20 +129,25 @@ impl PollutionHeatmap {
 
     /// Difusión de contaminación + decaimiento
     pub fn diffuse_and_decay(&mut self) {
-        let mut new_values = self.values;
+        let mut new_values = self.values.clone();
 
         for y in 1..(HEATMAP_SIZE - 1) {
             for x in 1..(HEATMAP_SIZE - 1) {
-                let center = self.values[y][x];
+                let idx = y * HEATMAP_SIZE + x;
+                let center = self.values[idx];
                 let avg_neighbors = (
-                    self.values[y-1][x] + self.values[y+1][x] +
-                    self.values[y][x-1] + self.values[y][x+1]
+                    self.values[(y-1) * HEATMAP_SIZE + x] + self.values[(y+1) * HEATMAP_SIZE + x] +
+                    self.values[y * HEATMAP_SIZE + (x-1)] + self.values[y * HEATMAP_SIZE + (x+1)]
                 ) / 4.0;
 
-                // Difusión + decaimiento
-                let diffused = center * (1.0 - DIFFUSION_RATE * 0.5)
-                    + avg_neighbors * DIFFUSION_RATE * 0.5;
-                new_values[y][x] = (diffused - POLLUTION_DECAY).max(0.0);
+                new_values[idx] = (center * (1.0 - DIFFUSION_RATE)
+                    + avg_neighbors * DIFFUSION_RATE)
+                    * (1.0 - POLLUTION_DECAY);
+            }
+        }
+
+        self.values = new_values;
+    }
             }
         }
 

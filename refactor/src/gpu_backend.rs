@@ -960,12 +960,8 @@ impl CpuBackend {
         }
     }
 
-        }
-    }
-
     fn draw_gradient(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, base_color: u32, _flags: u8) {
-        let x_start = x0.min(fb_w);
-        let x_end = x1.min(fb_w);
+
         let y_start = y0.min(fb_h);
         let y_end = y1.min(fb_h);
         let h = (y_end - y_start).max(1);

@@ -85,25 +85,20 @@ pub struct LegalCase {
     pub ruling: Option<CaseRuling>,
     pub appeal_count: u8,
     pub is_class_action: bool,   // demanda colectiva
-    pub corruption_level: f32,   // 0.0 = limpio, 1.0 = totalmente corrupto
+    pub is_class_action: bool,   // demanda colectiva
     pub corruption_level: f32,   // 0.0 = limpio, 1.0 = totalmente corrupto
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CaseRuling {
     Pending,
+    Dismissed,
+    Settled { amount: f64 },       // acuerdo extrajudicial
     PlaintiffWon { amount: f64 },   // ganó el demandante
     DefendantWon,                   // ganó el demandado
     HungJury,                       // jurado estancado
     Mistrial,                       // juicio nulo
 }
-
-/// Un tribunal físico en la ciudad
-#[derive(Debug, Clone)]
-pub struct CourtHouse {
-    pub id: u64,
-    pub x: f32, pub y: f32,
-    pub court_level: CourtLevel,
     pub max_cases: u32,
     pub active_cases: u32,
     pub judges_available: u32,

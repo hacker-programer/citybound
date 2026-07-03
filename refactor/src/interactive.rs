@@ -464,7 +464,6 @@ pub fn process_design_input(
     window_width: u32,
     window_height: u32,
 ) {
-) {
     if input.is_key_pressed(GameKey::Tab) {
         tool.toggle();
     }

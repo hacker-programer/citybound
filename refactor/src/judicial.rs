@@ -386,10 +386,10 @@ impl JudicialSystem {
         };
 
         // La corrupción altera el resultado
-        let adjusted = plaintiff_base + (corruption - 0.5) * 0.4;
+        let adjusted = plaintiff_base + (corruption as f64 - 0.5) * 0.4;
 
-        if rng_pool::rng_fast() < adjusted {
-            let amount = case.damages_claimed * (0.3 + rng_pool::rng_fast() * 0.7);
+        if rng_pool::rng_fast() < adjusted as f32 {
+            let amount = case.damages_claimed * (0.3 + rng_pool::rng_fast() * 0.7) as f64;
             CaseRuling::PlaintiffWon { amount }
         } else if rng_pool::rng_fast() < 0.3 {
             let amount = case.damages_claimed * 0.1;
@@ -402,12 +402,11 @@ impl JudicialSystem {
     /// El alcalde puede sobornar jueces para influir en casos
     pub fn corrupt_court(&mut self, court_id: u64, bribe_amount: f64) -> bool {
         if let Some(court) = self.courthouses.iter_mut().find(|c| c.id == court_id) {
-            court.corruption_index = (court.corruption_index + bribe_amount / 1_000_000.0).min(1.0);
             court.corruption_index = (court.corruption_index + (bribe_amount / 1_000_000.0) as f32).min(1.0);
+            return true;
         }
         false
     }
-
     /// La ciudad es demandada por accidente/contaminación
     pub fn city_sued(&mut self, reason: &str, damages: f64) -> u64 {
         self.file_lawsuit(

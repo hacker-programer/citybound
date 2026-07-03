@@ -875,11 +875,13 @@ impl CpuBackend {
             0 => self.draw_rect(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color, cmd.flags),
             1 => self.draw_line(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color),
             2 => {
+            2 => {
                 if x0 < w && y0 < h {
-                    self.work_buffer[y0 * w + x0] = blend_pixel(self.work_buffer[y0 * w + x0], cmd.color);
+                    let old = self.work_buffer[y0 * w + x0];
+                    self.work_buffer[y0 * w + x0] = blend_pixel(old, cmd.color);
                 }
             }
-            3 => {
+
                 if cmd.texture_id < self.atlas.entries.len() as u16 {
                     self.draw_sprite(&mut self.work_buffer, w, h, cmd);
                 }

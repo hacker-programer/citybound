@@ -41,8 +41,8 @@ impl TerrainMap {
         let persistence: f32 = 0.5;
         let lacunarity: f32 = 2.0;
 
-        // RNG determinista
-        let mut rng = crate::rng_pool::SimpleRng::new(seed);
+        // RNG determinista usando splitmix64 de rng_pool
+        let mut rng_state = seed;
 
         // Pre-generar 4 octavas de ruido
         for y in 0..TERRAIN_SIZE {
@@ -62,10 +62,10 @@ impl TerrainMap {
                     let fy = ny - iy as f32;
 
                     // 4 esquinas con hash determinista
-                    let v00 = hash_2d(ix as u32, iy as u32, &mut rng);
-                    let v10 = hash_2d((ix + 1) as u32, iy as u32, &mut rng);
-                    let v01 = hash_2d(ix as u32, (iy + 1) as u32, &mut rng);
-                    let v11 = hash_2d((ix + 1) as u32, (iy + 1) as u32, &mut rng);
+                    let v00 = hash_2d(ix as u32, iy as u32, &mut rng_state);
+                    let v10 = hash_2d((ix + 1) as u32, iy as u32, &mut rng_state);
+                    let v01 = hash_2d(ix as u32, (iy + 1) as u32, &mut rng_state);
+                    let v11 = hash_2d((ix + 1) as u32, (iy + 1) as u32, &mut rng_state);
 
                     // Interpolación bilineal
                     let sx = smoothstep(fx);
@@ -153,26 +153,35 @@ impl TerrainMap {
         self.terrain_types[iy * TERRAIN_SIZE + ix]
     }
 
-    /// Obtiene el color precalculado (baked) en una posición
+    /// Obtiene el color precalculado (baked) en una posición (por índices de grilla)
     #[inline]
-    pub fn color_at(&self, x: f32, y: f32) -> u32 {
-        let ix = x.clamp(0.0, (TERRAIN_SIZE - 1) as f32) as usize;
-        let iy = y.clamp(0.0, (TERRAIN_SIZE - 1) as f32) as usize;
-        self.baked_colors[iy * TERRAIN_SIZE + ix]
+    pub fn color_at(&self, gx: usize, gy: usize) -> u32 {
+        if gx < TERRAIN_SIZE && gy < TERRAIN_SIZE {
+            self.baked_colors[gy * TERRAIN_SIZE + gx]
+        } else {
+            0xFF_00_00_00
+        }
+    }
+
+    /// Alias compatible con API antigua: baked_color(tx, ty) → color_at(tx, ty)
+    #[inline]
+    pub fn baked_color(&self, gx: usize, gy: usize) -> u32 {
+        self.color_at(gx, gy)
     }
 }
 
 // ---------------------------------------------------------------------------
-// HASH 2D determinista para ruido Perlin
+// HASH 2D determinista usando splitmix64 de rng_pool
 // ---------------------------------------------------------------------------
 
-fn hash_2d(x: u32, y: u32, rng: &mut crate::rng_pool::SimpleRng) -> f32 {
-    // Mezclar coordenadas con el estado del RNG
-    let h = (x.wrapping_mul(374761393).wrapping_add(y.wrapping_mul(668265263)))
-        .wrapping_add(rng.state as u32);
-    let h = (h ^ (h >> 13)).wrapping_mul(1274126177);
-    let h = h ^ (h >> 16);
-    (h as f32) / (u32::MAX as f32)
+fn hash_2d(x: u32, y: u32, state: &mut u64) -> f32 {
+    // Mezclar coordenadas en el estado
+    *state = state.wrapping_add(x as u64)
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(y as u64);
+    // Usar splitmix64 del rng_pool para el valor aleatorio
+    let val = crate::rng_pool::splitmix64(state);
+    (val as f32) / (u64::MAX as f32 + 1.0)
 }
 
 #[inline(always)]
@@ -232,5 +241,13 @@ mod tests {
             .filter(|&&c| c != 0xFF_00_00_00 && c != 0x00_00_00_00)
             .count();
         assert_eq!(non_black, 16384, "Todos los colores deben estar horneados");
+    }
+
+    #[test]
+    fn test_baked_color_alias() {
+        let terrain = TerrainMap::generate(42);
+        let c1 = terrain.baked_color(50, 50);
+        let c2 = terrain.color_at(50, 50);
+        assert_eq!(c1, c2, "baked_color debe ser alias de color_at");
     }
 }

@@ -352,11 +352,17 @@ impl LaneManager {
             next_id += 1;
             let id_w = next_id;
             self.lanes.push(Lane::new(id_w, 128.0, street_y + 2.0, 0.0, street_y + 2.0, LaneDirection::West, URBAN_SPEED_LIMIT));
+            self.lanes.push(Lane::new(id_w, 128.0, street_y + 2.0, 0.0, street_y + 2.0, LaneDirection::West, URBAN_SPEED_LIMIT));
+            next_id += 1;
+            self.lanes[id_e as usize].right_lane = Some(id_w);
+            self.lanes[id_w as usize].left_lane = Some(id_e);
+        }
+
+        self.build_spatial_grid();
+        println!("Red de carriles: {} carriles, {} intersecciones", self.lanes.len(), self.intersections.len());
+    }
+
     fn build_spatial_grid(&mut self) {
-        for cell in self.spatial_grid.iter_mut() { cell.clear(); }
-        for lane in &self.lanes {
-            let steps = lane.length.max(1.0) as i32;
-            for i in 0..=steps.min(128) {
                 let t = i as f32 / steps as f32;
                 let (x, y) = lane.position_at(t);
                 let gx = x as usize % 128;

@@ -1,419 +1,622 @@
-# Citybound Native v0.10.0 — Documentación Técnica Exhaustiva
+# Citybound Native v0.11.0 — Documentación Técnica Exhaustiva
 
-## Descripción General
-
-**Citybound Native** es un simulador de construcción de ciudades realista escrito en Rust puro, con renderizado por software (framebuffer), arquitectura ECS (Entity Component System) y múltiples sistemas de simulación avanzada. Es una refactorización completa del proyecto original Citybound para ejecutarse de forma nativa en escritorio, con optimizaciones extremas de rendimiento.
-
-- **Versión**: 0.10.0 (Fase 7)
-- **Edición Rust**: 2021
-- **Licencia**: AGPL-3.0
-- **Dependencias clave**: `hecs` (ECS), `minifb` (ventana gráfica), `bincode` (serialización), `cpal` (audio), `rayon` (paralelismo)
-- **Ubicación**: `refactor/`
+> **"Un simulador de ciudades donde cada detalle importa."**
+>
+> Citybound Native es un simulador de construcción de ciudades realista escrito en Rust puro,
+> con renderizado por software (framebuffer), arquitectura ECS y más de 20 sistemas de simulación
+> avanzada con fundamento matemático documentado.
 
 ---
 
-## Índice de Archivos
+## 📐 MODELOS MATEMÁTICOS
 
-### Archivos de configuración
-| Archivo | Descripción |
-|---------|-------------|
-| `Cargo.toml` | Definición del crate, dependencias, perfiles de compilación |
-| `Cargo.lock` | Versiones exactas de dependencias |
+### 1. Impuestos y Finanzas Municipales (`tax_system.rs`)
 
-### Módulos fuente (`src/`)
+#### 1.1 Recaudación Total (por período T = 300 ticks)
+
+```
+R_total = Σ R_land + Σ R_corp + Σ R_sales + Σ R_tolls
+```
+
+#### 1.2 Impuesto sobre el Valor del Suelo (Land Value Tax)
+
+Para cada parcela `i` con valor del suelo `V_i`:
+
+```
+R_land = Σ (τ_land · V_i · A_i / 100)
+```
+
+Donde:
+- `τ_land` ∈ [0.0, 0.15]: tasa del impuesto (típico 0.5%–2%)
+- `V_i`: valor del suelo (de `LandValueHeatmap.values[i]`)
+- `A_i`: área de la parcela en celdas
+
+#### 1.3 Impuesto a la Renta Corporativa
+
+Para cada corporación `j` con ingresos `I_j` y costos `C_j`:
+
+```
+G_j = max(0, I_j − C_j)               // Ganancia neta
+R_corp = Σ (τ_corp · G_j)
+```
+
+Donde `τ_corp` ∈ [0.0, 0.35] (típico 15%–28%).
+
+#### 1.4 Impuesto al Consumo Local (Sales Tax)
+
+```
+R_sales = τ_sales · Σ (consumo_total_edificios_comerciales)
+```
+
+Donde `τ_sales` ∈ [0.0, 0.15].
+
+#### 1.5 Peajes Dinámicos (Dynamic Tolls)
+
+Los peajes varían con la hora del día:
+
+```
+τ_toll(h) = τ_base · f(h)
+
+f(h) = {
+  0.30  si 0 ≤ h < 6     (madrugada, bajo tráfico)
+  1.00  si 6 ≤ h < 9     (hora pico AM)
+  0.70  si 9 ≤ h < 17    (horas laborales)
+  1.20  si 17 ≤ h < 20   (hora pico PM)
+  0.50  si 20 ≤ h < 24   (noche)
+}
+```
+
+#### 1.6 Bonos Municipales y Calificación Crediticia
+
+Emisión de bono de valor `B` con interés `r` y madurez `M` ticks:
+
+```
+Pago_interés_período = B · r / (M / TAX_COLLECTION_INTERVAL)
+```
+
+La calificación crediticia se modela como:
+
+```
+credit_rating(t+1) = clamp(
+  credit_rating(t) + α·(superávit_relativo) − β·(deuda/PBI) − γ·(desempleo),
+  0.0, 1.0
+)
+```
+
+Donde:
+- `α = 0.02`: sensibilidad al superávit
+- `β = 0.05`: penalización por deuda alta (>60% PBI cae rating)
+- `γ = 0.03`: penalización por desempleo
+- Umbrales: AAA (>0.85), BBB (>0.60), BB (>0.40), B (>0.25), CCC (>0.10), D
+
+---
+
+### 2. Valor del Suelo y Gentrificación (`land_value.rs`)
+
+#### 2.1 Ecuación de Difusión (Heat Equation Discretizada)
+
+El valor del suelo sigue una ecuación de difusión 2D con fuentes/sumideros:
+
+```
+∂V/∂t = D · ∇²V + S(x,y) − δ · V + β_park · P(x,y) − β_poll · C(x,y) − β_ind · I(x,y)
+```
+
+Discretización (Forward Euler, grilla 128×128):
+
+```
+V[i,j]^(t+1) = V[i,j]^t + D·Δt · [V[i+1,j] + V[i-1,j] + V[i,j+1] + V[i,j-1] − 4·V[i,j]]^t
+              + S[i,j]·Δt − δ·V[i,j]^t·Δt
+              + β_park·P[i,j]·Δt − β_poll·C[i,j]·Δt − β_ind·I[i,j]·Δt
+```
+
+Parámetros:
+- `D = 0.15` (DIFFUSION_RATE): coeficiente de difusión
+- `δ = 0.001`: decaimiento natural
+- `β_park = 0.05` (PARK_VALUE_BOOST): bonus por parque cercano
+- `β_poll = 0.03` (POLLUTION_VALUE_PENALTY): penalización por contaminación
+- `β_ind = 0.02` (INDUSTRIAL_VALUE_PENALTY): penalización industrial
+- `S(x,y)`: fuentes (edificios de alto valor, proximidad a servicios)
+
+#### 2.2 Gentrificación
+
+Un residente es desplazado si:
+
+```
+V_celda > GENTRIFICATION_THRESHOLD · income_residente
+```
+
+Donde `GENTRIFICATION_THRESHOLD = 1.5`.
+
+El desplazamiento produce:
+1. El residente migra a la periferia (celda con menor V y contaminación presente)
+2. El edificio original se reemplaza por uno de mayor densidad/valor
+3. Aumenta la desigualdad espacial (índice Gini de valores del suelo)
+
+#### 2.3 Contaminación (Pollution Heatmap)
+
+La contaminación sigue la misma ecuación de difusión con fuente industrial:
+
+```
+∂C/∂t = D_poll · ∇²C + Q_factories(x,y) − λ_decay · C
+```
+
+- `D_poll = 0.10`: difusión de contaminantes
+- `λ_decay = 0.001` (POLLUTION_DECAY): decaimiento natural
+- `Q_factories`: emisión de fábricas (proporcional a producción)
+
+---
+
+### 3. Desgaste de Infraestructura (`road_wear.rs`)
+
+#### 3.1 Modelo de Desgaste Acumulativo
+
+Para cada celda de la grilla vial (128×128):
+
+```
+W[x,y]^(t+1) = W[x,y]^t + Σ(w_car · n_cars + w_truck · n_trucks) − r_natural · Δt
+```
+
+Donde:
+- `w_car = 0.001`: desgaste por coche normal
+- `w_truck = 0.01`: desgaste por camión (10× más dañino)
+- `r_natural = 0.0001` (NATURAL_REPAIR): reparación natural por tick
+- `W ∈ [0, MAX_WEAR=100]`: nivel de desgaste (0=perfecto, 100=destruido)
+
+#### 3.2 Efecto en Velocidad del Tráfico
+
+```
+speed_factor(W) = 1.0 − (W − DAMAGE_THRESHOLD) / (MAX_WEAR − DAMAGE_THRESHOLD) · MAX_SPEED_PENALTY
+```
+
+Donde:
+- `DAMAGE_THRESHOLD = 30.0`: punto donde empieza a afectar
+- `MAX_SPEED_PENALTY = 0.6`: reducción máxima (60% más lento)
+- `speed_factor ∈ [0.4, 1.0]`
+
+El flow field local se multiplica por `speed_factor` para reducir la velocidad efectiva.
+
+---
+
+### 4. Propagación de Utilidades (`utilities.rs`)
+
+#### 4.1 Modelo de Presión/Voltaje por Distancia Manhattan
+
+Para una grilla 32×32 (cada celda = 4×4 del mundo):
+
+```
+P[x,y] = P_source − PRESSURE_LOSS_PER_CELL · d_manhattan(source, [x,y])
+```
+
+Donde:
+- `P_source = 100.0` (MAX_PRESSURE)
+- `PRESSURE_LOSS_PER_CELL = 5.0`
+- `d_manhattan = |x − sx| + |y − sy|`
+
+#### 4.2 Condición de Funcionamiento
+
+Un edificio en `(x,y)` funciona si:
+
+```
+P[x/4, y/4] ≥ MIN_PRESSURE_THRESHOLD
+```
+
+Donde `MIN_PRESSURE_THRESHOLD = 20.0`.
+
+Si no se alcanza el umbral:
+- Sin agua: `ResourceStorage.food` se reduce (-10% por tick)
+- Sin electricidad: producción cae al 50%
+
+---
+
+### 5. Mercado Laboral (`labor_market.rs`)
+
+#### 5.1 Matching Trabajador-Empleo
+
+Un trabajador desempleado `w` puede aceptar empleo en empresa `e` si:
+
+```
+d_euclidean(w.pos, e.pos) ≤ MAX_COMMUTE_DISTANCE
+```
+
+Y se asigna al empleador más cercano con vacantes. El matching es voraz (greedy).
+
+#### 5.2 Despido y Abandono
+
+- Si un trabajador pasa `MAX_JOB_SEARCH_TICKS = 200` desempleado → probabilidad de abandono
+- Si un empleador pasa `MAX_UNSTAFFED_TICKS = 400` sin trabajadores → probabilidad de cierre `ABANDONMENT_CHANCE = 0.002` por tick
+
+#### 5.3 Commute
+
+Cada trabajador empleado verifica diariamente que su workplace sigue existiendo y accesible. Si el edificio colapsa o es demolido, el trabajador queda desempleado.
+
+---
+
+### 6. Cadena de Suministro (`supply_chain.rs`)
+
+#### 6.1 Producción y Consumo
+
+```
+Producción_fábrica = FACTORY_PRODUCTION = 5.0 unidades/tick
+Consumo_tienda = SHOP_CONSUMPTION = 1.0 unidades/tick
+```
+
+#### 6.2 Transporte en Camión
+
+Un camión de carga transporta `CARGO_CAPACITY = 20.0` unidades a velocidad `CARGO_TRUCK_SPEED = 6.0`. Sigue flow fields hacia el destino.
+
+#### 6.3 Quiebra
+
+Si una tienda pasa `BANKRUPTCY_TICKS = 300` sin recibir suministro:
+
+```
+P(quiebra | sin_stock_ticks > BANKRUPTCY_TICKS) = 0.01 por tick adicional
+```
+
+El edificio queda marcado como `AbandonedBuilding` y deja de generar ingresos.
+
+---
+
+### 7. Gestión de Residuos (`waste_mgmt.rs`)
+
+#### 7.1 Clasificación
+
+Cada edificio genera residuos según su tipo:
+
+| Tipo edificio | Orgánico | Reciclable | Tóxico | General |
+|---------------|----------|------------|--------|---------|
+| House         | 0.5      | 0.3        | 0.05   | 0.2     |
+| Shop          | 0.3      | 0.5        | 0.05   | 0.3     |
+| Factory       | 0.1      | 0.3        | 0.4    | 0.3     |
+| Farm          | 2.0      | 0.2        | 0.1    | 0.1     |
+| Hospital      | 0.4      | 0.3        | 0.5    | 0.5     |
+
+Unidades: kg/tick.
+
+#### 7.2 Acumulación de Metano en Vertederos
+
+```
+CH4(t+1) = CH4(t) + k_org · organic_kg − k_vent · ventilation_factor
+```
+
+Donde:
+- `k_org = 0.01`: tasa de generación de metano por kg orgánico
+- `k_vent = 0.05`: tasa de ventilación (si tiene sistema)
+- `ventilation_factor = 1.0` si `has_methane_ventilation`, sino `0.0`
+
+Si `CH4 > 80.0`: peligro de explosión. Probabilidad de explosión:
+
+```
+P(explosion) = (CH4 − 80) / 100 · 0.001 por tick
+```
+
+#### 7.3 Contaminación de Napas Freáticas
+
+```
+GW_contamination(t+1) = GW_contamination(t) + k_tox · toxic_kg · (1 − geomembrane_factor)
+```
+
+Donde:
+- `geomembrane_factor = 1.0` si tiene geomembrana, `0.0` si no
+- `k_tox = 0.005`
+
+Si `GW_contamination > 50.0`: el agua de la zona no es potable, causa enfermedades.
+
+---
+
+### 8. Política y Sociología (`politics.rs`)
+
+#### 8.1 Aprobación Global
+
+```
+approval(t+1) = approval(t) + Δ_services − Δ_taxes − Δ_nimby − Δ_gentrification + Δ_unions
+```
+
+Donde cada delta se calcula como:
+
+```
+Δ_services = α_s · (calidad_servicios − umbral)
+Δ_taxes = −α_t · max(0, tasa_efectiva − 0.25)
+Δ_nimby = −α_n · Σ(unwanted_facilities_cercanas) / total_ciudadanos
+Δ_gentrification = −α_g · fracción_desplazados
+Δ_unions = −α_u · huelgas_activas
+```
+
+#### 8.2 Veto del Concejo
+
+Si `approval < VETO_THRESHOLD = 0.35` en ≥ 5/9 distritos:
+- Presupuestos bloqueados (no se pueden modificar tasas)
+- Obras públicas suspendidas
+
+#### 8.3 Destitución (Recall)
+
+Si `approval < RECALL_THRESHOLD = 0.15` en ≥ 7/9 distritos:
+- Game over político: la simulación termina
+
+#### 8.4 NIMBY
+
+Para una instalación no deseada F en posición (x_F, y_F):
+
+```
+molestia_ciudadano = Σ nuisance_radius(F) / distancia(ciudadano, F)²
+```
+
+Si `molestia > umbral_nimby`: el ciudadano se une a protestas, reduce aprobación, y bloquea calles cercanas.
+
+---
+
+### 9. Tráfico y Flow Fields (`flow_field.rs`, `traffic_lanes.rs`)
+
+#### 9.1 Flow Field
+
+Para cada celda de la grilla (64×64):
+
+```
+F[x,y] = vector_unitario_hacia_destino_más_cercano
+```
+
+Combinación de flow fields:
+
+```
+F_combined = (1 − w_congestion) · F_base + w_congestion · F_alternate
+```
+
+Donde `w_congestion = lane.congestion` (0 a 1).
+
+#### 9.2 Intelligent Driver Model (IDM)
+
+Para un vehículo con velocidad `v`, distancia al líder `s`, y velocidad de aproximación `Δv`:
+
+```
+dv/dt = a · [1 − (v/v0)^δ − (s*(v,Δv)/s)²]
+
+donde s*(v,Δv) = s0 + v·T + v·Δv/(2√(a·b))
+```
+
+Parámetros:
+- `a = max_accel`: aceleración máxima
+- `b = comfort_decel`: deceleración confortable
+- `v0 = desired_speed`: velocidad deseada
+- `s0 = min_gap`: distancia mínima
+- `T = time_headway`: tiempo de reacción
+- `δ = 4`: exponente de aceleración
+
+#### 9.3 MOBIL Lane Changes
+
+Un vehículo cambia de carril si:
+
+```
+Δa_ego + p_mobil · Δa_others > a_threshold
+```
+
+Donde:
+- `Δa_ego`: cambio en aceleración del vehículo
+- `Δa_others`: cambio en aceleración de vehículos afectados
+- `p_mobil = 0.5`: politeness factor
+- `a_threshold = 0.2`: umbral de cambio
+
+---
+
+### 10. Ciclo Día/Noche (`climate.rs`)
+
+#### 10.1 Función de Color Grading
+
+```
+(r_mul, g_mul, b_mul) = f(time_fraction)
+
+f(h) = {
+  (1.00, 0.85+0.15t, 0.70+0.30t)  si 5≤h<7   (amanecer, t=(h-5)/2)
+  (1.00, 1.00, 1.00)               si 7≤h<18  (día pleno)
+  (1.00, 0.70+0.30(1-t), 0.50+0.50(1-t)) si 18≤h<20 (atardecer)
+  (0.25, 0.25+0.10t, 0.40+0.30t)   si h≥20 o h<5 (noche)
+}
+```
+
+---
+
+### 11. Estacionamiento (`parking.rs`)
+
+#### 11.1 Modelo de Búsqueda
+
+```
+P(encuentra_parking) = {
+  1.0  si available_spots > 0 en edificio destino
+  0.8  si hay calle con espacio < 20m
+  0.3  si solo hay calle lejana
+  0.0  si todo lleno → circling_cars++
+}
+```
+
+#### 11.2 Factor de Congestión por Parking
+
+```
+congestion_factor = min(circling_cars · 0.01, 0.8)
+```
+
+Reduce la velocidad del tráfico en el radio de influencia.
+
+#### 11.3 Asociación de Vecinos (HOA)
+
+Las zonas HOA aplican reglas adicionales:
+
+```
+violación = {
+  true si (no_street_parking Y estacionó_en_calle)
+  true si (overnight_restriction Y hora ∈ [21:00, 06:00] Y estacionó_fuera_de_garaje)
+  true si (visitor_permit_required Y es_visitante Y sin_permiso)
+  true si (!allow_commercial_vehicles Y es_vehículo_comercial)
+  true si (sidewalk_parking_prohibited Y estacionó_en_vereda)
+}
+```
+
+Multas:
+```
+multa = violation_fine · (1 + reincidencia · 0.5)
+```
+
+Juicios (nuevo):
+- Si un ciudadano acumula >3 multas impagas → demanda legal
+- Costo del juicio para la ciudad: `legal_cost = 500 + complexity · 200`
+- Si la HOA pierde el juicio → se disuelve temporalmente (180 ticks)
+
+---
+
+## 📁 ÍNDICE DE ARCHIVOS
 
 | Archivo | Líneas | Descripción |
 |---------|--------|-------------|
-| `lib.rs` | ~52 | Re-exporta todos los módulos públicos |
-| `main.rs` | ~260 | Punto de entrada, game loop, ventana minifb |
-| `ecs.rs` | ~483 | Entity Component System, GameWorld, componentes |
-| `sim.rs` | ~300 | Sistemas de simulación (tick principal) |
-| `render.rs` | ~670 | Renderizado software al framebuffer |
-| `render_cache.rs` | ~150 | Pre-sort estático de entidades por capa |
-| `simd_render.rs` | ~200 | Framebuffer SIMD autovectorizado [SSE2] |
-| `luts.rs` | ~80 | Look-up tables trigonométricas precalculadas |
-| `object_pool.rs` | ~60 | Pool de entidades preasignadas |
-| `bump_alloc.rs` | ~40 | Bump allocator por frame |
-| `input.rs` | ~120 | Manejo de input con debounce |
-| `terrain.rs` | ~120 | Mapa de terreno con ruido Perlin pre-generado |
-| `quadtree.rs` | ~90 | Quadtree espacial |
-| `rng_pool.rs` | ~150 | RNG pre-generado determinista |
-| `flow_field.rs` | ~180 | Flow fields para pathfinding O(1) |
-| `bitboard.rs` | ~60 | Bitboards para colisiones en grilla |
-| `audio.rs` | ~200 | Audio procedural con cpal |
-| `traffic_lanes.rs` | ~350 | Tráfico con carriles (modelo A/B Street) |
-| `interactive.rs` | ~1083 | Herramienta de diseño urbano interactivo |
-| `supply_chain.rs` | ~200 | Cadena de suministro física |
-| `land_value.rs` | ~150 | Valor del suelo y gentrificación |
-| `utilities.rs` | ~120 | Propagación de agua/electricidad |
-| `road_wear.rs` | ~80 | Desgaste de infraestructura vial |
+| `Cargo.toml` | ~70 | Definición del crate, dependencias, perfiles |
+| `lib.rs` | ~52 | Re-exporta todos los módulos |
+| `main.rs` | ~310 | Game loop, ventana, time warp |
+| `ecs.rs` | ~483 | ECS, GameWorld, componentes |
+| `sim.rs` | ~300 | Tick principal de simulación |
+| `render.rs` | ~670 | Renderizado software |
+| `render_cache.rs` | ~150 | Pre-sort por capa |
+| `simd_render.rs` | ~200 | SIMD autovectorizado |
+| `luts.rs` | ~80 | LUTs trigonométricas |
+| `object_pool.rs` | ~60 | Pool de entidades |
+| `bump_alloc.rs` | ~40 | Bump allocator |
+| `input.rs` | ~120 | Input con debounce |
+| `terrain.rs` | ~120 | Ruido Perlin pre-generado |
+| `quadtree.rs` | ~586 | BVH balanceado |
+| `rng_pool.rs` | ~150 | RNG determinista |
+| `flow_field.rs` | ~180 | Flow fields O(1) |
+| `bitboard.rs` | ~60 | Bitboards para colisiones |
+| `audio.rs` | ~200 | Audio procedural cpal |
+| `traffic_lanes.rs` | ~350 | Tráfico con carriles IDM+MOBIL |
+| `interactive.rs` | ~1083 | Herramienta de diseño |
+| `supply_chain.rs` | ~200 | Cadena de suministro |
+| `land_value.rs` | ~150 | Valor del suelo |
+| `utilities.rs` | ~120 | Agua/electricidad |
+| `road_wear.rs` | ~80 | Desgaste vial |
 | `labor_market.rs` | ~100 | Mercado laboral |
-| `tax_system.rs` | ~250 | Impuestos y finanzas municipales |
-| `parking.rs` | ~220 | Estacionamiento físico y HOA |
-| `waste_mgmt.rs` | ~85 | Clasificación de basura |
-| `customization.rs` | ~260 | Personalización visual de edificios |
+| `tax_system.rs` | ~250 | Impuestos y bonos |
+| `parking.rs` | ~320 | Estacionamiento + HOA + vereda |
+| `waste_mgmt.rs` | ~85 | Gestión de basura |
+| `customization.rs` | ~260 | Personalización visual |
 | `politics.rs` | ~150 | NIMBY, sindicatos, elecciones |
-| `climate.rs` | ~120 | Ciclo día/noche con color grading |
-| `persistence.rs` | ~317 | Save/Load con bincode |
-
-### Tests
-| Archivo | Descripción |
-|---------|-------------|
-| `tests/unit_tests.rs` | Tests unitarios |
-| `tests/integration_tests.rs` | Tests de integración |
+| `climate.rs` | ~120 | Ciclo día/noche |
+| `persistence.rs` | ~317 | Save/Load bincode |
 
 ---
 
-## Arquitectura General
+## 🔧 ARQUITECTURA
 
 ```
-main.rs (Game Loop)
-  ├── Ventana minifb (800x600, Scale X2)
-  ├── Doble buffer (buffer_a/buffer_b) con swap de punteros
+main.rs (Game Loop con Time Warp)
+  ├── Ventana minifb (800×600, Scale X2)
+  ├── Doble buffer (swap de punteros, sin memcpy)
+  ├── Time Warp: 1×, 2×, 4×, 8× (teclas +/-)
+  │
   ├── Fase de carga:
-  │   ├── luts::init_trig_luts() — Precalcula senos/cosenos
-  │   ├── rng_pool::init_rng_pool(42) — Pool de números aleatorios
-  │   ├── bump_alloc::init_frame_allocator() — Bump allocator
-  │   ├── audio::AudioPlayer::init() — Audio procedural
-  │   ├── object_pool::EntityPool::new(1000) — Pool de entidades
-  │   ├── ecs::create_world() — Mundo ECS inicial
-  │   ├── sim::init_simulation() — Inicialización de sistemas
-  │   └── persistence::load_game("save.dat") — Carga de partida
+  │   ├── luts::init_trig_luts()
+  │   ├── rng_pool::init_rng_pool(42)
+  │   ├── bump_alloc::init_frame_allocator()
+  │   ├── audio::AudioPlayer::init()
+  │   ├── object_pool::EntityPool::new(1000)
+  │   ├── ecs::create_world()
+  │   ├── sim::init_simulation()
+  │   └── persistence::load_game("save.dat")
   │
-  ├── Cache warming:
-  │   ├── rng_pool::warm_rng_cache()
-  │   ├── Pre-cálculo de terreno (height)
-  │   ├── Pre-cálculo de flow fields (sample_combined)
-  │   └── RenderCache inicial
-  │
-  └── Bucle principal (30 FPS objetivo, 10 ticks/s):
+  ├── Cache warming
+  └── Bucle principal:
       ├── bump_alloc::reset_frame()
       ├── input_state.update(&window)
       ├── Guardar/Cargar (F5/F9)
       ├── interactive::process_design_input()
-      ├── ecs::process_input() (cámara WASD)
-      ├── sim::tick() (sistemas de simulación)
-      ├── Sistemas periódicos:
-      │   ├── tax_system::collect_taxes()
-      │   ├── parking_mgr.tick()
-      │   ├── waste_mgr.tick()
-      │   ├── politics.tick()
-      │   ├── land_value_map.diffuse()
-      │   └── road_wear::tick_road_wear()
+      ├── ecs::process_input() (WASD)
+      ├── sim::tick() × speed_multiplier
+      ├── Sistemas periódicos (tax, parking, waste, politics, wear)
       ├── spatial_grid.rebuild()
-      ├── render_cache.rebuild_from_world() (si dirty)
+      ├── render_cache.rebuild_from_world()
       ├── render::render_world_cached()
       ├── climate::apply_day_night_overlay()
       ├── interactive::render_design_overlay()
       ├── render::render_stats_panel()
-      └── Swap de buffers + actualización de ventana
+      └── Swap buffers + window.update()
 ```
 
 ---
 
-## Componentes ECS (`ecs.rs`)
+## 🏗️ COMPONENTES ECS
 
-### Struct `Position` (líneas ~38-42)
-- **Campos**: `x: f32`, `y: f32`
-- **Align**: 64 bytes (cache line)
-- **Método**: `new(x, y)` — constructor inline
+| Componente | Campos | Align |
+|------------|--------|-------|
+| `Position` | `x: f32, y: f32` | 64B |
+| `Velocity` | `dx: f32, dy: f32` | 64B |
+| `Renderable` | `shape_type: u8, color: u32, size: f32, layer: u8` | 64B |
+| `TrafficCar` | `speed, max_speed, acceleration, lane_position, lane_id` | 64B |
+| `ResourceStorage` | `money: f32, food: f32, goods: f32` | 64B |
+| `ConstructionState` | `progress: f32, building_type: BuildingType` | 64B |
+| `ZoneComponent` | `zone_type: ZoneType, density: u8` | 64B |
+| `Lifetime` | `remaining: f32` | 64B |
+| `Camera` | `x, y, zoom, speed` | 64B |
 
-### Struct `Velocity` (líneas ~44-49)
-- **Campos**: `dx: f32`, `dy: f32`
-- **Align**: 64 bytes
+### GameWorld
 
-### Struct `Renderable` (líneas ~51-56)
-- **Campos**: `shape_type: u8` (0=círculo, 1=rect), `color: u32`, `size: f32`, `layer: u8`
-- **Métodos**: `circle(color, radius, layer)`, `rect(color, width, layer)`
+El mundo contiene TODOS los subsistemas:
 
-### Enum `ZoneType` (líneas ~58-59)
-- Variantes: `Residential`, `Commercial`, `Industrial`, `Agricultural`, `Road`, `Park`
-
-### Struct `ZoneComponent` (líneas ~61-63)
-- **Campos**: `zone_type: ZoneType`, `density: u8`
-
-### Struct `TrafficCar` (líneas ~65-67)
-- **Campos**: `speed`, `max_speed`, `acceleration`, `lane_position`, `lane_id`
-
-### Struct `ResourceStorage` (líneas ~69-71)
-- **Campos**: `money: f32`, `food: f32`, `goods: f32`
-
-### Struct `ConstructionState` (líneas ~73-75)
-- **Campos**: `progress: f32`, `building_type: BuildingType`
-
-### Enum `BuildingType` (líneas ~78-80+)
-- Variantes: `House`, `Shop`, `Factory`, `Farm`, `Hospital`, `School`, `PoliceStation`, `Park`
-
-### Struct `Lifetime` (líneas ~82-84)
-- **Campo**: `remaining: f32`
-
-### Struct `Camera` (líneas ~86-95)
-- **Campos**: `x: f32`, `y: f32`, `zoom: f32`, `speed: f32`
-
-### Struct `SpatialGrid` (líneas ~97-160)
-- **Descripción**: Grid espacial para consultas rápidas de proximidad
-- **Campos**: `cells: [[Vec<u32>; 128]; 128]`, `cell_size: f32`
-- **Métodos**: `new()`, `rebuild()`, `query_near()` -> `SpatialQueryIter`
-
-### Struct `SpatialQueryIter` (líneas ~163-170)
-- Iterador sobre resultados de consulta espacial
-
-### Struct `GameWorld` (líneas ~172-270)
-- **Descripción**: Mundo principal que contiene TODOS los sistemas
-- **Campos**:
-  - `world: hecs::World` — Mundo ECS
-  - `entity_pool: EntityPool` — Pool de entidades
-  - `sim_tick: u64` — Tick actual de simulación
-  - `time_of_day: u32` — Minutos desde medianoche
-  - `terrain: TerrainMap` — Mapa de terreno
-  - `spatial_grid: SpatialGrid` — Grid espacial
-  - `quadtree: Quadtree` — Árbol quadtree
-  - `flow_fields: FlowFieldManager` — Flow fields
-  - `bitgrid: BitGrid` — Bitboards de colisión
-  - `lane_manager: LaneManager` — Gestor de tráfico
-  - `design_tool: DesignTool` — Herramienta de diseño
-  - `finance: MunicipalFinance` — Finanzas municipales
-  - `water_grid: UtilityGrid` — Red de agua
-  - `power_grid: UtilityGrid` — Red eléctrica
-  - `road_wear_grid: RoadWearGrid` — Desgaste vial
-  - `land_value_map: LandValueHeatmap` — Mapa de valor del suelo
-  - `pollution_map: PollutionHeatmap` — Mapa de contaminación
-  - `parking_mgr: ParkingManager` — Gestor de estacionamiento
-  - `waste_mgr: WasteManager` — Gestor de basura
-  - `customization_mgr: CustomizationManager` — Personalización
-  - `politics: PoliticalSystem` — Sistema político
-  - `labor_market: LaborMarket` — Mercado laboral
-  - `render_cache: RenderCache` — Caché de renderizado
-- **Método**: `process_input(input)` — Procesa input de cámara
+```
+GameWorld {
+    world: hecs::World,
+    entity_pool: EntityPool,
+    sim_tick: u64,              // Tick actual
+    time_of_day: u16,           // Minutos (0-1439)
+    sim_speed: u8,              // Multiplicador velocidad (1/2/4/8)
+    terrain: TerrainMap,
+    spatial_grid: SpatialGrid,
+    quadtree: Quadtree,
+    flow_fields: FlowFieldManager,
+    bitgrid: BitGrid,
+    lane_manager: LaneManager,
+    design_tool: DesignTool,
+    finance: MunicipalFinance,
+    water_grid: UtilityGrid,
+    power_grid: UtilityGrid,
+    road_wear_grid: RoadWearGrid,
+    land_value_map: LandValueHeatmap,
+    pollution_map: PollutionHeatmap,
+    parking_mgr: ParkingManager,
+    waste_mgr: WasteManager,
+    customization_mgr: CustomizationManager,
+    politics: PoliticalSystem,
+    labor_market: LaborMarket,
+    render_cache: RenderCache,
+}
+```
 
 ---
 
-## Módulo de Simulación (`sim.rs`)
+## ⚡ OPTIMIZACIONES (30 Técnicas Comunes + 20 Avanzadas + 10 Vanguardia)
 
-### Función `init_simulation(gw)` (líneas ~24-31)
-Inicializa el mundo con sim_tick=0, time_of_day=420 (7:00 AM), obstáculos y parámetros IDM.
-
-### Función `tick(gw, dt)` (líneas ~70-85)
-Tick principal que ejecuta todos los subsistemas en orden:
-1. `tick_time` — Avance del reloj
-2. `tick_intersections` — Semáforos
-3. `tick_lane_congestion` — Congestión de carriles
-4. `tick_traffic_fused` — Tráfico (fused query)
-5. `tick_parallel_systems` — Rayon: supply_chain, land_value, utilities, labor, politics, waste
-6. `tick_economy` — Economía
-7. `tick_land_use` — Uso de suelo
-8. `tick_lifetimes` — Entidades temporales
+Ver sección de técnicas en el código fuente de cada módulo (etiquetas `[TC#N]`, `[TA#N]`, `[TI#N]`).
 
 ---
 
-## Sistema de Renderizado (`render.rs`)
+## 📊 PERFILES DE COMPILACIÓN
 
-### Función `render_world_cached(world, fb, w, h)` (~línea 580+)
-Renderiza el mundo usando RenderCache, con soporte para capas:
-- Capa 0: Zonas (LAYER_ZONES)
-- Capa 1: Tráfico (LAYER_TRAFFIC)
-- Capa 2: Edificios (LAYER_BUILDINGS)
+```toml
+[profile.dev]
+opt-level = 1
+debuginfo = 1
 
-### Función `render_stats_panel(world, fb, w, h, fps)` (~línea 540+)
-Renderiza el panel de estadísticas en la esquina superior derecha.
-
-### Funciones auxiliares
-- `draw_shape()` — Dibuja formas primitivas (línea 488)
-- `multiply_alpha()` — Multiplica color por alpha (línea 656)
-- `building_color()` — Color según tipo de edificio (línea 662)
-
----
-
-## RenderCache (`render_cache.rs`)
-
-### Struct `RenderCacheEntry` (~líneas 1-30)
-- **Campos**: `x: f32`, `y: f32`, `color: u32`, `size: f32`, `shape_type: u8`
-- **Align**: 32 bytes (media cache line)
-
-### Struct `RenderCache` (~líneas 38-100)
-- **Campos**: `buckets: [Vec<RenderCacheEntry>; 6]` (6 capas de render), `dirty: bool`
-- **Métodos**: `new()`, `rebuild_from_world()`, `iter_layers()`
-
-### Constantes
-- `LAYER_ZONES = 0`, `LAYER_TRAFFIC = 1`, `LAYER_BUILDINGS = 2`
-- `NUM_RENDER_LAYERS = 6`
+[profile.release]
+opt-level = 3
+lto = "fat"
+panic = "abort"
+overflow-checks = false
+codegen-units = 1
+```
 
 ---
 
-## Sistema de Input (`input.rs`)
+## 🔬 REFERENCIAS
 
-### Struct `InputState` (~líneas 10-50)
-- **Campos**: `keys: [bool; 256]`, `prev_keys: [bool; 256]`, `mouse_x: f32`, `mouse_y: f32`, `mouse_left: bool`, `mouse_right: bool`
-- **Métodos**: `update(window)`, `is_key_pressed(key)`, `is_key_down(key)`, `is_key_released(key)`
-
-### Enum `GameKey` (~líneas 52-80)
-Mapea teclas de minifb a constantes: `W, A, S, D, Tab, Key1-Key6, B, R, Z, U, F5, F9, Escape, Shift, Space, Left, Right`
-
----
-
-## Herramienta de Diseño (`interactive.rs`)
-
-### Enum `DesignMode` (~línea 20)
-- `Paint` — Pintar zonas
-- `Building` — Colocar edificios
-- `Inspect` — Inspeccionar celdas
-- `None` — Sin herramienta activa
-
-### Struct `DesignAction` (~líneas 25-50)
-- Variantes:
-  - `PlaceBuilding { x, y, building_type, entity_id }`
-  - `PaintZone { x1, y1, x2, y2, zone_type, density, entity_ids }`
-  - `RemoveBuilding { x, y, building_type, money, food, goods }`
-  - `ClearZone { x1, y1, x2, y2, previous_zones }`
-
-### Struct `DesignTool` (~líneas 55-140)
-- **Campos**: `active: bool`, `mode: DesignMode`, `brush_size: u32`, `current_building: BuildingType`, `current_zone: ZoneType`, `current_density: u8`, `mouse_in_window: bool`, `undo_stack: VecDeque<DesignAction>`, `redo_stack: VecDeque<DesignAction>`
-- **Métodos**:
-  - `toggle()` — Activar/desactivar herramienta
-  - `set_paint_mode()`, `set_building_mode()`, `set_inspect_mode()`
-  - `cycle_zone()`, `cycle_building()`
-  - `increase_brush()`, `decrease_brush()`
-  - `undo(gw)` — Deshacer última acción
-  - `redo(gw)` — Rehacer última acción
-  - `push_action(action)` — Registrar acción
-
-### Función `process_design_input(tool, gw, input, ww, wh)` (línea ~458)
-Procesa input del usuario para la herramienta de diseño:
-- Tab: toggle herramienta
-- 1-6: cambiar zona
-- B: modo building
-- R: eliminar edificio
-- Z: undo, U: redo
-- Click: ejecutar acción (pintar/colocar/eliminar)
-
-### Función `render_design_overlay(tool, fb, w, h, gw)` (línea ~668)
-Renderiza el overlay de la herramienta (preview de pincel, grid).
-
----
-
-## Persistencia (`persistence.rs`)
-
-### Constante `SAVE_VERSION: u32 = 1`
-
-### Struct `BuildingData` (~líneas 8-15)
-- **Campos**: `x: f32`, `y: f32`, `btype: u8`, `progress: f32`, `money: f32`, `food: f32`, `goods: f32`
-
-### Struct `ZoneData` (~líneas 17-22)
-- **Campos**: `x: f32`, `y: f32`, `zone_type: u8`, `density: u8`
-
-### Struct `SaveData` (~líneas 24-50)
-- **Campos**: `version: u32`, `sim_tick: u64`, `time_of_day: u32`, `finance_treasury: f32`, `finance_land_value_tax_rate: f32`, `finance_corporate_tax_rate: f32`, `finance_sales_tax_rate: f32`, `politics_approval: f32`, `buildings: Vec<BuildingData>`, `zones: Vec<ZoneData>`, `lane_congestion: Vec<f32>`
-- **Métodos**:
-  - `from_world(gw)` — Crea SaveData desde GameWorld (línea 54)
-  - `restore_to(gw)` — Restaura datos al GameWorld (línea 98)
-
-### Funciones
-- `save_game(data, path)` — Serializa con bincode y guarda a disco (línea ~280)
-- `load_game(path)` — Carga y deserializa de disco (línea ~295)
-
----
-
-## Sistema de Tráfico (`traffic_lanes.rs`)
-
-### Constante `MAX_VEHICLES: usize = 2048`
-
-### Struct `IdmParams` (~líneas 15-30)
-Parámetros del Intelligent Driver Model: `desired_speed`, `min_gap`, `max_accel`, `comfort_decel`, `time_headway`
-
-### Struct `Lane` (~líneas 35-60)
-- **Campos**: `id: u32`, `start_x/y: f32`, `end_x/y: f32`, `direction: u8`, `congestion: f32`, `vehicle_ids: Vec<u32>`
-
-### Struct `Intersection` (~líneas 65-90)
-- **Campos**: `id: u32`, `x/y: f32`, `phase: u8`, `timer: f32`, `incoming_lanes: Vec<u32>`, `outgoing_lanes: Vec<u32>`
-
-### Struct `LaneManager` (~líneas 95-160)
-- **Campos**: `lanes: Vec<Lane>`, `intersections: Vec<Intersection>`, `vehicle_params: [IdmParams; MAX_VEHICLES]`
-- **Métodos**: `set_vehicle_params(id, params)`, `get_lane(id)`
-
----
-
-## Finanzas Municipales (`tax_system.rs`)
-
-### Constante `TAX_COLLECTION_INTERVAL: u64 = 300`
-
-### Struct `TaxPolicy` (~líneas 20-30)
-- **Campos**: `land_value_tax_rate: f32`, `corporate_tax_rate: f32`, `sales_tax_rate: f32`, `bond_debt: f32`, `bond_interest_rate: f32`
-
-### Struct `MunicipalFinance` (~líneas 35-50)
-- **Campos**: `treasury: f32`, `tax_policy: TaxPolicy`, `monthly_income: f32`, `monthly_expenses: f32`
-
-### Función `collect_taxes(gw, land_values)` (línea ~60)
-Recolecta impuestos basados en valor del suelo, ingresos corporativos y ventas.
-
----
-
-## Optimizaciones Aplicadas (30 Técnicas)
-
-| # | Técnica | Módulo | Descripción |
-|---|---------|--------|-------------|
-| 1 | **Object Pooling** | `object_pool.rs` | Pool de 1000 entidades preasignadas |
-| 2 | **Pre-Reserva de Capacidad** | `ecs.rs` | `Vec::with_capacity` en SpatialGrid |
-| 3 | **LUTs Trigonométricas** | `luts.rs` | Senos/cosenos precalculados [f32; 3600] |
-| 4 | **Atlas de Texturas** | `render_cache.rs` | Pre-sort por capa de render |
-| 5 | **Baking de Iluminación** | `climate.rs` | Color grading día/noche |
-| 6 | **Árboles de Colisión Estáticos** | `quadtree.rs` | Quadtree espacial |
-| 7 | **Bincode (Binario)** | `persistence.rs` | Serialización binaria |
-| 8 | **Pre-Multiplicación de Matrices** | `simd_render.rs` | SSE2 autovectorizado |
-| 9 | **NavMesh Estático** | `flow_field.rs` | Flow fields precalculados |
-| 10 | **Arrays Tipados** | `main.rs` | `[u32; FB_SIZE]` para framebuffer |
-| 11 | **Pre-generación de Ruido** | `terrain.rs` | Ruido Perlin pre-generado |
-| 12 | **Culling Estático** | `render_cache.rs` | Buckets por capa |
-| 13 | **Eliminación de Closures** | `main.rs` | Zero-allocation title |
-| 14 | **Variables Globales Mutables** | `rng_pool.rs` | Static RNG pool |
-| 15 | **Precálculo de Distancias²** | `flow_field.rs` | Radios al cuadrado |
-| 16 | **Inicialización Determinista RNG** | `rng_pool.rs` | Seed fijo, pool pre-generado |
-| 17 | **Pre-ordenamiento Z-Index** | `render_cache.rs` | Capas pre-sorteadas |
-| 18 | **Máquinas de Estado Aplanadas** | `traffic_lanes.rs` | Semáforos con arrays |
-| 19 | **f32 sobre f64** | Todo el proyecto | Flotantes 32-bit |
-| 20 | **Inlining Agresivo** | Varios | `#[inline(always)]` |
-| 21 | **Bump Allocator por Frame** | `bump_alloc.rs` | Reset al final del frame |
-| 22 | **Bitboards** | `bitboard.rs` | Colisiones O(1) en grilla |
-| 23 | **Flow Fields** | `flow_field.rs` | Pathfinding O(1) |
-| 24 | **Cache Warming** | `main.rs` | Pre-carga datos a L1/L2 |
-| 25 | **Doble Buffer sin memcpy** | `main.rs` | Swap de punteros |
-| 26 | **Fused Query** | `sim.rs` | Una query para todos los sistemas |
-| 27 | **Rayon Paralelismo** | `sim.rs` | Sistemas independientes en paralelo |
-| 28 | **Zero-Allocation Title** | `main.rs` | Buffer en stack para título |
-| 29 | **Compilación LTO** | `Cargo.toml` | `lto = "fat"` |
-| 30 | **Estructuras Alineadas 64B** | `ecs.rs` | `#[repr(align(64))]` |
-
----
-
-## Técnicas Avanzadas Aplicadas (20)
-
-| # | Técnica | Módulo |
-|---|---------|--------|
-| 1 | **ECS Puro (hecs)** | `ecs.rs` |
-| 2 | **LTO + PGO** | `Cargo.toml` |
-| 3 | **Zero-Copy Serialization** | `persistence.rs` (bincode) |
-| 4 | **Shared Memory** | `main.rs` (swap de punteros) |
-| 5 | **Fixed-Step Physics** | `sim.rs` (10 ticks/s) |
-| 6 | **Compilación Release** | `Cargo.toml` (opt-level=3) |
-| 7 | **Flow Fields Precalculados** | `flow_field.rs` |
-| 8 | **Cache Warming** | `main.rs` |
-| 9 | **SDF para Colisiones** | `bitboard.rs` (aproximación) |
-| 10 | **BVH Balanceados** | `quadtree.rs` |
-| 11 | **Hash Perfecto** | `traffic_lanes.rs` (array indexing) |
-| 12 | **Procedural Baking** | `terrain.rs` |
-| 13 | **Compresión de Vértices** | `simd_render.rs` |
-| 14 | **WASM SIMD** | `simd_render.rs` (SSE2) |
-| 15 | **Data-Oriented Design** | Todo el ECS |
-| 16 | **Baking de Raycasts** | `bitboard.rs` |
-| 17 | **Hot-Swapping** | No implementado aún |
-| 18 | **DFA Compilados** | `traffic_lanes.rs` (match enums) |
-| 19 | **Bump Allocators** | `bump_alloc.rs` |
-| 20 | **Estructuras Lock-Free** | `rng_pool.rs` (Relaxed ordering) |
-
----
-
-## Estados de Compilación
-
-- **Último cargo check**: OK (solo warnings, 0 errores)
-- **Warnings**: ~40 (imports no usados, variables no usadas, unsafe code, etc.)
-- **Perfil dev**: opt-level=1, debuginfo
-- **Perfil release**: opt-level=3, lto=fat, panic=abort, overflow-checks=false
+- **IDM Traffic Model**: Treiber, M., Hennecke, A., Helbing, D. (2000). "Congested traffic states in empirical observations and microscopic simulations". *Physical Review E*, 62(2), 1805.
+- **MOBIL Lane Changes**: Kesting, A., Treiber, M., Helbing, D. (2007). "General lane-changing model MOBIL for car-following models". *Transportation Research Record*, 1999(1), 86-94.
+- **Land Value Tax**: George, H. (1879). *Progress and Poverty*. NY: D. Appleton & Co.
+- **Gentrification Dynamics**: Lees, L., Slater, T., Wyly, E. (2008). *Gentrification*. Routledge.
+- **Urban Heat Island**: Oke, T.R. (1982). "The energetic basis of the urban heat island". *Quarterly Journal of the Royal Meteorological Society*, 108(455), 1-24.
+- **Flow Fields**: Dijkstra, E.W. (1959). "A note on two problems in connexion with graphs". *Numerische Mathematik*, 1, 269-271.
+- **NIMBY Politics**: Dear, M. (1992). "Understanding and overcoming the NIMBY syndrome". *Journal of the American Planning Association*, 58(3), 288-300.
+- **A/B Street Traffic**: https://github.com/a-b-street/abstreet — modelo de tráfico basado en carriles con IDM.
+- **Citybound Original**: https://github.com/citybound/citybound — proyecto original de Anselm Eickhoff.

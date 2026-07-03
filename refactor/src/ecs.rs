@@ -64,9 +64,30 @@ pub enum ZoneType { Residential, Commercial, Industrial, Agricultural, Road, Par
 pub struct ZoneComponent { pub zone_type: ZoneType, pub density: u8 }
 
 #[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 #[repr(align(64))]
 pub struct TrafficCar { pub speed: f32, pub max_speed: f32, pub acceleration: f32, pub lane_position: f32, pub lane_id: u32 }
 
+/// Estado del peatón en el Social Force Model
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum PedestrianState {
+    Idle,       // Quieto (llegó a destino o esperando)
+    Walking,    // Caminando hacia destino
+    Crossing,   // Cruzando calle
+    Panicking,  // Huyendo (estrés > 0.8, desastre)
+}
+
+/// Peatón individual con modelo de fuerza social
+#[derive(Copy, Clone, Debug)]
+#[repr(align(64))]
+pub struct Pedestrian {
+    pub dest_x: f32,      // Destino X
+    pub dest_y: f32,      // Destino Y
+    pub speed: f32,        // Velocidad actual
+    pub stress: f32,       // Nivel de estrés [0,1]
+    pub state: PedestrianState,
+}
 #[derive(Copy, Clone, Debug)]
 #[repr(align(64))]
 pub struct ResourceStorage { pub money: f32, pub food: f32, pub goods: f32 }

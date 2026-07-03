@@ -160,18 +160,25 @@ pub const BIT_TOTAL_BLOCKS: usize = BIT_BLOCKS * BIT_BLOCKS;
 /// - 1: Zonas residenciales
 /// - 2: Zonas comerciales
 /// - 3: Zonas industriales
+/// Grid de ocupación usando bitboards
+/// Cada bit representa una celda de 1x1 en el mundo.
+/// Capas disponibles:
+/// - 0: Ocupación general (edificios, obstáculos)
+/// - 1: Zonas residenciales
+/// - 2: Zonas comerciales
+/// - 3: Zonas industriales
 /// - 4: Carreteras
 /// - 5: Tráfico (coches)
 pub struct BitGrid {
-    /// Capas de bitboards [layer][block_index]
-    pub layers: [[Bitboard64; BIT_TOTAL_BLOCKS]; 6],
+    /// Capas de bitboards en heap: índice = layer * BIT_TOTAL_BLOCKS + block_idx
+    pub layers: Vec<Bitboard64>,
 }
 
 impl BitGrid {
     /// Crea un grid vacío con todas las capas
     pub fn new() -> Self {
         BitGrid {
-            layers: [[Bitboard64::EMPTY; BIT_TOTAL_BLOCKS]; 6],
+            layers: vec![Bitboard64::EMPTY; 6 * BIT_TOTAL_BLOCKS],
         }
     }
 
@@ -192,7 +199,7 @@ impl BitGrid {
     pub fn set(&mut self, layer: usize, wx: f32, wy: f32) {
         debug_assert!(layer < 6);
         let (block_idx, bx, by) = Self::world_to_bit(wx, wy);
-        self.layers[layer][block_idx].set(bx, by);
+        self.layers[layer * BIT_TOTAL_BLOCKS + block_idx].set(bx, by);
     }
 
     /// Limpia ocupación
@@ -200,7 +207,7 @@ impl BitGrid {
     pub fn clear(&mut self, layer: usize, wx: f32, wy: f32) {
         debug_assert!(layer < 6);
         let (block_idx, bx, by) = Self::world_to_bit(wx, wy);
-        self.layers[layer][block_idx].clear(bx, by);
+        self.layers[layer * BIT_TOTAL_BLOCKS + block_idx].clear(bx, by);
     }
 
     /// Verifica ocupación en una capa
@@ -208,7 +215,7 @@ impl BitGrid {
     pub fn test(&self, layer: usize, wx: f32, wy: f32) -> bool {
         debug_assert!(layer < 6);
         let (block_idx, bx, by) = Self::world_to_bit(wx, wy);
-        self.layers[layer][block_idx].test(bx, by)
+        self.layers[layer * BIT_TOTAL_BLOCKS + block_idx].test(bx, by)
     }
 
     /// Verifica si hay colisión con capa de obstáculos (layer 0)
@@ -220,8 +227,10 @@ impl BitGrid {
     /// Cuenta celdas ocupadas en una capa
     pub fn count_layer(&self, layer: usize) -> u32 {
         debug_assert!(layer < 6);
+        let start = layer * BIT_TOTAL_BLOCKS;
+        let end = start + BIT_TOTAL_BLOCKS;
         let mut total: u32 = 0;
-        for block in &self.layers[layer] {
+        for block in &self.layers[start..end] {
             total += block.count();
         }
         total
@@ -230,7 +239,9 @@ impl BitGrid {
     /// Limpia una capa completa (ej: tráfico cada frame)
     pub fn clear_layer(&mut self, layer: usize) {
         debug_assert!(layer < 6);
-        for block in &mut self.layers[layer] {
+        let start = layer * BIT_TOTAL_BLOCKS;
+        let end = start + BIT_TOTAL_BLOCKS;
+        for block in &mut self.layers[start..end] {
             *block = Bitboard64::EMPTY;
         }
     }
@@ -239,9 +250,10 @@ impl BitGrid {
     pub fn query_layer(&self, layer: usize) -> Vec<(f32, f32)> {
         debug_assert!(layer < 6);
         let mut result = Vec::with_capacity(256);
+        let layer_offset = layer * BIT_TOTAL_BLOCKS;
 
         for block_idx in 0..BIT_TOTAL_BLOCKS {
-            let block = &self.layers[layer][block_idx];
+            let block = &self.layers[layer_offset + block_idx];
             if block.is_empty() {
                 continue;
             }
@@ -262,6 +274,17 @@ impl BitGrid {
     /// Colisión masiva: AND entre dos capas en todos los bloques
     /// Retorna true si hay al menos un bit en común
     pub fn layers_intersect(&self, layer_a: usize, layer_b: usize) -> bool {
+        debug_assert!(layer_a < 6 && layer_b < 6);
+        let off_a = layer_a * BIT_TOTAL_BLOCKS;
+        let off_b = layer_b * BIT_TOTAL_BLOCKS;
+        for i in 0..BIT_TOTAL_BLOCKS {
+            if !(self.layers[off_a + i] & self.layers[off_b + i]).is_empty() {
+                return true;
+            }
+        }
+        false
+    }
+}
         debug_assert!(layer_a < 6 && layer_b < 6);
         for i in 0..BIT_TOTAL_BLOCKS {
             if !(self.layers[layer_a][i] & self.layers[layer_b][i]).is_empty() {

@@ -969,11 +969,9 @@ impl CpuBackend {
             for x in x_start..x_end {
                 fb[row + x] = darkened;
             }
-            }
         }
     }
 
-    pub fn swap_buffers(&mut self) {
         self.framebuffer.copy_from_slice(&self.work_buffer);
     }
 

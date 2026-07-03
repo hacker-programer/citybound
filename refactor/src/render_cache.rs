@@ -50,9 +50,10 @@ impl RenderCache {
             std::array::from_fn(|_| Vec::with_capacity(4096));
         RenderCache { buckets, dirty: true }
     }
-
-        RenderCache { buckets, dirty: true }
     }
+
+    pub fn clear(&mut self) {
+
 
     pub fn clear(&mut self) {
         for bucket in self.buckets.iter_mut() {

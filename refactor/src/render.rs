@@ -18,7 +18,7 @@
 use crate::ecs::{GameWorld, Renderable, Camera, ConstructionState, BuildingType, TrafficCar};
 
 use crate::simd_render;
-use crate::simd_render;
+
 
 // ---------------------------------------------------------------------------
 // PALETA DE COLORES (ARGB)

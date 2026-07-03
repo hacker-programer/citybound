@@ -23,7 +23,7 @@ use crate::rng_pool;
 // TIPOS DE CASOS LEGALES
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash)]
 #[repr(u8)]
 pub enum CaseType {
     /// Demanda civil por daños (accidente de tráfico, negligencia médica)
@@ -49,7 +49,7 @@ pub enum CaseType {
 }
 
 /// Nivel del tribunal
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum CourtLevel {
     /// Juzgado de paz / faltas (multas, casos menores)
@@ -86,8 +86,7 @@ pub struct LegalCase {
     pub corruption_level: f32,   // 0.0 = limpio, 1.0 = totalmente corrupto
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CaseRuling {
+#[derive(Debug, Clone, Copy, PartialEq)]`npub enum CaseRuling {
     Pending,
     Dismissed,
     Settled { amount: f64 },       // acuerdo extrajudicial
@@ -314,7 +313,7 @@ impl JudicialSystem {
                 // Corrupción: reduce probabilidad de resolución justa
                 let fair_chance = resolve_chance * (1.0 - court.corruption_index);
 
-                if rand::random::<f32>() < fair_chance {
+                if rng_pool::rng_fast() < fair_chance {
                     // Determinar fallo
                     let ruling = self.determine_ruling(case, court.corruption_index);
 
@@ -349,7 +348,7 @@ impl JudicialSystem {
         for firm in &self.law_firms {
             if firm.is_patent_troll {
                 // Patent trolls generan casos contra empresas tech
-                if rand::random::<f32>() < 0.05 * dt {
+                if rng_pool::rng_fast() < 0.05 * dt {
                     let _case_id = self.file_lawsuit(
                         CaseType::Corporate,
                         &firm.name,
@@ -389,10 +388,10 @@ impl JudicialSystem {
         // La corrupción altera el resultado
         let adjusted = plaintiff_base + (corruption - 0.5) * 0.4;
 
-        if rand::random::<f32>() < adjusted {
-            let amount = case.damages_claimed * (0.3 + rand::random::<f32>() * 0.7);
+        if rng_pool::rng_fast() < adjusted {
+            let amount = case.damages_claimed * (0.3 + rng_pool::rng_fast() * 0.7);
             CaseRuling::PlaintiffWon { amount }
-        } else if rand::random::<f32>() < 0.3 {
+        } else if rng_pool::rng_fast() < 0.3 {
             let amount = case.damages_claimed * 0.1;
             CaseRuling::Settled { amount }
         } else {
@@ -404,7 +403,7 @@ impl JudicialSystem {
     pub fn corrupt_court(&mut self, court_id: u64, bribe_amount: f64) -> bool {
         if let Some(court) = self.courthouses.iter_mut().find(|c| c.id == court_id) {
             court.corruption_index = (court.corruption_index + bribe_amount / 1_000_000.0).min(1.0);
-            return true;
+            court.corruption_index = (court.corruption_index + (bribe_amount / 1_000_000.0) as f32).min(1.0);
         }
         false
     }

@@ -146,12 +146,8 @@ impl SpatialGrid {
             self.insert(pos.x, pos.y, bits);
         }
         self.dirty = false;
-    }
-
-    #[inline]
     #[inline]
     pub fn query_near(&self, x: f32, y: f32, radius: f32) -> SpatialQueryIter<'_> {
-
         let (cx, cy) = Self::cell_index(x, y);
         let cell_radius = ((radius / SPATIAL_CELL_SIZE).ceil() as usize).min(SPATIAL_GRID_DIM / 2);
         let min_x = if cx >= cell_radius { cx - cell_radius } else { 0 };
@@ -160,7 +156,10 @@ impl SpatialGrid {
         let max_y = (cy + cell_radius).min(SPATIAL_GRID_DIM - 1);
         SpatialQueryIter { grid: self, min_x, max_x, min_y, max_y, current_cx: min_x, current_cy: min_y, current_idx: 0, done: false }
     }
+}
+
 pub struct SpatialQueryIter<'a> {
+
     grid: &'a SpatialGrid,
     min_x: usize, max_x: usize,
     #[allow(dead_code)]

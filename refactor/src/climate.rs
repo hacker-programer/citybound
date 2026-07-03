@@ -68,38 +68,25 @@ fn get_day_night_params(time_fraction: f32) -> (f32, f32, f32, f32) {
 #[cfg(target_arch = "x86_64")]
 unsafe fn apply_color_grading(fb: &mut [u32], width: usize, height: usize, 
                                r_mul: f32, g_mul: f32, b_mul: f32, ambient: f32) {
-    use std::arch::x86_64::*;
     let total_pixels = width * height;
+    let ambient_add = ambient * 255.0;
 
-    // Procesado escalar (el SIMD está planificado para fase futura)
+    // Loop escalar directo (SIMD planificado para fase futura)
     for px in 0..total_pixels {
-
-        // Aplicar multiplicadores por canal y ambient
-        // (esto es una aproximación; el alpha blending fino es más complejo)
-
-        // Fallback escalar para SIMD de 4 píxeles
-        for off in 0..4 {
-            let idx = px + off;
-            if idx < total_pixels {
-                let pixel = *fb.get_unchecked(idx);
-                let a = (pixel >> 24) & 0xFF;
-                let r = (pixel >> 16) & 0xFF;
-                let g = (pixel >> 8) & 0xFF;
-                let b = pixel & 0xFF;
-
-                let new_r = ((r as f32 * r_mul + ambient as f32 * 255.0) as u32).min(255);
-                let new_g = ((g as f32 * g_mul + ambient as f32 * 255.0) as u32).min(255);
-                let new_b = ((b as f32 * b_mul + ambient as f32 * 255.0) as u32).min(255);
-
-                *fb.get_unchecked_mut(idx) = (a << 24) | (new_r << 16) | (new_g << 8) | new_b;
-            }
-        }
-    }
-
-    // Cola
-    for px in simd_end..total_pixels {
         let pixel = *fb.get_unchecked(px);
         let a = (pixel >> 24) & 0xFF;
+        let r = (pixel >> 16) & 0xFF;
+        let g = (pixel >> 8) & 0xFF;
+        let b = pixel & 0xFF;
+
+        let new_r = ((r as f32 * r_mul + ambient_add) as u32).min(255);
+        let new_g = ((g as f32 * g_mul + ambient_add) as u32).min(255);
+        let new_b = ((b as f32 * b_mul + ambient_add) as u32).min(255);
+
+        *fb.get_unchecked_mut(px) = (a << 24) | (new_r << 16) | (new_g << 8) | new_b;
+    }
+}
+
         let r = (pixel >> 16) & 0xFF;
         let g = (pixel >> 8) & 0xFF;
         let b = pixel & 0xFF;

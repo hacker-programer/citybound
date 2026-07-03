@@ -602,6 +602,7 @@ pub fn process_design_input(
                 let brush = tool.brush_size;
                 let half = brush / 2;
                 let mut previous = Vec::new();
+                for (_entity, (pos, zone)) in gw.world
 
                 for (entity, (pos, zone)) in gw.world
                     .query::<(&Position, &ZoneComponent)>()

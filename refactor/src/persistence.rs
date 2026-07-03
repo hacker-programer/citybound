@@ -5,9 +5,6 @@
 // TÉCNICAS:
 // [TA#4] Zero-copy serialization — bincode es binario directo
 // [TA#17] Acceso unchecked en buffers validados
-//
-// SaveData solo guarda los datos críticos que no se reconstruyen en init.
-// Los datos de terreno, LUTs, flow fields, etc. se regeneran al cargar.
 
 use serde::{Serialize, Deserialize};
 
@@ -21,7 +18,6 @@ pub struct SaveData {
     pub finance_land_value_tax_rate: f32,
     pub finance_corporate_tax_rate: f32,
     pub finance_sales_tax_rate: f32,
-    pub finance_sales_tax_rate: f32,
     pub politics_approval: f32,
     /// Posiciones de edificios: (x, y, building_type, money, food, goods)
     pub buildings: Vec<BuildingSaveData>,
@@ -30,6 +26,7 @@ pub struct SaveData {
     /// Carriles: datos de congestión
     pub lane_congestion: Vec<f32>,
 }
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BuildingSaveData {
     pub x: f32,
@@ -84,6 +81,8 @@ impl SaveData {
 
         SaveData {
             version: SAVE_VERSION,
+            sim_tick: gw.sim_tick,
+            time_of_day: gw.time_of_day,
             finance_treasury: gw.finance.treasury,
             finance_land_value_tax_rate: gw.finance.tax_policy.land_value_tax_rate,
             finance_corporate_tax_rate: gw.finance.tax_policy.corporate_tax_rate,
@@ -100,11 +99,11 @@ impl SaveData {
         gw.sim_tick = self.sim_tick;
         gw.time_of_day = self.time_of_day;
         gw.finance.treasury = self.finance_treasury;
-        gw.finance.treasury = self.finance_treasury;
         gw.finance.tax_policy.land_value_tax_rate = self.finance_land_value_tax_rate;
         gw.finance.tax_policy.corporate_tax_rate = self.finance_corporate_tax_rate;
         gw.finance.tax_policy.sales_tax_rate = self.finance_sales_tax_rate;
         gw.politics.global_approval = self.politics_approval;
+
         for (i, &cong) in self.lane_congestion.iter().enumerate() {
             if i < gw.lane_manager.lanes.len() {
                 gw.lane_manager.lanes[i].congestion = cong;

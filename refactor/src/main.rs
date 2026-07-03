@@ -142,10 +142,12 @@ fn main() {
             }
         }
 
+        let mut dt = std::mem::replace(&mut world.design_tool, interactive::DesignTool::new());
         interactive::process_design_input(
-            &mut world.design_tool, &mut world, &input_state,
+            &mut dt, &mut world, &input_state,
             WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32,
         );
+        world.design_tool = dt;
 
         if !world.design_tool.active
             || input_state.is_key_down(input::GameKey::W)

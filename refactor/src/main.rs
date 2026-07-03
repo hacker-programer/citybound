@@ -92,8 +92,6 @@ fn main() {
 
         // ---- INPUT ----
         // Resetear flancos
-        // ---- INPUT ----
-        // Resetear flancos
         input_state.keys_pressed = 0;
         input_state.keys_released = 0;
 
@@ -107,10 +105,8 @@ fn main() {
                 input_state.keys_down |= bit;
             }
         }
-                }
-            }
-        });
 
+        // Mouse
         // Mouse
         if let Some((mx, my)) = window.get_mouse_pos(minifb::MouseMode::Clamp) {
             input_state.mouse_x = mx;

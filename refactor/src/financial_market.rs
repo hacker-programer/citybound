@@ -379,24 +379,29 @@ impl StockExchange {
 #[derive(Debug, Clone)]
 pub struct MunicipalBond {
     pub id: u64,
-    pub face_value: f64,       // valor nominal
-    pub interest_rate: f32,    // tasa de interés anual
-    pub maturity_ticks: u32,   // ticks hasta vencimiento (1 tick = ~1 día)
-    pub issued_tick: u32,
-    pub purpose: String,       // propósito del bono
-    pub remaining_principal: f64,
-}
+    /// Tick del mercado — actualiza precios
+    pub fn tick(&mut self, city_economy_health: f32) {
+        let mut total_cap: f64 = 0.0;
 
-/// Gestor de deuda municipal
-pub struct BondMarket {
-    pub active_bonds: Vec<MunicipalBond>,
-    pub total_debt_outstanding: f64,
-    pub annual_interest_cost: f64,
-    next_bond_id: u64,
-}
+        for company in &mut self.listed_companies {
+            let drift = (city_economy_health - 0.5) * 0.01;
+            let random = crate::rng_pool::rng_range(-1.0, 1.0) * company.volatility;
+            company.share_price *= 1.0 + drift + random;
+            company.share_price = company.share_price.max(0.01);
+            company.market_cap = company.share_price as f64 * company.shares_outstanding as f64;
+            company.price_history.push(company.share_price);
 
-impl BondMarket {
-    pub fn new() -> Self {
+            if company.price_history.len() > 100 {
+                company.price_history.remove(0);
+            }
+
+            total_cap += company.market_cap;
+        }
+
+        if !self.listed_companies.is_empty() {
+            self.index_value = (total_cap / self.listed_companies.len() as f64) as f32 / 1000.0;
+        }
+    }
         BondMarket {
             active_bonds: Vec::with_capacity(32),
             total_debt_outstanding: 0.0,

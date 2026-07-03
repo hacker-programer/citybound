@@ -86,8 +86,8 @@ pub struct LegalCase {
     pub appeal_count: u8,
     pub is_class_action: bool,   // demanda colectiva
     pub corruption_level: f32,   // 0.0 = limpio, 1.0 = totalmente corrupto
-}
-
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CaseRuling {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CaseRuling {
     Pending,

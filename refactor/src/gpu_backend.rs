@@ -862,7 +862,8 @@ impl CpuBackend {
                 }
             }
         }
-        let _ = rayon::current_thread_pool; // dummy reference to keep rayon imported
+    }
+
     }
 
 

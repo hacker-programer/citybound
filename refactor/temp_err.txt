@@ -1,0 +1,4 @@
+    Checking citybound_native v0.10.0 (C:\Users\Fa\Desktop\IAF\citybound\refactor)
+src\judicial.rs:318:34: error[E0502]: cannot borrow `*self` as immutable because it is also borrowed as mutable: immutable borrow occurs here
+src\judicial.rs:352:36: error[E0502]: cannot borrow `*self` as mutable because it is also borrowed as immutable: mutable borrow occurs here
+error: could not compile `citybound_native` (lib) due to 2 previous errors

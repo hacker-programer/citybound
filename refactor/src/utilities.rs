@@ -126,16 +126,13 @@ impl UtilityGrid {
         self.values = new_values;
     }
 
-        self.values = new_values;
-    }
-
     /// Obtiene presión en coordenadas de mundo
     #[inline(always)]
     pub fn get_pressure(&self, world_x: f32, world_y: f32) -> f32 {
         let gx = (world_x / 4.0) as usize;
         let gy = (world_y / 4.0) as usize;
         if gx < UTILITY_GRID_SIZE && gy < UTILITY_GRID_SIZE {
-            unsafe { *self.values.get_unchecked(gy).get_unchecked(gx) }
+            unsafe { *self.values.get_unchecked(gy * UTILITY_GRID_SIZE + gx) }
         } else {
             0.0
         }

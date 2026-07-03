@@ -341,9 +341,12 @@ impl WasteManager {
     }
 }
 // TESTS
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
 mod tests {
-    #[test]
-    fn test_landfill_deposit() {
+    use super::*;
+    use crate::ecs::BuildingType;
 
     #[test]
     fn test_landfill_deposit() {
@@ -365,8 +368,8 @@ mod tests {
     fn test_toxic_without_geomembrane() {
         let mut lf = Landfill::new(0.0, 0.0, 1000.0);
         let leaked = lf.deposit(WasteItem { waste_type: WasteType::Toxic, amount_kg: 100.0 });
-        assert!(leaked > 0.0); // Debe haber fuga
-        assert!(lf.toxic_kg < 100.0); // Solo la mitad se almacenó
+        assert!(leaked > 0.0);
+        assert!(lf.toxic_kg < 100.0);
     }
 
     #[test]
@@ -382,12 +385,9 @@ mod tests {
     fn test_methane_generation() {
         let mut lf = Landfill::new(0.0, 0.0, 10000.0);
         lf.organic_kg = 5000.0;
-
-        // Simular 1 hora (3600 ticks a dt=1.0)
         for _ in 0..3600 {
             lf.tick(1.0);
         }
-
         assert!(lf.methane_level > 0.0);
     }
 
@@ -397,11 +397,9 @@ mod tests {
         lf.organic_kg = 5000.0;
         lf.has_methane_ventilation = true;
         lf.methane_level = 50.0;
-
         for _ in 0..100 {
             lf.tick(1.0);
         }
-
         assert!(lf.methane_level < 50.0);
     }
 
@@ -428,7 +426,6 @@ mod tests {
     fn test_uncollected_waste_penalty() {
         let mut wm = WasteManager::new();
         wm.uncollected_waste = 500.0;
-        // Simular penalización
         wm.environmental_fines += wm.uncollected_waste * 0.5;
         assert_eq!(wm.environmental_fines, 250.0);
     }

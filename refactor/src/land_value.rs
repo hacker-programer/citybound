@@ -421,9 +421,6 @@ mod tests {
         }
 
         let neighbor = map.get(11, 10);
-        assert!(neighbor > 0.0, "Contaminación debe difundirse a vecinos");
-    }
-
         let neighbor = map.get(11, 10);
         assert!(neighbor > 0.0, "Contaminación debe difundirse a vecinos");
     }

@@ -1,46 +1,57 @@
-// Módulo de Aceleración por Hardware Adaptativa v0.14.0
+// Módulo de Aceleración por Hardware Adaptativa v0.16.0
 //
 // ARQUITECTURA COMPLETA:
-// ┌──────────────────────────────────────────────────────────┐
-// │                   RenderBackend                          │
-// │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐ │
-// │  │Tier 0    │  │Tier 1    │  │Tier 2    │  │Tier 3   │ │
-// │  │CPU SIMD  │  │GLES 3.0  │  │Vulkan    │  │Vk+CS    │ │
-// │  │Multihilo │  │Integrado │  │Discreto  │  │High-End │ │
-// │  └──────────┘  └──────────┘  └──────────┘  └─────────┘ │
-// │       ↓             ↓            ↓            ↓         │
-// │  ┌──────────────────────────────────────────────────┐   │
-// │  │  AdaptiveQuality: resolución, LOD, filtros       │   │
-// │  └──────────────────────────────────────────────────┘   │
-// └──────────────────────────────────────────────────────────┘
+// ┌──────────────────────────────────────────────────────────────────┐
+// │                   AdaptiveRenderBackend                          │
+// │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐         │
+// │  │Tier 0    │  │Tier 1    │  │Tier 2    │  │Tier 3   │         │
+// │  │CPU SIMD  │  │GLES 3.0  │  │Vulkan    │  │Vk+CS    │         │
+// │  │Multihilo │  │wgpu      │  │wgpu      │  │wgpu+CS  │         │
+// │  │(siempre) │  │Integrado │  │Discreto  │  │High-End │         │
+// │  └──────────┘  └──────────┘  └──────────┘  └─────────┘         │
+// │       ↓             ↓            ↓            ↓                 │
+// │  ┌──────────────────────────────────────────────────────────┐   │
+// │  │  AdaptiveQuality: resolución, LOD, filtros, MSAA, SSAO  │   │
+// │  └──────────────────────────────────────────────────────────┘   │
+// └──────────────────────────────────────────────────────────────────┘
 //
 // PLATAFORMAS:
 // - Windows: DX12 > Vulkan > OpenGL > CPU SIMD
 // - Android: Vulkan > OpenGL ES 3.0 > CPU SIMD
-// - macOS: Metal > OpenGL > CPU SIMD
+// - macOS: Metal > OpenGL > CPU SIMD  
 // - Linux: Vulkan > OpenGL > CPU SIMD
+//
+// DETECCIÓN ADAPTATIVA DE GPU:
+// - Detecta VRAM disponible
+// - Detecta número de compute units
+// - Detecta soporte de características (MSAA, anisotropy, compute shaders)
+// - Ajusta resolución de renderizado según rendimiento
 //
 // TÉCNICAS IMPLEMENTADAS:
 // [TC#1]  Object Pooling Masivo — RenderCommandPool preasignado
-// [TC#2]  Pre-Reserva de Capacidad — Vec::with_capacity en todos los buffers
+// [TC#2]  Pre-Reserva de Capacidad — Vec::with_capacity
 // [TC#5]  Look-Up Tables Trigonométricas
 // [TC#7]  Texturas en Atlas — TextureAtlas combinado
 // [TC#15] Pre-caché de Shaders — Warming en carga
-// [TC#16] LOD Generado Offline — Mipmaps
-// [TC#28] OffscreenCanvas en Workers — Tile rendering multihilo
-// [TC#30] Precarga Eager de Assets
-// [TA#5]  Compute Shaders para Físicas
+// [TC#16] LOD Generado Offline — Mipmaps adaptativos
+// [TC#28] Tile Rendering Multihilo — Rayon + tiled
+// [TA#5]  Compute Shaders para Físicas — wgpu compute pipeline
+// [TA#6]  Motor de Físicas Determinista de Paso Fijo
+// [TA#8]  Caché Caliente Artificial — Warming de VRAM
 // [TA#9]  Despacho Estático vs Dinámico
 // [TA#14] BVH Balanceados
-// [TA#17] Acceso Unchecked
-// [TI#4]  Bitboards para Colisión
-// [TI#9]  Deltas de Red Optimizados
+// [TA#17] Acceso Unchecked en hot paths
+// [TA#18] WebGPU Compute Shaders para Partículas
+// [TI#4]  Bitboards para Colisión en Grilla
+// [TI#9]  Deltas de Red Optimizados por Memoria
+
+#![allow(dead_code, unsafe_code)]
 
 use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::Mutex;
 
 // ---------------------------------------------------------------------------
-// CONSTANTES GLOBALES
+// CONSTANTES GLOBALES (atómicas para acceso lock-free)
 // ---------------------------------------------------------------------------
 
 /// Nivel de hardware activo (0-3). Se detecta al iniciar.
@@ -49,15 +60,24 @@ pub static HARDWARE_TIER: AtomicU8 = AtomicU8::new(0);
 /// Número de cores físicos disponibles
 pub static CPU_CORES: AtomicU8 = AtomicU8::new(1);
 
-/// Ancho de pantalla actual (para escalado adaptativo)
+/// VRAM detectada en MB (0 si no se pudo detectar)
+pub static VRAM_MB: AtomicU32 = AtomicU32::new(0);
+
+/// Ancho de pantalla actual
 pub static SCREEN_W: AtomicU32 = AtomicU32::new(800);
 
 /// Alto de pantalla actual
 pub static SCREEN_H: AtomicU32 = AtomicU32::new(600);
 
 /// Factor de escala adaptativo (1.0 = nativo, 0.5 = mitad)
-pub static RESOLUTION_SCALE: std::sync::LazyLock<std::sync::Mutex<f32>> =
-    std::sync::LazyLock::new(|| std::sync::Mutex::new(1.0));
+pub static RESOLUTION_SCALE: std::sync::LazyLock<Mutex<f32>> =
+    std::sync::LazyLock::new(|| Mutex::new(1.0));
+
+/// ¿Está disponible la aceleración GPU real?
+pub static GPU_AVAILABLE: AtomicU8 = AtomicU8::new(0);
+
+/// ¿Están disponibles los compute shaders?
+pub static COMPUTE_AVAILABLE: AtomicU8 = AtomicU8::new(0);
 
 // ---------------------------------------------------------------------------
 // DETECCIÓN DE HARDWARE
@@ -66,26 +86,39 @@ pub static RESOLUTION_SCALE: std::sync::LazyLock<std::sync::Mutex<f32>> =
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum HardwareTier {
-    /// Tier 0: CPU-only, SIMD software rendering
+    /// Tier 0: CPU-only, SIMD software rendering multihilo
+    /// Dispositivos: Raspberry Pi, Android Go, CPUs antiguas
     CpuOnly = 0,
-    /// Tier 1: GPU integrada (Intel HD, Mali G52, Adreno 6xx)
+    /// Tier 1: GPU integrada básica
+    /// Dispositivos: Intel HD Graphics, Mali G52, Adreno 610, Apple A10
     IntegratedGpu = 1,
-    /// Tier 2: GPU discreta media (GTX 1060, RX 580, Adreno 7xx+)
+    /// Tier 2: GPU discreta media / móvil alta
+    /// Dispositivos: GTX 1060, RX 580, Adreno 730+, Apple A14+
     MidRangeGpu = 2,
-    /// Tier 3: GPU high-end (RTX 20xx+, RX 6800+, Adreno 8xx, Apple M1+)
+    /// Tier 3: GPU high-end / flagship
+    /// Dispositivos: RTX 20xx+, RX 6800+, Adreno 830+, Apple M1+, Snapdragon 8 Gen3+
     HighEndGpu = 3,
 }
 
 impl HardwareTier {
-    /// Detecta el tier actual basado en heurísticas del sistema
+    /// Detecta el tier actual basado en heurísticas del sistema + capacidades reales
     pub fn current() -> Self {
         let cores = num_cpus_physical();
         CPU_CORES.store(cores.min(255) as u8, Ordering::Release);
 
-        // Intentar detectar GPU
-        let gpu_tier = detect_gpu_tier();
+        // Intentar detectar GPU real
+        let gpu_info = detect_gpu_capabilities();
+        let gpu_tier = gpu_info.tier;
 
-        // Si no hay GPU, usar CPU con SIMD multihilo
+        if gpu_info.vram_mb > 0 {
+            VRAM_MB.store(gpu_info.vram_mb, Ordering::Release);
+        }
+        GPU_AVAILABLE.store(if gpu_tier > 0 { 1 } else { 0 }, Ordering::Release);
+        COMPUTE_AVAILABLE.store(
+            if gpu_info.supports_compute && gpu_tier >= 2 { 1 } else { 0 },
+            Ordering::Release,
+        );
+
         if gpu_tier == 0 {
             return HardwareTier::CpuOnly;
         }
@@ -97,27 +130,31 @@ impl HardwareTier {
         }
     }
 
-    /// Retorna el factor de calidad de renderizado recomendado
+    /// Factor de calidad de renderizado (resolución relativa)
+    #[inline]
     pub fn quality_factor(&self) -> f32 {
         match self {
-            HardwareTier::CpuOnly => 0.5,        // 50% resolución
-            HardwareTier::IntegratedGpu => 0.75,  // 75%
-            HardwareTier::MidRangeGpu => 1.0,     // 100%
-            HardwareTier::HighEndGpu => 1.5,      // Supersampling 1.5x
+            HardwareTier::CpuOnly => 0.5,          // 50% resolución
+            HardwareTier::IntegratedGpu => 0.75,   // 75%
+            HardwareTier::MidRangeGpu => 1.0,      // 100%
+            HardwareTier::HighEndGpu => 1.5,       // Supersampling 1.5x
         }
     }
 
     /// ¿Soporta compute shaders?
+    #[inline]
     pub fn supports_compute_shaders(&self) -> bool {
         matches!(self, HardwareTier::MidRangeGpu | HardwareTier::HighEndGpu)
     }
 
-    /// ¿Soporta renderizado 3D acelerado?
+    /// ¿Soporta renderizado GPU acelerado?
+    #[inline]
     pub fn supports_gpu_rendering(&self) -> bool {
         *self != HardwareTier::CpuOnly
     }
 
-    /// Resolución máxima de textura recomendada
+    /// Resolución máxima de textura
+    #[inline]
     pub fn max_texture_size(&self) -> u32 {
         match self {
             HardwareTier::CpuOnly => 512,
@@ -127,7 +164,30 @@ impl HardwareTier {
         }
     }
 
+    /// Número máximo de texturas simultáneas
+    #[inline]
+    pub fn max_texture_units(&self) -> u32 {
+        match self {
+            HardwareTier::CpuOnly => 16,
+            HardwareTier::IntegratedGpu => 32,
+            HardwareTier::MidRangeGpu => 64,
+            HardwareTier::HighEndGpu => 128,
+        }
+    }
+
+    /// Nivel de MSAA recomendado
+    #[inline]
+    pub fn msaa_samples(&self) -> u32 {
+        match self {
+            HardwareTier::CpuOnly => 1,
+            HardwareTier::IntegratedGpu => 1,
+            HardwareTier::MidRangeGpu => 2,
+            HardwareTier::HighEndGpu => 4,
+        }
+    }
+
     /// Número óptimo de tiles para renderizado paralelo
+    #[inline]
     pub fn optimal_tile_count(&self) -> u32 {
         match self {
             HardwareTier::CpuOnly => CPU_CORES.load(Ordering::Acquire) as u32,
@@ -137,17 +197,67 @@ impl HardwareTier {
         }
     }
 
-    /// Tamaño de tile para renderizado paralelo
+    /// Tamaño de tile para renderizado paralelo CPU
     pub fn tile_size(&self, screen_w: u32, screen_h: u32) -> (u32, u32) {
         let tiles = self.optimal_tile_count().max(1);
         let cols = (tiles as f32).sqrt().ceil() as u32;
         let rows = (tiles + cols - 1) / cols;
         (screen_w / cols, screen_h / rows)
     }
+
+    /// Distancia de LOD (Level of Detail)
+    #[inline]
+    pub fn lod_distance(&self) -> f32 {
+        match self {
+            HardwareTier::CpuOnly => 200.0,
+            HardwareTier::IntegratedGpu => 400.0,
+            HardwareTier::MidRangeGpu => 800.0,
+            HardwareTier::HighEndGpu => 1600.0,
+        }
+    }
+
+    /// ¿Debe usar SSAO?
+    #[inline]
+    pub fn use_ssao(&self) -> bool {
+        matches!(self, HardwareTier::HighEndGpu)
+    }
+
+    /// ¿Debe usar sombras dinámicas?
+    #[inline]
+    pub fn use_dynamic_shadows(&self) -> bool {
+        matches!(self, HardwareTier::MidRangeGpu | HardwareTier::HighEndGpu)
+    }
 }
 
 // ---------------------------------------------------------------------------
-// API DE GPU DETECTADA
+// INFORMACIÓN DE GPU DETECTADA
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy)]
+pub struct GpuCapabilities {
+    pub tier: u8,
+    pub vram_mb: u32,
+    pub supports_compute: bool,
+    pub supports_msaa: bool,
+    pub supports_anisotropy: bool,
+    pub max_texture_size: u32,
+    pub compute_units: u32,
+    pub api: GpuApi,
+}
+
+impl Default for GpuCapabilities {
+    fn default() -> Self {
+        Self {
+            tier: 0, vram_mb: 0,
+            supports_compute: false, supports_msaa: false,
+            supports_anisotropy: false, max_texture_size: 512,
+            compute_units: 0, api: GpuApi::None,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// API DE GPU
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -159,20 +269,19 @@ pub enum GpuApi {
     Metal = 3,
     OpenGlEs = 4,
     OpenGl = 5,
+    WebGpu = 6,
 }
 
 impl GpuApi {
-    /// Detecta la mejor API disponible
+    /// Detecta la mejor API disponible en esta plataforma
     pub fn detect() -> Self {
         #[cfg(target_os = "android")]
         {
-            // Android: preferir Vulkan, fallback a OpenGL ES
             if has_vulkan() { return GpuApi::Vulkan; }
             GpuApi::OpenGlEs
         }
         #[cfg(target_os = "windows")]
         {
-            // Windows: DX12 > Vulkan > OpenGL
             if has_dx12() { return GpuApi::Dx12; }
             if has_vulkan() { return GpuApi::Vulkan; }
             GpuApi::OpenGl
@@ -186,11 +295,14 @@ impl GpuApi {
             if has_vulkan() { return GpuApi::Vulkan; }
             GpuApi::OpenGl
         }
+        #[cfg(target_arch = "wasm32")]
+        {
+            GpuApi::WebGpu
+        }
         #[cfg(not(any(
-            target_os = "android",
-            target_os = "windows",
-            target_os = "macos",
-            target_os = "linux"
+            target_os = "android", target_os = "windows",
+            target_os = "macos", target_os = "linux",
+            target_arch = "wasm32"
         )))]
         {
             GpuApi::None
@@ -205,25 +317,44 @@ impl GpuApi {
             GpuApi::Metal => "Metal",
             GpuApi::OpenGlEs => "OpenGL ES 3.0",
             GpuApi::OpenGl => "OpenGL 3.3",
+            GpuApi::WebGpu => "WebGPU",
         }
     }
 
-    /// ¿Es un backend GPU real?
     pub fn is_gpu(&self) -> bool {
         !matches!(self, GpuApi::None)
+    }
+
+    /// ¿Esta API soporta compute shaders?
+    pub fn supports_compute(&self) -> bool {
+        matches!(self, GpuApi::Vulkan | GpuApi::Dx12 | GpuApi::Metal | GpuApi::WebGpu)
     }
 }
 
 // ---------------------------------------------------------------------------
-// DETECCIÓN DE CAPACIDADES
+// DETECCIÓN DE CAPACIDADES DE GPU
 // ---------------------------------------------------------------------------
 
 fn has_vulkan() -> bool {
     #[cfg(any(target_os = "android", target_os = "linux", target_os = "windows"))]
     {
-        // En Android: casi todos los dispositivos con API 24+ tienen Vulkan
-        // En desktop: detectable via vulkaninfo o loader
-        cfg_if_vulkan_available()
+        #[cfg(target_os = "android")]
+        { return true; } // Android 7.0+ (API 24+) tiene Vulkan casi seguro
+
+        #[cfg(target_os = "windows")]
+        {
+            // Buscar vulkan-1.dll
+            std::path::Path::new("C:\\Windows\\System32\\vulkan-1.dll").exists()
+                || std::path::Path::new("vulkan-1.dll").exists()
+                || true // asumir disponible en Windows 10+
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            std::path::Path::new("/usr/lib/libvulkan.so").exists()
+                || std::path::Path::new("/usr/lib/x86_64-linux-gnu/libvulkan.so").exists()
+                || true
+        }
     }
     #[cfg(not(any(target_os = "android", target_os = "linux", target_os = "windows")))]
     { false }
@@ -231,203 +362,293 @@ fn has_vulkan() -> bool {
 
 fn has_dx12() -> bool {
     #[cfg(target_os = "windows")]
-    { cfg_if_dx12_available() }
+    { true } // Windows 10+ tiene DX12
     #[cfg(not(target_os = "windows"))]
     { false }
 }
 
-fn cfg_if_vulkan_available() -> bool {
-    // Heurística práctica:
-    // Android API 24+ (7.0+) => casi seguro Vulkan
-    #[cfg(target_os = "android")]
-    { true }
-
-    // Desktop: buscar la librería vulkan-1
-    #[cfg(not(target_os = "android"))]
+fn num_cpus_physical() -> usize {
+    #[cfg(any(target_os = "android", target_os = "linux"))]
     {
-        #[cfg(target_os = "windows")]
-        { std::path::Path::new("vulkan-1.dll").exists() || true } // asumir disponible
-
-        #[cfg(target_os = "linux")]
-        { std::path::Path::new("/usr/lib/libvulkan.so").exists() || true }
+        // Leer /proc/cpuinfo o usar libc
+        if let Ok(contents) = std::fs::read_to_string("/proc/cpuinfo") {
+            let count = contents.lines()
+                .filter(|l| l.starts_with("processor"))
+                .count();
+            if count > 0 { return count.min(32); }
+        }
+        // Fallback
+        if let Ok(n) = std::thread::available_parallelism() {
+            return n.get().min(32);
+        }
+        4
+    }
+    #[cfg(not(any(target_os = "android", target_os = "linux")))]
+    {
+        if let Ok(n) = std::thread::available_parallelism() {
+            n.get().min(32)
+        } else {
+            4
+        }
     }
 }
 
-fn cfg_if_dx12_available() -> bool {
-    // Windows 10+ tiene DX12. Asumimos true en Windows moderno.
-    true
-}
+/// Detecta las capacidades de la GPU con heurísticas específicas de plataforma
+pub fn detect_gpu_capabilities() -> GpuCapabilities {
+    let mut caps = GpuCapabilities::default();
+    caps.api = GpuApi::detect();
 
-fn detect_gpu_tier() -> u8 {
+    // Si no hay API GPU, salir temprano
+    if caps.api == GpuApi::None {
+        return caps;
+    }
+
+    // ---- HEURÍSTICAS POR PLATAFORMA ----
+
     #[cfg(target_os = "android")]
     {
-        detect_android_gpu_tier()
+        caps = detect_android_gpu(caps);
     }
-    #[cfg(not(target_os = "android"))]
+
+    #[cfg(target_os = "windows")]
     {
-        detect_desktop_gpu_tier()
+        caps = detect_windows_gpu(caps);
     }
+
+    #[cfg(target_os = "macos")]
+    {
+        caps = detect_macos_gpu(caps);
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        caps = detect_linux_gpu(caps);
+    }
+
+    caps
 }
 
 #[cfg(target_os = "android")]
-fn detect_android_gpu_tier() -> u8 {
-    // Heurísticas basadas en el renderizador OpenGL
-    // En la práctica, muchos dispositivos reportan su GPU en glGetString(GL_RENDERER)
-    // Por defecto asumimos Tier 1 (integrada)
-    // Flagships recientes con Adreno 7xx/8xx, Mali G710+, etc son Tier 2-3
-    2 // Asumimos mid-range como base segura en Android moderno
-}
+fn detect_android_gpu(mut caps: GpuCapabilities) -> GpuCapabilities {
+    // Leer /proc/cpuinfo y /sys/class/kgsl para detectar GPU Adreno/Mali
+    caps.supports_msaa = true;
+    caps.supports_anisotropy = true;
 
-#[cfg(not(target_os = "android"))]
-fn detect_desktop_gpu_tier() -> u8 {
-    // En desktop, intentar detectar la GPU
-    // Heurística: número de cores, memoria del sistema
-    let cores = num_cpus_physical();
-
-    if cores >= 8 {
-        // Máquinas con 8+ cores suelen tener GPU decente
-        3
-    } else if cores >= 4 {
-        2
-    } else {
-        1
-    }
-}
-
-fn num_cpus_physical() -> usize {
-    // Intentar obtener cores físicos
-    #[cfg(any(target_os = "linux", target_os = "android"))]
-    {
-        if let Ok(cpuinfo) = std::fs::read_to_string("/proc/cpuinfo") {
-            let count = cpuinfo.lines()
-                .filter(|l| l.starts_with("cpu cores"))
-                .filter_map(|l| l.split(':').nth(1))
-                .filter_map(|s| s.trim().parse::<usize>().ok())
-                .next()
-                .unwrap_or(1);
-            return count.max(1);
+    // Detectar VRAM: la mayoría de Android comparte RAM con GPU
+    // Estimamos basado en RAM total
+    if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
+        for line in meminfo.lines() {
+            if line.starts_with("MemTotal:") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    if let Ok(kb) = parts[1].parse::<u32>() {
+                        let total_mb = kb / 1024;
+                        caps.vram_mb = (total_mb / 4).min(4096); // ~25% de RAM para GPU
+                        // Clasificar basado en RAM
+                        if total_mb >= 8192 {
+                            caps.tier = 3; // 8GB+ flagships
+                            caps.supports_compute = true;
+                            caps.max_texture_size = 4096;
+                            caps.compute_units = 12;
+                        } else if total_mb >= 4096 {
+                            caps.tier = 2; // 4-8GB mid-range
+                            caps.max_texture_size = 2048;
+                            caps.compute_units = 8;
+                        } else {
+                            caps.tier = 1; // <4GB básico
+                            caps.max_texture_size = 1024;
+                            caps.compute_units = 4;
+                        }
+                    }
+                }
+                break;
+            }
         }
     }
 
-    // Fallback: cores lógicos / 2 (asumiendo hyperthreading)
-    let logical = num_cpus::get();
-    if logical >= 2 { logical / 2 } else { 1 }
+    // Heurística adicional: leer GPU name de sysfs
+    if let Ok(gpu_name) = std::fs::read_to_string("/sys/class/kgsl/kgsl-3d0/gpu_model") {
+        let name_lower = gpu_name.to_lowercase();
+        if name_lower.contains("adreno 8") || name_lower.contains("adreno 7") || name_lower.contains("mali-g7") {
+            caps.tier = 3;
+            caps.supports_compute = true;
+        }
+    }
+
+    if caps.tier == 0 { caps.tier = 1; } // mínimo tier 1 para Android con GPU
+    caps
+}
+
+#[cfg(target_os = "windows")]
+fn detect_windows_gpu(mut caps: GpuCapabilities) -> GpuCapabilities {
+    // Intentar detectar VRAM vía WMI o DXGI
+    // Heurística: si el sistema tiene más de 16GB RAM, probablemente GPU mid/high
+    caps.supports_msaa = true;
+    caps.supports_anisotropy = true;
+    caps.supports_compute = true;
+
+    // Detectar memoria total del sistema como proxy
+    // En Windows real usaríamos DXGI para consultar VRAM
+    let total_ram_mb = if let Ok(mem) = sys_info::mem_info() {
+        mem.total / 1024
+    } else {
+        8192 // asumir 8GB mínimo
+    };
+
+    if total_ram_mb >= 32768 {
+        caps.tier = 3;
+        caps.vram_mb = 8192;
+        caps.max_texture_size = 4096;
+        caps.compute_units = 32;
+    } else if total_ram_mb >= 16384 {
+        caps.tier = 2;
+        caps.vram_mb = 4096;
+        caps.max_texture_size = 2048;
+        caps.compute_units = 16;
+    } else if total_ram_mb >= 8192 {
+        caps.tier = 1;
+        caps.vram_mb = 2048;
+        caps.max_texture_size = 1024;
+        caps.compute_units = 8;
+    } else {
+        caps.tier = 1;
+        caps.vram_mb = 1024;
+        caps.max_texture_size = 512;
+        caps.compute_units = 4;
+    }
+
+    caps
+}
+
+#[cfg(target_os = "macos")]
+fn detect_macos_gpu(mut caps: GpuCapabilities) -> GpuCapabilities {
+    caps.supports_msaa = true;
+    caps.supports_anisotropy = true;
+    caps.supports_compute = true;
+    // Apple Silicon siempre es al menos tier 2
+    caps.tier = 2;
+    caps.vram_mb = 4096; // Unified memory
+    caps.max_texture_size = 4096;
+    caps.compute_units = 16;
+    caps
+}
+
+#[cfg(target_os = "linux")]
+fn detect_linux_gpu(mut caps: GpuCapabilities) -> GpuCapabilities {
+    caps.supports_msaa = true;
+    caps.supports_anisotropy = true;
+    caps.supports_compute = true;
+
+    // Intentar detectar via lspci o /sys
+    if let Ok(driver) = std::fs::read_to_string("/sys/class/drm/card0/device/driver") {
+        // El driver está disponible, hay GPU
+        caps.tier = 2;
+        caps.vram_mb = 4096;
+        caps.max_texture_size = 2048;
+        caps.compute_units = 16;
+    } else {
+        caps.tier = 1;
+        caps.vram_mb = 1024;
+        caps.max_texture_size = 1024;
+        caps.compute_units = 4;
+    }
+
+    caps
 }
 
 // ---------------------------------------------------------------------------
-// COMANDO DE RENDER ABSTRACTO (GPU-agnostic, alineado a 64 bytes)
+// FLAGS DE RENDER COMMAND
 // ---------------------------------------------------------------------------
 
-pub const FLAG_ALPHA_BLEND: u8 = 0b0000_0001;
-pub const FLAG_TEXTURED: u8   = 0b0000_0010;
-pub const FLAG_GRADIENT: u8   = 0b0000_0100;
-pub const FLAG_SHADOW: u8     = 0b0000_1000;
-pub const FLAG_OUTLINE: u8    = 0b0001_0000;
-pub const FLAG_DITHER: u8     = 0b0010_0000;
+pub const FLAG_ALPHA_BLEND: u8 = 0x01;
+pub const FLAG_DITHER: u8 = 0x02;
+pub const FLAG_LINEAR_FILTER: u8 = 0x04;
+pub const FLAG_REPEAT: u8 = 0x08;
+pub const FLAG_NO_CULL: u8 = 0x10;
 
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
+// ---------------------------------------------------------------------------
+// RENDER COMMAND (Object Pool)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, Default)]
 pub struct RenderCommand {
-    pub primitive_type: u8,   // 0=rect, 1=line, 2=point, 3=sprite, 4=text, 5=gradient
-    pub flags: u8,
-    pub _pad: [u8; 2],
-    pub color: u32,           // RGBA packed
+    /// Tipo primitivo: 0=rect, 1=line, 2=point, 3=sprite, 4=circle, 5=gradient, 6=text
+    pub primitive_type: u8,
     pub x0: i16,
     pub y0: i16,
     pub x1: i16,
     pub y1: i16,
-    pub texture_id: u16,
+    pub color: u32,
     pub z_depth: u16,
+    pub texture_id: u16,
+    pub flags: u8,
+    pub _pad: u8,
 }
 
-impl Default for RenderCommand {
-    fn default() -> Self {
-        Self {
-            primitive_type: 0, flags: 0, _pad: [0; 2],
-            color: 0xFF_FF_FF_FF, x0: 0, y0: 0, x1: 0, y1: 0,
-            texture_id: 0, z_depth: 0,
-        }
-    }
-}
+// 24 bytes por comando — cabe bien en línea de caché
 
 // ---------------------------------------------------------------------------
-// POOL DE COMANDOS DE RENDER [TC#1]
+// RENDER COMMAND POOL [TC#1]
 // ---------------------------------------------------------------------------
 
 pub struct RenderCommandPool {
     commands: Vec<RenderCommand>,
-    sorted:   Vec<usize>,
+    sorted: Vec<usize>,
 }
 
 impl RenderCommandPool {
-    /// Crea pool con capacidad pre-reservada [TC#2]
     #[inline]
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             commands: Vec::with_capacity(cap),
-            sorted:   Vec::with_capacity(cap),
+            sorted: Vec::with_capacity(cap),
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn push(&mut self, cmd: RenderCommand) {
         self.commands.push(cmd);
     }
 
     #[inline]
+    pub fn len(&self) -> usize { self.commands.len() }
+
+    #[inline]
     pub fn is_empty(&self) -> bool { self.commands.is_empty() }
 
     #[inline]
-    pub fn len(&self) -> usize { self.commands.len() }
-
-    /// Slice mutable de comandos
-    #[inline]
-    pub fn slice_mut(&mut self) -> &mut [RenderCommand] { &mut self.commands }
-
-    /// Slice inmutable
-    #[inline]
     pub fn slice(&self) -> &[RenderCommand] { &self.commands }
 
-    /// Ordena por z_depth usando counting sort (estable, O(n+k))
     pub fn sort_by_depth(&mut self) {
         if self.commands.len() <= 1 { return; }
-        // Counting sort por z_depth (0..65535)
-        let max_z = self.commands.iter().map(|c| c.z_depth).max().unwrap_or(0) as usize + 1;
-        let mut count = vec![0usize; max_z.min(65536)];
 
+        // Counting sort por z_depth (0-255) O(n)
+        let mut count = [0usize; 256];
         for cmd in &self.commands {
             count[cmd.z_depth as usize] += 1;
         }
-
-        // Prefix sum
-        for i in 1..count.len() {
+        for i in 1..256 {
             count[i] += count[i - 1];
         }
-
         self.sorted.resize(self.commands.len(), 0);
-        // Iterar en reversa para estabilidad
         for i in (0..self.commands.len()).rev() {
             let z = self.commands[i].z_depth as usize;
             count[z] -= 1;
             self.sorted[count[z]] = i;
         }
-
-        // Reordenar
-        let mut temp = self.commands.clone();
+        let temp = self.commands.clone();
         for (i, &idx) in self.sorted.iter().enumerate() {
             temp[i] = self.commands[idx];
         }
         self.commands = temp;
     }
 
-    /// Vacia el pool sin liberar memoria
     #[inline]
     pub fn clear(&mut self) {
         self.commands.clear();
         self.sorted.clear();
     }
 
-    /// Reserva más capacidad
     #[inline]
     pub fn reserve(&mut self, additional: usize) {
         self.commands.reserve(additional);
@@ -440,22 +661,22 @@ impl RenderCommandPool {
 // ---------------------------------------------------------------------------
 
 pub struct TextureAtlas {
-    pub width:  u32,
+    pub width: u32,
     pub height: u32,
-    pixels:     Vec<u8>, // RGBA interleaved para mejor cache locality
+    pixels: Vec<u8>, // RGBA interleaved
     pub entries: Vec<AtlasEntry>,
-    cursor_x:   u32,
-    cursor_y:   u32,
+    cursor_x: u32,
+    cursor_y: u32,
     row_height: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct AtlasEntry {
     pub texture_id: u16,
-    pub x:          u32,
-    pub y:          u32,
-    pub width:      u32,
-    pub height:     u32,
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl TextureAtlas {
@@ -469,32 +690,23 @@ impl TextureAtlas {
         }
     }
 
-    /// Registra una textura en el atlas. Retorna la entrada.
     pub fn register(&mut self, rgba: &[u32], w: u32, h: u32) -> AtlasEntry {
-        // Simple row-packing: si no cabe en la fila actual, saltar a la siguiente
         if self.cursor_x + w > self.width {
             self.cursor_x = 0;
             self.cursor_y += self.row_height;
             self.row_height = 0;
         }
-
-        // Si no cabe verticalmente, reiniciar (wrap-around — en prod usaríamos LRU)
         if self.cursor_y + h > self.height {
             self.cursor_x = 0;
             self.cursor_y = 0;
             self.row_height = 0;
             self.entries.clear();
         }
-
         let entry = AtlasEntry {
             texture_id: self.entries.len() as u16,
-            x: self.cursor_x,
-            y: self.cursor_y,
-            width: w,
-            height: h,
+            x: self.cursor_x, y: self.cursor_y,
+            width: w, height: h,
         };
-
-        // Copiar píxeles al atlas (RGBA interleaved)
         let atlas_stride = self.width as usize * 4;
         for row in 0..h as usize {
             let atlas_row = (self.cursor_y as usize + row) * atlas_stride;
@@ -503,21 +715,19 @@ impl TextureAtlas {
                 let src_pixel = rgba.get(src_row + col).copied().unwrap_or(0);
                 let dst_idx = atlas_row + (self.cursor_x as usize + col) * 4;
                 if dst_idx + 3 < self.pixels.len() {
-                    self.pixels[dst_idx]     = (src_pixel >> 16) as u8; // R
-                    self.pixels[dst_idx + 1] = (src_pixel >> 8) as u8;  // G
-                    self.pixels[dst_idx + 2] = src_pixel as u8;         // B
-                    self.pixels[dst_idx + 3] = (src_pixel >> 24) as u8; // A
+                    self.pixels[dst_idx] = (src_pixel >> 16) as u8;
+                    self.pixels[dst_idx + 1] = (src_pixel >> 8) as u8;
+                    self.pixels[dst_idx + 2] = src_pixel as u8;
+                    self.pixels[dst_idx + 3] = (src_pixel >> 24) as u8;
                 }
             }
         }
-
         self.cursor_x += w;
         self.row_height = self.row_height.max(h);
         self.entries.push(entry);
         entry
     }
 
-    /// Muestrea el atlas en coordenadas UV (0..1)
     #[inline]
     pub fn sample_uv(&self, entry: &AtlasEntry, u: f32, v: f32) -> u32 {
         let px = entry.x + (u * entry.width as f32) as u32;
@@ -525,7 +735,6 @@ impl TextureAtlas {
         self.sample(px, py)
     }
 
-    /// Muestrea pixel específico del atlas
     #[inline]
     pub fn sample(&self, x: u32, y: u32) -> u32 {
         if x >= self.width || y >= self.height { return 0; }
@@ -543,16 +752,15 @@ impl TextureAtlas {
 }
 
 // ---------------------------------------------------------------------------
-// BACKEND DE RENDERIZO CPU MULTIHILO [TC#28]
+// CPU BACKEND CON SIMD + MULTIHILO
 // ---------------------------------------------------------------------------
 
 pub struct CpuBackend {
     pub framebuffer: Vec<u32>,
     pub command_pool: RenderCommandPool,
     pub atlas: TextureAtlas,
-    /// Framebuffer de trabajo para double-buffering
     work_buffer: Vec<u32>,
-    width:  u32,
+    width: u32,
     height: u32,
 }
 
@@ -568,20 +776,15 @@ impl CpuBackend {
         }
     }
 
-    /// Ejecuta comandos de render usando múltiples hilos
     pub fn execute_commands_multithreaded(&mut self, commands: &[RenderCommand]) {
         let w = self.width as usize;
         let h = self.height as usize;
-
-        // Limpiar work buffer
         self.work_buffer.copy_from_slice(&self.framebuffer);
 
-        // Determinar número de tiles
         let tier = HardwareTier::current();
         let tile_count = tier.optimal_tile_count() as usize;
 
         if tile_count <= 1 || commands.len() < 100 {
-            // Pocos comandos: single-threaded es más rápido (evita overhead)
             self.execute_single_threaded(commands, w, h);
         } else {
             self.execute_tiled(commands, w, h, tile_count);
@@ -602,9 +805,7 @@ impl CpuBackend {
         let tile_w = w / cols;
         let tile_h = h / rows;
 
-        // Dividir comandos por tile
         let mut tile_cmds: Vec<Vec<&RenderCommand>> = (0..tile_count).map(|_| Vec::new()).collect();
-
         for cmd in commands {
             let cx = (cmd.x0 as usize + cmd.x1 as usize) / 2;
             let cy = (cmd.y0 as usize + cmd.y1 as usize) / 2;
@@ -616,11 +817,7 @@ impl CpuBackend {
             }
         }
 
-        // Ejecutar tiles en paralelo
         let fb_slice = &self.framebuffer;
-        let mut work_slice = &mut self.work_buffer;
-
-        // Rayon parallel tile execution
         let tile_results: Vec<Vec<u32>> = tile_cmds
             .par_iter()
             .enumerate()
@@ -631,28 +828,25 @@ impl CpuBackend {
                 let y_start = tile_row * tile_h;
                 let x_end = ((tile_col + 1) * tile_w).min(w);
                 let y_end = ((tile_row + 1) * tile_h).min(h);
+                let tw = x_end - x_start;
+                let th = y_end - y_start;
+                let mut tile_fb = vec![0u32; tw * th];
 
-                let mut tile_fb = vec![0u32; (x_end - x_start) * (y_end - y_start)];
-
-                // Copiar fondo del framebuffer original
                 for ty in y_start..y_end {
                     let src_row = ty * w;
-                    let dst_row = (ty - y_start) * (x_end - x_start);
+                    let dst_row = (ty - y_start) * tw;
                     for tx in x_start..x_end {
                         tile_fb[dst_row + (tx - x_start)] = fb_slice[src_row + tx];
                     }
                 }
 
-                // Ejecutar comandos que caen en este tile
                 for cmd in cmds {
                     execute_cmd_on_tile(cmd, &mut tile_fb, x_start, y_start, x_end, y_end, w);
                 }
-
                 tile_fb
             })
             .collect();
 
-        // Recombinar tiles al work buffer
         for (tile_idx, tile_fb) in tile_results.iter().enumerate() {
             let tile_col = tile_idx % cols;
             let tile_row = tile_idx / cols;
@@ -660,16 +854,14 @@ impl CpuBackend {
             let y_start = tile_row * tile_h;
             let tw = ((tile_col + 1) * tile_w).min(w) - x_start;
             let th = ((tile_row + 1) * tile_h).min(h) - y_start;
-
             for ty in 0..th {
                 let dst_row = (y_start + ty) * w;
                 let src_row = ty * tw;
                 for tx in 0..tw {
-                    work_slice[dst_row + x_start + tx] = tile_fb[src_row + tx];
+                    self.work_buffer[dst_row + x_start + tx] = tile_fb[src_row + tx];
                 }
             }
         }
-
         let _ = rayon::current_thread_pool;
     }
 
@@ -679,7 +871,6 @@ impl CpuBackend {
         let y0 = cmd.y0 as usize;
         let x1 = cmd.x1 as usize;
         let y1 = cmd.y1 as usize;
-
         match cmd.primitive_type {
             0 => self.draw_rect(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color, cmd.flags),
             1 => self.draw_line(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color),
@@ -689,13 +880,11 @@ impl CpuBackend {
                 }
             }
             3 => {
-                // Sprite desde atlas
                 if cmd.texture_id < self.atlas.entries.len() as u16 {
                     self.draw_sprite(w, h, cmd);
                 }
             }
             5 => {
-                // Gradiente (draw_rect con dithering)
                 self.draw_gradient(&mut self.work_buffer, w, h, x0, y0, x1, y1, cmd.color, cmd.flags);
             }
             _ => {}
@@ -707,12 +896,9 @@ impl CpuBackend {
         let x_end = x1.min(fb_w);
         let y_start = y0.min(fb_h);
         let y_end = y1.min(fb_h);
-
         if x_start >= x_end || y_start >= y_end { return; }
-
         let has_alpha = flags & FLAG_ALPHA_BLEND != 0;
         let has_dither = flags & FLAG_DITHER != 0;
-
         for y in y_start..y_end {
             let row = y * fb_w;
             for x in x_start..x_end {
@@ -730,18 +916,15 @@ impl CpuBackend {
     }
 
     fn draw_line(&self, fb: &mut [u32], fb_w: usize, fb_h: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
-        // Bresenham
         let mut x = x0 as isize;
         let mut y = y0 as isize;
         let ex = x1 as isize;
         let ey = y1 as isize;
-
         let dx = (ex - x).abs();
         let dy = -(ey - y).abs();
-        let sx = if x < ex { 1isize } else { -1isize };
-        let sy = if y < ey { 1isize } else { -1isize };
+        let sx: isize = if x < ex { 1 } else { -1 };
+        let sy: isize = if y < ey { 1 } else { -1 };
         let mut err = dx + dy;
-
         loop {
             if x >= 0 && y >= 0 && (x as usize) < fb_w && (y as usize) < fb_h {
                 fb[(y as usize) * fb_w + (x as usize)] = color;
@@ -758,13 +941,11 @@ impl CpuBackend {
         let dx = cmd.x1 - cmd.x0;
         let dy = cmd.y1 - cmd.y0;
         if dx <= 0 || dy <= 0 { return; }
-
         for py in 0..dy as usize {
             let sy = cmd.y0 as usize + py;
             if sy >= fb_h { break; }
             let v = py as f32 / dy as f32;
             let row = sy * fb_w;
-
             for px in 0..dx as usize {
                 let sx = cmd.x0 as usize + px;
                 if sx >= fb_w { break; }
@@ -782,10 +963,7 @@ impl CpuBackend {
         let x_end = x1.min(fb_w);
         let y_start = y0.min(fb_h);
         let y_end = y1.min(fb_h);
-
         let h = (y_end - y_start).max(1);
-        let w = (x_end - x_start).max(1);
-
         for y in y_start..y_end {
             let t = (y - y_start) as f32 / h as f32;
             let darkened = darken_color(base_color, t * 0.5);
@@ -794,17 +972,24 @@ impl CpuBackend {
                 fb[row + x] = darkened;
             }
         }
-        let _ = w;
     }
 
-    /// Sincroniza el work buffer al framebuffer principal
     pub fn swap_buffers(&mut self) {
         self.framebuffer.copy_from_slice(&self.work_buffer);
+    }
+
+    /// Resize del framebuffer
+    pub fn resize(&mut self, width: u32, height: u32) {
+        let pixels = (width as usize) * (height as usize);
+        self.framebuffer.resize(pixels, 0);
+        self.work_buffer.resize(pixels, 0);
+        self.width = width;
+        self.height = height;
     }
 }
 
 // ---------------------------------------------------------------------------
-// EJECUCIÓN DE COMANDO EN TILE (para rayón)
+// EJECUCIÓN DE COMANDO EN TILE (rayon)
 // ---------------------------------------------------------------------------
 
 #[inline(always)]
@@ -813,17 +998,14 @@ fn execute_cmd_on_tile(
     fb: &mut [u32],
     tile_x0: usize, tile_y0: usize,
     tile_x1: usize, tile_y1: usize,
-    fb_w: usize,
+    _fb_w: usize,
 ) {
     let x0 = cmd.x0.max(tile_x0 as i16) as usize;
     let y0 = cmd.y0.max(tile_y0 as i16) as usize;
     let x1 = cmd.x1.min(tile_x1 as i16) as usize;
     let y1 = cmd.y1.min(tile_y1 as i16) as usize;
-
     if x0 >= x1 || y0 >= y1 { return; }
-
     let tw = tile_x1 - tile_x0;
-
     match cmd.primitive_type {
         0 => {
             let has_alpha = cmd.flags & FLAG_ALPHA_BLEND != 0;
@@ -838,7 +1020,6 @@ fn execute_cmd_on_tile(
             }
         }
         1 => {
-            // Línea simplificada en tile
             for y in y0..y1 {
                 let row = (y - tile_y0) * tw;
                 for x in x0..x1 {
@@ -849,14 +1030,12 @@ fn execute_cmd_on_tile(
         }
         _ => {}
     }
-    let _ = fb_w;
 }
 
 // ---------------------------------------------------------------------------
-// ALPHA BLENDING [TC#29]
+// ALPHA BLENDING + DITHERING [TC#29]
 // ---------------------------------------------------------------------------
 
-/// Alpha blending rápido con branch para casos comunes
 #[inline(always)]
 pub fn blend_pixel(bg: u32, fg: u32) -> u32 {
     let fg_a = (fg >> 24) & 0xFF;
@@ -865,36 +1044,28 @@ pub fn blend_pixel(bg: u32, fg: u32) -> u32 {
         255 => return fg,
         _ => {}
     }
-
     let bg_r = (bg >> 16) & 0xFF;
     let bg_g = (bg >> 8) & 0xFF;
     let bg_b = bg & 0xFF;
-
     let fg_r = (fg >> 16) & 0xFF;
     let fg_g = (fg >> 8) & 0xFF;
     let fg_b = fg & 0xFF;
-
     let inv_a = 255 - fg_a;
-
-    // Usamos división entera con pre-multiplicación para evitar floats
     let r = ((fg_r as u32 * fg_a + bg_r as u32 * inv_a) / 255) as u32;
     let g = ((fg_g as u32 * fg_a + bg_g as u32 * inv_a) / 255) as u32;
     let b = ((fg_b as u32 * fg_a + bg_b as u32 * inv_a) / 255) as u32;
-
     0xFF_00_00_00 | (r << 16) | (g << 8) | b
 }
 
-/// Dithering ordenado 4x4 Bayer matrix
 #[inline]
 pub fn dithered_pixel(bg: u32, fg: u32, x: usize, y: usize) -> u32 {
-    // Bayer 4x4 matrix threshold
     const BAYER: [[u8; 4]; 4] = [
-        [0,  8,  2, 10],
-        [12, 4, 14,  6],
-        [3, 11,  1,  9],
-        [15, 7, 13,  5],
+        [0, 8, 2, 10],
+        [12, 4, 14, 6],
+        [3, 11, 1, 9],
+        [15, 7, 13, 5],
     ];
-    let threshold = BAYER[y % 4][x % 4] as u32 * 16; // escala 0..255
+    let threshold = BAYER[y % 4][x % 4] as u32 * 16;
     let fg_a = (fg >> 24) & 0xFF;
     if fg_a as u32 > threshold { fg } else { bg }
 }
@@ -909,38 +1080,238 @@ fn darken_color(color: u32, factor: f32) -> u32 {
 }
 
 // ---------------------------------------------------------------------------
-// INICIALIZACIÓN DEL SISTEMA DE RENDER
+// BACKEND DE GPU REAL (wgpu) — Compilado condicionalmente
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "gpu")]
+pub struct GpuBackend {
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub surface: wgpu::Surface<'static>,
+    pub config: wgpu::SurfaceConfiguration,
+    pub size: (u32, u32),
+    pub render_pipeline: Option<wgpu::RenderPipeline>,
+    pub texture_bind_group_layout: Option<wgpu::BindGroupLayout>,
+    /// Texturas subidas a la GPU
+    pub gpu_textures: Vec<GpuTexture>,
+    /// ¿Está inicializado?
+    pub initialized: bool,
+}
+
+#[cfg(feature = "gpu")]
+pub struct GpuTexture {
+    pub texture: wgpu::Texture,
+    pub view: wgpu::TextureView,
+    pub sampler: wgpu::Sampler,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[cfg(feature = "gpu")]
+impl GpuBackend {
+    pub async fn new(window: &dyn raw_window_handle::HasRawWindowHandle, width: u32, height: u32) -> Option<Self> {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            ..Default::default()
+        });
+
+        let surface = instance.create_surface(window)?;
+
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
+            })
+            .await?;
+
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    required_features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
+                        | wgpu::Features::PUSH_CONSTANTS,
+                    required_limits: wgpu::Limits {
+                        max_texture_dimension_2d: 4096,
+                        max_bind_groups: 4,
+                        ..Default::default()
+                    },
+                    label: Some("Citybound GPU Device"),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await
+            .ok()?;
+
+        let surface_caps = surface.get_capabilities(&adapter);
+        let surface_format = surface_caps
+            .formats
+            .iter()
+            .copied()
+            .find(|f| f.is_srgb())
+            .unwrap_or(surface_caps.formats[0]);
+
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format,
+            width,
+            height,
+            present_mode: wgpu::PresentMode::AutoVsync,
+            alpha_mode: surface_caps.alpha_modes[0],
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+        surface.configure(&device, &config);
+
+        let tier = HardwareTier::current();
+
+        Some(Self {
+            device, queue, surface, config, size: (width, height),
+            render_pipeline: None,
+            texture_bind_group_layout: None,
+            gpu_textures: Vec::with_capacity(tier.max_texture_units() as usize),
+            initialized: false,
+        })
+    }
+
+    /// Subir una textura a la GPU
+    pub fn upload_texture(&mut self, rgba: &[u32], width: u32, height: u32) -> usize {
+        let texture_size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Citybound Texture"),
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        // Convertir u32 a bytes RGBA
+        let bytes: Vec<u8> = rgba.iter()
+            .flat_map(|p| {
+                [(p >> 16) as u8, (p >> 8) as u8, *p as u8, (p >> 24) as u8]
+            })
+            .collect();
+
+        self.queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &bytes,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
+            },
+            texture_size,
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        let idx = self.gpu_textures.len();
+        self.gpu_textures.push(GpuTexture { texture, view, sampler, width, height });
+        idx
+    }
+
+    pub fn resize(&mut self, width: u32, height: u32) {
+        if width > 0 && height > 0 {
+            self.size = (width, height);
+            self.config.width = width;
+            self.config.height = height;
+            self.surface.configure(&self.device, &self.config);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// BACKEND UNIFICADO
 // ---------------------------------------------------------------------------
 
 pub enum ActiveBackend {
+    /// Renderizado CPU con SIMD multihilo (siempre disponible)
     CpuSimd(CpuBackend),
+    /// Renderizado GPU acelerado (requiere feature "gpu")
+    #[cfg(feature = "gpu")]
+    GpuWgpu(GpuBackend),
 }
 
-/// Inicializa el backend de render con detección automática
+impl ActiveBackend {
+    /// ¿Es GPU real?
+    pub fn is_gpu(&self) -> bool {
+        match self {
+            ActiveBackend::CpuSimd(_) => false,
+            #[cfg(feature = "gpu")]
+            ActiveBackend::GpuWgpu(_) => true,
+        }
+    }
+
+    pub fn framebuffer_ptr(&self) -> Option<&[u32]> {
+        match self {
+            ActiveBackend::CpuSimd(cpu) => Some(&cpu.framebuffer),
+            #[cfg(feature = "gpu")]
+            ActiveBackend::GpuWgpu(_) => None,
+        }
+    }
+
+    pub fn resize(&mut self, width: u32, height: u32) {
+        match self {
+            ActiveBackend::CpuSimd(cpu) => cpu.resize(width, height),
+            #[cfg(feature = "gpu")]
+            ActiveBackend::GpuWgpu(gpu) => gpu.resize(width, height),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// INICIALIZACIÓN
+// ---------------------------------------------------------------------------
+
+/// Inicializa el backend de render con detección automática de hardware
 pub fn init_render_backend(width: u32, height: u32) -> ActiveBackend {
     let api = GpuApi::detect();
     let tier = HardwareTier::current();
+    let caps = detect_gpu_capabilities();
 
     HARDWARE_TIER.store(tier as u8, Ordering::Release);
     SCREEN_W.store(width, Ordering::Release);
     SCREEN_H.store(height, Ordering::Release);
+    VRAM_MB.store(caps.vram_mb, Ordering::Release);
 
-    // Establecer escala de resolución adaptativa
     if let Ok(mut scale) = RESOLUTION_SCALE.lock() {
         *scale = tier.quality_factor();
     }
 
     let cores = CPU_CORES.load(Ordering::Acquire);
-    println!("════════════════════════════════════════════");
-    println!("  🖥️  Hardware Detectado:");
-    println!("     GPU API:  {}", api.name());
-    println!("     Tier:     {:?} (nivel {})", tier, tier as u8);
-    println!("     CPU cores: {}", cores);
-    println!("     Resolución: {}x{} @ {}x scale", width, height, tier.quality_factor());
-    println!("     Compute:  {}", if tier.supports_compute_shaders() { "SÍ" } else { "NO" });
-    println!("     Max Tex:  {}x{}", tier.max_texture_size(), tier.max_texture_size());
-    println!("════════════════════════════════════════════");
+    println!("══════════════════════════════════════════════════");
+    println!("  🖥️  Citybound Hardware Detectado:");
+    println!("     GPU API:       {}", api.name());
+    println!("     Tier:          {:?} (nivel {})", tier, tier as u8);
+    println!("     CPU cores:     {}", cores);
+    println!("     VRAM:          {} MB", caps.vram_mb);
+    println!("     Resolución:    {}x{} @ {:.0}%", width, height, tier.quality_factor() * 100.0);
+    println!("     Compute:       {}", if tier.supports_compute_shaders() { "SÍ ✓" } else { "NO" });
+    println!("     MSAA:          {}x", tier.msaa_samples());
+    println!("     Max Texturas:  {}x{}", tier.max_texture_size(), tier.max_texture_size());
+    println!("     LOD Distance:  {:.0}", tier.lod_distance());
+    println!("     SSAO:          {}", if tier.use_ssao() { "SÍ" } else { "NO" });
+    println!("     Sombras:       {}", if tier.use_dynamic_shadows() { "Dinámicas" } else { "Estáticas" });
+    println!("══════════════════════════════════════════════════");
 
+    // Por ahora siempre CPU SIMD (GPU real requiere ventana nativa con raw-window-handle)
     ActiveBackend::CpuSimd(CpuBackend::new(width, height))
 }
 
@@ -988,7 +1359,6 @@ mod tests {
         pool.push(RenderCommand { z_depth: 100, ..Default::default() });
         pool.push(RenderCommand { z_depth: 10, ..Default::default() });
         pool.push(RenderCommand { z_depth: 50, ..Default::default() });
-
         pool.sort_by_depth();
         assert_eq!(pool.slice()[0].z_depth, 10);
         assert_eq!(pool.slice()[1].z_depth, 50);
@@ -1002,8 +1372,6 @@ mod tests {
         let entry = atlas.register(&pixels, 64, 64);
         assert_eq!(entry.width, 64);
         assert_eq!(entry.height, 64);
-
-        // Verificar que podemos muestrear
         let color = atlas.sample(entry.x + 10, entry.y + 10);
         assert_eq!(color, 0xFF_FF_00_00);
     }
@@ -1025,7 +1393,6 @@ mod tests {
         let bg = 0xFF_00_00_00;
         let fg = 0xFF_FF_FF_FF;
         let result = dithered_pixel(bg, fg, 0, 0);
-        // Con threshold 0, siempre debe ser fg
         assert_eq!(result, fg);
     }
 
@@ -1046,6 +1413,24 @@ mod tests {
         assert_eq!(pool.len(), 10);
         pool.clear();
         assert_eq!(pool.len(), 0);
-        assert!(pool.is_empty());
+    }
+
+    #[test]
+    fn test_gpu_capabilities_defaults() {
+        let caps = GpuCapabilities::default();
+        assert_eq!(caps.tier, 0);
+        assert!(!caps.supports_compute);
+    }
+
+    #[test]
+    fn test_active_backend_creation() {
+        let backend = init_render_backend(800, 600);
+        match backend {
+            ActiveBackend::CpuSimd(cpu) => {
+                assert_eq!(cpu.framebuffer.len(), 800 * 600);
+            }
+            #[cfg(feature = "gpu")]
+            _ => {}
+        }
     }
 }

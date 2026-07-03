@@ -123,17 +123,19 @@ pub fn splitmix64(state: &mut u64) -> u64 {
 #[inline(always)]
 pub fn splitmix64_f32(state: &mut u64) -> f32 {
     (splitmix64(state) as f32) / (u64::MAX as f32 + 1.0)
-}
-
-// ---------------------------------------------------------------------------
-// CACHE WARMING para RNG [TA#8]
-// ---------------------------------------------------------------------------
-
 /// Fuerza la carga del pool de RNG en caché L1.
 pub fn warm_rng_cache() {
+    let base: *const f32 = unsafe { std::ptr::addr_of!(RNG_POOL.data) as *const f32 };
     unsafe {
         for i in (0..RNG_POOL_SIZE).step_by(16) {
-            let _val = std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i));
+            let _val = std::ptr::read_volatile(base.add(i));
+            std::ptr::read_volatile(base.add(i + 4));
+            std::ptr::read_volatile(base.add(i + 8));
+            std::ptr::read_volatile(base.add(i + 12));
+        }
+    }
+}
+
             std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 4));
             std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 8));
             std::ptr::read_volatile(RNG_POOL.data.as_ptr().add(i + 12));

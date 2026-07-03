@@ -2,15 +2,15 @@
 //
 // Implementa el sistema legal completo que los edificios necesitan:
 // - Tribunales de diferentes niveles (municipal, federal, supremo)
-// - Demandas civiles contra la alcaldía (por accidentes, contaminación, expropiaciones)
+// - Demandas civiles contra la alcaldÃ­a (por accidentes, contaminaciÃ³n, expropiaciones)
 // - Juicios corporativos (patentes troll, quiebras, antimonopolio)
 // - Abogados de oficio y fiscales
 // - Embargos preventivos
-// - Sistema de corrupción judicial (sobornos)
-// - Juicios por daños ambientales
+// - Sistema de corrupciÃ³n judicial (sobornos)
+// - Juicios por daÃ±os ambientales
 // - Demandas colectivas (class actions)
 //
-// TÉCNICAS:
+// TÃ‰CNICAS:
 // - Look-Up Tables para tarifas legales precalculadas [TC#5]
 // - Bitboards para mapear jurisdicciones [TI#6]
 // - Strings internados para nombres de casos
@@ -23,40 +23,40 @@ use crate::rng_pool;
 // TIPOS DE CASOS LEGALES
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum CaseType {
-    /// Demanda civil por daños (accidente de tráfico, negligencia médica)
+    /// Demanda civil por daÃ±os (accidente de trÃ¡fico, negligencia mÃ©dica)
     CivilDamages = 0,
-    /// Demanda ambiental (contaminación, tala ilegal)
+    /// Demanda ambiental (contaminaciÃ³n, tala ilegal)
     Environmental = 1,
     /// Demanda corporativa (patentes, monopolio, contrato)
     Corporate = 2,
     /// Demanda laboral (despido injustificado, condiciones inseguras)
     Labor = 3,
-    /// Demanda de propiedad (expropiación, zonificación, HOA)
+    /// Demanda de propiedad (expropiaciÃ³n, zonificaciÃ³n, HOA)
     Property = 4,
     /// Demanda constitucional (derechos civiles, privacidad)
     Constitutional = 5,
-    /// Demanda fiscal (impuestos, evasión)
+    /// Demanda fiscal (impuestos, evasiÃ³n)
     Tax = 6,
     /// Caso penal menor (multas, vandalismo)
     MinorCriminal = 7,
     /// Caso penal mayor (fraude, violencia)
     MajorCriminal = 8,
-    /// Apelación
+    /// ApelaciÃ³n
     Appeal = 9,
 }
 
 /// Nivel del tribunal
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum CourtLevel {
     /// Juzgado de paz / faltas (multas, casos menores)
     Municipal = 0,
     /// Tribunal de primera instancia (civil, laboral)
     District = 1,
-    /// Tribunal superior / cámara de apelaciones
+    /// Tribunal superior / cÃ¡mara de apelaciones
     Appellate = 2,
     /// Corte suprema / tribunal constitucional
     Supreme = 3,
@@ -77,9 +77,9 @@ pub struct LegalCase {
     pub defendant: String,       // demandado
     pub description: String,
     pub damages_claimed: f64,    // monto reclamado
-    pub damages_awarded: f64,    // monto otorgado (si ya se falló)
+    pub damages_awarded: f64,    // monto otorgado (si ya se fallÃ³)
     pub court_level: CourtLevel,
-    pub days_in_court: u32,      // días que lleva en el sistema
+    pub days_in_court: u32,      // dÃ­as que lleva en el sistema
     pub ruling: Option<CaseRuling>,
     pub appeal_count: u8,
     pub is_class_action: bool,   // demanda colectiva
@@ -88,15 +88,15 @@ pub struct LegalCase {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CaseRuling {
-    Pending,
     Dismissed,
     Settled { amount: f64 },       // acuerdo extrajudicial
-    PlaintiffWon { amount: f64 },   // ganó el demandante
-    DefendantWon,                   // ganó el demandado
+    PlaintiffWon { amount: f64 },   // ganÃ³ el demandante
+    DefendantWon,                   // ganÃ³ el demandado
     HungJury,                       // jurado estancado
     Mistrial,                       // juicio nulo
 }
-/// Un tribunal físico en la ciudad
+
+/// Un tribunal fÃ­sico en la ciudad
 #[derive(Debug, Clone)]
 pub struct CourtHouse {
     pub id: u64,
@@ -106,9 +106,9 @@ pub struct CourtHouse {
     pub active_cases: u32,
     pub judges_available: u32,
     pub budget_annual: f64,
-    pub efficiency: f32,        // 0.0-1.0, qué tan rápido procesan casos
+    pub efficiency: f32,        // 0.0-1.0, quÃ© tan rÃ¡pido procesan casos
     pub corruption_index: f32,  // 0.0-1.0
-    pub backlog_penalty: f32,   // penalización por atraso judicial
+    pub backlog_penalty: f32,   // penalizaciÃ³n por atraso judicial
 }
 
 /// Un bufete de abogados en la ciudad
@@ -121,7 +121,7 @@ pub struct LawFirm {
     pub lawyers_count: u32,
     pub win_rate: f32,
     pub is_patent_troll: bool,   // bufete troll de patentes
-    pub is_offshore: bool,       // paraíso fiscal
+    pub is_offshore: bool,       // paraÃ­so fiscal
     pub annual_revenue: f64,
     pub influence_rating: f32,   // capacidad de lobby
 }
@@ -144,7 +144,7 @@ pub struct JudicialSystem {
     next_court_id: u64,
     /// Contador de IDs para law firms
     next_firm_id: u64,
-    /// Estadísticas
+    /// EstadÃ­sticas
     pub total_cases_filed: u64,
     pub total_cases_resolved: u64,
     pub total_damages_paid: f64,
@@ -169,7 +169,7 @@ impl JudicialSystem {
             total_cases_resolved: 0,
             total_damages_paid: 0.0,
             annual_budget: 0.0,
-            // LUT: tarifas de presentación por tipo de caso
+            // LUT: tarifas de presentaciÃ³n por tipo de caso
             filing_fees: [
                 500.0,   // CivilDamages
                 2000.0,  // Environmental
@@ -281,7 +281,7 @@ impl JudicialSystem {
         id
     }
 
-    /// Simula un tick del sistema judicial (un día in-game)
+    /// Simula un tick del sistema judicial (un dÃ­a in-game)
     /// Procesa casos, genera fallos, aplica costos
     pub fn tick(&mut self, city_treasury: &mut f64, dt: f32) -> Vec<JudicialEvent> {
         let mut events = Vec::with_capacity(16);
@@ -301,7 +301,7 @@ impl JudicialSystem {
 
                 case.days_in_court += 1;
 
-                // Probabilidad de resolución basada en días en corte
+                // Probabilidad de resoluciÃ³n basada en dÃ­as en corte
                 let resolve_chance = match case.court_level {
                     CourtLevel::Municipal => 1.0 - (-0.1 * case.days_in_court as f32).exp(),
                     CourtLevel::District => 1.0 - (-0.04 * case.days_in_court as f32).exp(),
@@ -310,14 +310,14 @@ impl JudicialSystem {
                     CourtLevel::International => 1.0 - (-0.003 * case.days_in_court as f32).exp(),
                 };
 
-                // Corrupción: reduce probabilidad de resolución justa
+                // CorrupciÃ³n: reduce probabilidad de resoluciÃ³n justa
                 let fair_chance = resolve_chance * (1.0 - court.corruption_index);
 
                 if rng_pool::rng_fast() < fair_chance {
                     // Determinar fallo
-                    let ruling = self.determine_ruling(case, court.corruption_index);
+                    let ruling = Self::determine_ruling(case, court.corruption_index);
 
-                    let ruling = Self::determine_ruling_impl(case, court.corruption_index);
+                    match ruling {
                         CaseRuling::PlaintiffWon { amount } | CaseRuling::Settled { amount } => {
                             *city_treasury -= amount * 0.3; // La ciudad paga indirectamente
                             self.total_damages_paid += amount;
@@ -344,38 +344,37 @@ impl JudicialSystem {
             }
         }
 
-        // Bufetes de abogados: patent trolls drenan innovación
-        // Recolectar demandas a presentar para evitar conflicto de borrow
-        let mut troll_lawsuits: Vec<(String, f64)> = Vec::with_capacity(8);
+        // Bufetes de abogados: patent trolls drenan innovaciÃ³n
         for firm in &self.law_firms {
             if firm.is_patent_troll {
+                // Patent trolls generan casos contra empresas tech
                 if rng_pool::rng_fast() < 0.05 * dt {
-                    troll_lawsuits.push((firm.name.clone(), firm.annual_revenue * 0.1));
+                    let _case_id = self.file_lawsuit(
+                        CaseType::Corporate,
+                        &firm.name,
+                        "TechCorp",
+                        "Patent infringement claim",
+                        firm.annual_revenue * 0.1,
+                        CourtLevel::District,
+                        false,
+                    );
+                    events.push(JudicialEvent::PatentTrollAction {
+                        firm_name: firm.name.clone(),
+                        message: "Patent troll filed infringement lawsuit against tech sector".to_string(),
+                    });
                 }
             }
         }
-        for (firm_name, amount) in troll_lawsuits {
-            let _case_id = self.file_lawsuit(
-                CaseType::Corporate,
-                &firm_name,
-                "TechCorp",
-                "Patent infringement claim",
-                amount,
-                CourtLevel::District,
-                false,
-            );
-            events.push(JudicialEvent::PatentTrollAction {
-                firm_name,
-                message: "Patent troll filed infringement lawsuit against tech sector".to_string(),
-            });
-        }
-    /// Determina el fallo de un caso basado en su tipo y nivel de corrupción
-    /// (Función libre para evitar conflictos de borrow checker)
-    fn determine_ruling_impl(case: &LegalCase, corruption: f32) -> CaseRuling {
+
+        events
+    }
+
+    /// Determina el fallo de un caso basado en su tipo y nivel de corrupciÃ³n
+    fn determine_ruling(&self, case: &LegalCase, corruption: f32) -> CaseRuling {
         // Probabilidad base de que gane el demandante
         let plaintiff_base = match case.case_type {
             CaseType::CivilDamages => 0.50,
-            CaseType::Environmental => 0.35, // Difícil probar daño ambiental
+            CaseType::Environmental => 0.35, // DifÃ­cil probar daÃ±o ambiental
             CaseType::Corporate => 0.45,
             CaseType::Labor => 0.60,
             CaseType::Property => 0.55,
@@ -386,11 +385,11 @@ impl JudicialSystem {
             CaseType::Appeal => 0.25,
         };
 
-        // La corrupción altera el resultado
-        let adjusted = plaintiff_base + (corruption as f64 - 0.5) * 0.4;
+        // La corrupciÃ³n altera el resultado
+        let adjusted = plaintiff_base + (corruption - 0.5) * 0.4;
 
-        if rng_pool::rng_fast() < adjusted as f32 {
-            let amount = case.damages_claimed * (0.3 + rng_pool::rng_fast() * 0.7) as f64;
+        if rng_pool::rng_fast() < adjusted {
+            let amount = case.damages_claimed * (0.3 + rng_pool::rng_fast() * 0.7);
             CaseRuling::PlaintiffWon { amount }
         } else if rng_pool::rng_fast() < 0.3 {
             let amount = case.damages_claimed * 0.1;
@@ -399,6 +398,8 @@ impl JudicialSystem {
             CaseRuling::DefendantWon
         }
     }
+
+    /// El alcalde puede sobornar jueces para influir en casos
     pub fn corrupt_court(&mut self, court_id: u64, bribe_amount: f64) -> bool {
         if let Some(court) = self.courthouses.iter_mut().find(|c| c.id == court_id) {
             court.corruption_index = (court.corruption_index + (bribe_amount / 1_000_000.0) as f32).min(1.0);
@@ -406,7 +407,8 @@ impl JudicialSystem {
         }
         false
     }
-    /// La ciudad es demandada por accidente/contaminación
+
+    /// La ciudad es demandada por accidente/contaminaciÃ³n
     pub fn city_sued(&mut self, reason: &str, damages: f64) -> u64 {
         self.file_lawsuit(
             CaseType::CivilDamages,

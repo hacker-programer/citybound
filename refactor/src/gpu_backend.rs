@@ -859,8 +859,6 @@ impl CpuBackend {
         }
     }
 
-    }
-
     #[inline(always)]
     fn execute_one(&mut self, cmd: &RenderCommand, w: usize, h: usize) {
         let x0 = cmd.x0.max(0) as usize;

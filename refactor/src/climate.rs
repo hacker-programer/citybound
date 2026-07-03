@@ -87,16 +87,6 @@ unsafe fn apply_color_grading(fb: &mut [u32], width: usize, height: usize,
     }
 }
 
-        let r = (pixel >> 16) & 0xFF;
-        let g = (pixel >> 8) & 0xFF;
-        let b = pixel & 0xFF;
-
-        let new_r = ((r as f32 * r_mul + ambient as f32 * 255.0) as u32).min(255);
-        let new_g = ((g as f32 * g_mul + ambient as f32 * 255.0) as u32).min(255);
-        let new_b = ((b as f32 * b_mul + ambient as f32 * 255.0) as u32).min(255);
-
-        *fb.get_unchecked_mut(px) = (a << 24) | (new_r << 16) | (new_g << 8) | new_b;
-    }
 }
 
 #[cfg(not(target_arch = "x86_64"))]

@@ -62,3 +62,4 @@ pub mod customization;
 pub mod politics;
 pub mod climate;
 pub mod persistence;
+pub mod pedestrian; // 🆕 Social Force Model — peatones, cruces, multitudes

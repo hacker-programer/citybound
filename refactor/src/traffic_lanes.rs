@@ -294,10 +294,10 @@ pub struct LaneManager {
 
 impl LaneManager {
     pub fn new() -> Self {
-        let spatial_grid: [[Vec<u32>; 128]; 128] = unsafe {
-            let mut grid: [[Vec<u32>; 128]; 128] = std::mem::zeroed();
-            for row in grid.iter_mut() {
-                for cell in row.iter_mut() {
+    pub fn new() -> Self {
+        let spatial_grid: [[Vec<u32>; 128]; 128] = 
+            std::array::from_fn(|_| std::array::from_fn(|_| Vec::with_capacity(4)));
+
                     std::ptr::write(cell, Vec::with_capacity(4));
                 }
             }

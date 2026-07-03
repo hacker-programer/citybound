@@ -639,11 +639,12 @@ impl RenderCommandPool {
         let mut temp = self.commands.clone();
         for (i, &idx) in self.sorted.iter().enumerate() {
             temp[i] = self.commands[idx];
-        }
         self.commands = temp;
-
+    }
 
     #[inline]
+    pub fn clear(&mut self) {
+
     pub fn clear(&mut self) {
         self.commands.clear();
         self.sorted.clear();

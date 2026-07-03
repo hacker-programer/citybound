@@ -360,19 +360,8 @@ impl LaneManager {
             next_id += 1;
             let id_w = next_id;
             self.lanes.push(Lane::new(id_w, 128.0, street_y + 2.0, 0.0, street_y + 2.0, LaneDirection::West, URBAN_SPEED_LIMIT));
-            next_id += 1;
-            self.lanes[id_e as usize].right_lane = Some(id_w);
-            self.lanes[id_w as usize].left_lane = Some(id_e);
-        }
-
-        self.build_spatial_grid();
-        println!("Red de carriles: {} carriles, {} intersecciones", self.lanes.len(), self.intersections.len());
-    }
-
     fn build_spatial_grid(&mut self) {
-        for row in self.spatial_grid.iter_mut() {
-            for cell in row.iter_mut() { cell.clear(); }
-        }
+        for cell in self.spatial_grid.iter_mut() { cell.clear(); }
         for lane in &self.lanes {
             let steps = lane.length.max(1.0) as i32;
             for i in 0..=steps.min(128) {
@@ -381,7 +370,7 @@ impl LaneManager {
                 let gx = x as usize % 128;
                 let gy = y as usize % 128;
                 if gx < 128 && gy < 128 {
-                    let cell = &mut self.spatial_grid[gy][gx];
+                    let cell = &mut self.spatial_grid[gy * 128 + gx];
                     if !cell.contains(&lane.id) { cell.push(lane.id); }
                 }
             }
@@ -396,6 +385,17 @@ impl LaneManager {
         let mut result = Vec::with_capacity(8);
         let min_x = if gx >= r { gx - r } else { 0 };
         let max_x = (gx + r + 1).min(127);
+        let min_y = if gy >= r { gy - r } else { 0 };
+        let max_y = (gy + r + 1).min(127);
+        for py in min_y..=max_y {
+            for px in min_x..=max_x {
+                for &lane_id in &self.spatial_grid[py * 128 + px] {
+                    if !result.contains(&lane_id) { result.push(lane_id); }
+                }
+            }
+        }
+        result
+    }
         let min_y = if gy >= r { gy - r } else { 0 };
         let max_y = (gy + r + 1).min(127);
         for py in min_y..=max_y {

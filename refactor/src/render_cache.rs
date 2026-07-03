@@ -110,7 +110,8 @@ impl RenderCache {
     }
 
     #[inline]
-    #[inline]
+    pub fn iter_layers(&self) -> RenderCacheIter<'_> {
+
     pub fn iter_layers(&self) -> RenderCacheIter<'_> {
 
         RenderCacheIter {

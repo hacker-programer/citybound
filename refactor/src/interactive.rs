@@ -236,6 +236,7 @@ impl DesignTool {
     /// Deshacer última acción
     pub fn undo(&mut self, game_world: &mut GameWorld) {
         if let Some(action) = self.undo_stack.pop_back() {
+            match &action {
                 DesignAction::PlaceBuilding { x, y, entity_id, .. } => {
                     // Eliminar la entidad del edificio
                     if let Some(_id) = entity_id {
@@ -246,7 +247,7 @@ impl DesignTool {
                             .query::<(&Position, &ConstructionState)>()
                             .iter()
                         {
-                            if (pos.x - x).abs() < 0.5 && (pos.y - y).abs() < 0.5 {
+                            if (pos.x - *x).abs() < 0.5 && (pos.y - *y).abs() < 0.5 {
                                 to_remove.push(entity);
                             }
                         }
@@ -299,15 +300,6 @@ impl DesignTool {
             self.redo_stack.push_back(action);
         }
     }
-
-    /// Rehacer última acción deshecha
-    pub fn redo(&mut self, game_world: &mut GameWorld) {
-        if let Some(action) = self.redo_stack.pop_back() {
-            match &action {
-                DesignAction::PlaceBuilding { x, y, building_type, .. } => {
-                    game_world.world.spawn((
-                        Position::new(*x, *y),
-                        Renderable::rect(building_color(*building_type), 3.0, 3),
                         ConstructionState { progress: 1.0, building_type: *building_type },
                         ResourceStorage { money: 1000.0, food: 100.0, goods: 50.0 },
                     ));

@@ -13,7 +13,8 @@
 // [TA#7]  Flow fields para propagación de contaminación
 // [TC#26] Inlining agresivo
 
-use crate::ecs::{GameWorld, Position};
+use crate::ecs::{GameWorld};
+
 
 // ---------------------------------------------------------------------------
 // TIPOS DE RESIDUOS

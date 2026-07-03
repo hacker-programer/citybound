@@ -388,8 +388,6 @@ impl PedestrianSystem {
 
     /// Generar viajes peatonales desde edificios según hora del día
     pub fn generate_trips(
-    /// Generar viajes peatonales desde edificios según hora del día
-    pub fn generate_trips(
         &mut self,
         building_positions: &[(f32, f32, u8)], // (x, y, building_type_id)
         time_of_day: u16, // minutos (0-1439)

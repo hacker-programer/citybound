@@ -56,8 +56,7 @@ fn main() {
         }
     };
 
-    window.limit_update_rate(Some(Duration::from_micros(
-        1_000_000 / TARGET_FPS as u64,
+    window.set_fps_target(TARGET_FPS);
     )));
 
     // ===== FRAMEBUFFER =====

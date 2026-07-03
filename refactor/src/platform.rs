@@ -85,8 +85,7 @@ pub trait PlatformBackend {
 #[cfg(not(target_os = "android"))]
 mod desktop {
     use super::*;
-    use minifb::{Key, MouseButton as MfMouseButton, MouseMode, Window, WindowOptions, Scale, ScaleMode};
-
+    use minifb::{Key, MouseButton as MfMouseButton, Window, WindowOptions, Scale, ScaleMode};
     pub struct DesktopBackend {
         window: Window,
         width: u32,

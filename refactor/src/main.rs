@@ -1,16 +1,9 @@
 // Citybound Native v0.15.0 — Punto de entrada principal
 //
-// ARQUITECTURA CROSS-PLATFORM:
-// - GPU Backend Adaptativo: detecta hardware (Tier 0-3) y selecciona
-//   el mejor backend disponible (Vulkan/DX12/Metal/OpenGL ES/CPU SIMD)
-// - Capa de abstracción: minifb (desktop) + platform.rs (Android)
-// - GameWorld en Box para evitar stack overflow
+// Game loop cross-platform con minifb (desktop) + platform.rs (Android)
+// Simulación a 10 ticks/s, renderizado a 30 FPS objetivo
 //
-// PLATAFORMAS SOPORTADAS:
-// - Windows (native, DX12/Vulkan via wgpu)
-// - Android (NativeActivity, Vulkan/OpenGL ES)
-// - macOS (Metal)
-// - Linux (Vulkan/OpenGL)
+// PLATAFORMAS: Windows, Android, macOS, Linux
 
 #![allow(unsafe_code)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -40,11 +33,9 @@ fn main() {
     println!("  Plataforma: {} | {}", platform::platform_name(), platform::arch_name());
     println!("  GPU API: {} | Tier: {:?} (nivel {})",
         gpu_api.name(), hw_tier, hw_tier as u8);
-    println!("  Compute Shaders: {} | Max Textures: {} | Atlas: {}x{}",
+    println!("  Compute Shaders: {} | Max Textures: {}",
         if hw_tier.supports_compute_shaders() { "SI" } else { "NO" },
-        hw_tier.max_texture_units(),
-        hw_tier.max_texture_size(),
-        hw_tier.max_texture_size());
+        hw_tier.max_texture_units());
     println!("══════════════════════════════════════════════════");
 
     // ===== VENTANA NATIVA =====
@@ -65,17 +56,16 @@ fn main() {
         }
     };
 
-    window.limit_update_rate(Some(Duration::from_micros(1_000_000 / TARGET_FPS as u64)));
+    window.limit_update_rate(Some(Duration::from_micros(
+        1_000_000 / TARGET_FPS as u64,
+    )));
 
     // ===== FRAMEBUFFER =====
-    let mut framebuffer: Vec<u32> = vec![0u32; FB_SIZE];
+    let mut framebuffer: Vec<u32> = vec![0xFF_1A_1A_2Eu32; FB_SIZE];
 
     // ===== MUNDO DEL JUEGO =====
     let mut pool = object_pool::EntityPool::new(20000);
     let mut world = Box::new(ecs::create_world(&mut pool));
-
-    // ===== GPU BACKEND =====
-    let mut cpu_backend = gpu_backend::CpuBackend::new(WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32);
 
     // ===== ESTADO =====
     let mut input_state = input::InputState::default();
@@ -83,7 +73,6 @@ fn main() {
     let mut last_time = Instant::now();
     let mut frame_count: u64 = 0;
     let mut fps_timer = Instant::now();
-    let mut current_fps: f32 = 0.0;
 
     // Warm render cache
     world.render_cache.rebuild_from_world(&world.world);
@@ -94,18 +83,19 @@ fn main() {
         SIM_TICKS_PER_SECOND, TARGET_FPS);
 
     // ===== GAME LOOP =====
-    while window.is_open() && !input_state.is_key_down(input::GameKey::Escape) {
+    while window.is_open()
+        && !input_state.is_key_down(input::GameKey::Escape)
+    {
         let now = Instant::now();
         let dt = now.duration_since(last_time);
         last_time = now;
 
         // ---- INPUT ----
-        // Resetear flancos del frame anterior
+        // Resetear flancos
         input_state.keys_pressed = 0;
         input_state.keys_released = 0;
-        input_state.scroll_delta = 0.0;
 
-        // Capturar eventos de minifb
+        // Capturar teclas presionadas
         window.get_keys().map(|keys| {
             for key in keys {
                 if let Some(gk) = map_minifb_key(key) {
@@ -118,11 +108,6 @@ fn main() {
             }
         });
 
-        // Detectar teclas liberadas
-        let prev_down = input_state.keys_down;
-        // Las teclas que estaban presionadas y ya no están son "released"
-        // Nota: simplificado porque minifb no reporta key-up fácilmente
-
         // Mouse
         if let Some((mx, my)) = window.get_mouse_pos(minifb::MouseMode::Clamp) {
             input_state.mouse_x = mx;
@@ -131,14 +116,13 @@ fn main() {
         }
         input_state.mouse_left = window.get_mouse_down(minifb::MouseButton::Left);
         input_state.mouse_right = window.get_mouse_down(minifb::MouseButton::Right);
-        input_state.mouse_middle = window.get_mouse_down(minifb::MouseButton::Middle);
 
         // Scroll
         if let Some(scroll) = window.get_scroll_wheel() {
             input_state.scroll_delta = scroll;
         }
 
-        // ---- PROCESAR INPUT ----
+        // ---- PROCESAR INPUT DEL JUEGO ----
         ecs::process_input(&mut world, &input_state);
 
         // ---- SIMULACIÓN (PASO FIJO) ----
@@ -149,41 +133,36 @@ fn main() {
         }
 
         // ---- RENDER ----
-        cpu_backend.clear(0xFF_1A_1A_2E);
+        // Limpiar framebuffer
+        framebuffer.fill(0xFF_1A_1A_2E);
 
-        // Construir comandos de render desde RenderCache
-        let cam = get_camera(&world);
+        // Renderizar mundo
         render::render_world_cached(
-            &world.render_cache,
-            &mut cpu_backend.command_pool,
-            cam.offset_x, cam.offset_y, cam.zoom,
-            WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32,
+            &world,
+            &mut framebuffer,
+            WINDOW_WIDTH,
+            WINDOW_HEIGHT,
         );
 
-        // Ejecutar render
-        cpu_backend.flush();
-
-        // Copiar al framebuffer de minifb
-        framebuffer.copy_from_slice(&cpu_backend.framebuffer);
-
         // ---- ACTUALIZAR VENTANA ----
-        window.update_with_buffer(&framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT).unwrap();
+        window
+            .update_with_buffer(&framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT)
+            .unwrap();
 
         // ---- FPS ----
         frame_count += 1;
         if fps_timer.elapsed() >= Duration::from_secs(1) {
-            current_fps = frame_count as f32;
+            let fps = frame_count;
             frame_count = 0;
             fps_timer = Instant::now();
 
             let title = format!(
-                "Citybound v0.15 | {} FPS | Tick {} | Ents: {} | Pob: ~{} | Tesoro: ${:.0} | {}",
-                current_fps as u32,
+                "Citybound v0.15 | {} FPS | Tick {} | Ents: {} | Tesoro: ${:.0} | {}",
+                fps,
                 world.sim_tick,
                 ecs::entity_count(&world),
-                estimate_population(&world),
                 world.finance.treasury,
-                gpu_api.name()
+                gpu_api.name(),
             );
             window.set_title(&title);
         }
@@ -250,29 +229,6 @@ fn map_minifb_key(key: minifb::Key) -> Option<input::GameKey> {
     })
 }
 
-/// Obtiene la cámara actual (primer componente Camera en el mundo)
-fn get_camera(world: &ecs::GameWorld) -> ecs::Camera {
-    world.world
-        .query::<&ecs::Camera>()
-        .iter()
-        .next()
-        .map(|(_, cam)| *cam)
-        .unwrap_or(ecs::Camera { offset_x: 0.0, offset_y: 0.0, zoom: 1.0 })
-}
-
-/// Estima la población basada en edificios residenciales
-fn estimate_population(world: &ecs::GameWorld) -> usize {
-    let count = world.world
-        .query::<&ecs::ConstructionState>()
-        .iter()
-        .filter(|(_, cs)| {
-            matches!(cs.building_type,
-                ecs::BuildingType::House | ecs::BuildingType::Apartment)
-        })
-        .count();
-    count * 4 // ~4 personas por unidad residencial
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,8 +236,10 @@ mod tests {
     #[test]
     fn test_map_keys() {
         assert_eq!(map_minifb_key(minifb::Key::W), Some(input::GameKey::W));
-        assert_eq!(map_minifb_key(minifb::Key::Escape), Some(input::GameKey::Escape));
-        assert_eq!(map_minifb_key(minifb::Key::Unknown), None);
+        assert_eq!(
+            map_minifb_key(minifb::Key::Escape),
+            Some(input::GameKey::Escape)
+        );
     }
 
     #[test]

@@ -122,15 +122,15 @@ fn main() {
 
         // Scroll
         if let Some(scroll) = window.get_scroll_wheel() {
-            input_state.scroll_delta = scroll;
-        }
-
         // ---- PROCESAR INPUT DEL JUEGO ----
         ecs::process_input(&mut world, &input_state);
 
         // ---- SIMULACIÓN (PASO FIJO) ----
         sim_accumulator += dt.as_micros() as u64;
         while sim_accumulator >= MICROS_PER_TICK {
+            sim_accumulator -= MICROS_PER_TICK;
+            sim::tick(&mut world, MICROS_PER_TICK as f32 / 1_000_000.0);
+        }
             sim_accumulator -= MICROS_PER_TICK;
             sim::tick_simulation(&mut world);
         }

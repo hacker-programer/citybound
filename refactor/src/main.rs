@@ -231,7 +231,7 @@ fn map_minifb_key(key: minifb::Key) -> Option<input::GameKey> {
         minifb::Key::Down => GameKey::Down,
         minifb::Key::PageUp => GameKey::PageUp,
         minifb::Key::PageDown => GameKey::PageDown,
-        minifb::Key::Plus => GameKey::Plus,
+        minifb::Key::Equal => GameKey::Minus,
         minifb::Key::Minus => GameKey::Minus,
         _ => return None,
     })

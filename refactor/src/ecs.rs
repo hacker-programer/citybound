@@ -345,7 +345,7 @@ pub fn create_world(_pool: &mut EntityPool) -> GameWorld {
         pool: EntityPool::new(1000),
         sim_tick: 0, time_of_day: 7 * 60,
         sim_speed: 1,
-        sim_tick: 0, time_of_day: 7 * 60,
+        rng: SmallRng::seed_from_u64(42),
         rng: SmallRng::seed_from_u64(42),
         terrain, quadtree, flow_fields, bitgrid,
         lane_manager, design_tool,

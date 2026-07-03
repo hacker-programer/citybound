@@ -145,6 +145,18 @@ fn accumulate_wear(gw: &mut GameWorld) {
         if gx < WEAR_GRID_SIZE && gy < WEAR_GRID_SIZE {
             gw.road_wear.values[gy][gx] = (gw.road_wear.values[gy][gx] + CAR_WEAR).min(MAX_WEAR);
         }
+fn accumulate_wear(gw: &mut GameWorld) {
+    // Coches normales
+    for (_entity, (pos, _car)) in gw.world
+        .query::<(&Position, &TrafficCar)>()
+        .iter()
+    {
+        let gx = pos.x as usize;
+        let gy = pos.y as usize;
+        if gx < WEAR_GRID_SIZE && gy < WEAR_GRID_SIZE {
+            let idx = gy * WEAR_GRID_SIZE + gx;
+            gw.road_wear.values[idx] = (gw.road_wear.values[idx] + CAR_WEAR).min(MAX_WEAR);
+        }
     }
 
     // Camiones de carga (más pesados, más desgaste)
@@ -155,19 +167,11 @@ fn accumulate_wear(gw: &mut GameWorld) {
         let gx = pos.x as usize;
         let gy = pos.y as usize;
         if gx < WEAR_GRID_SIZE && gy < WEAR_GRID_SIZE {
-            gw.road_wear.values[gy][gx] = (gw.road_wear.values[gy][gx] + TRUCK_WEAR).min(MAX_WEAR);
+            let idx = gy * WEAR_GRID_SIZE + gx;
+            gw.road_wear.values[idx] = (gw.road_wear.values[idx] + TRUCK_WEAR).min(MAX_WEAR);
         }
     }
 }
-
-/// Modifica los Flow Fields para reflejar el desgaste
-fn apply_wear_to_flow_fields(gw: &mut GameWorld) {
-    use crate::flow_field::FLOW_GRID_SIZE;
-
-    for gy in 0..FLOW_GRID_SIZE {
-        for gx in 0..FLOW_GRID_SIZE {
-            let wear_factor = gw.road_wear.speed_factor(gx, gy);
-
             if wear_factor < 1.0 {
                 // Reducir magnitud del flow field primario
                 let idx = gy * FLOW_GRID_SIZE + gx;

@@ -107,16 +107,19 @@ fn main() {
         }
 
         // Mouse
-        // Mouse
         if let Some((mx, my)) = window.get_mouse_pos(minifb::MouseMode::Clamp) {
             input_state.mouse_x = mx;
             input_state.mouse_y = my;
             input_state.mouse_inside = true;
+        }
+        input_state.mouse_left = window.get_mouse_down(minifb::MouseButton::Left);
+        input_state.mouse_right = window.get_mouse_down(minifb::MouseButton::Right);
+
         // Scroll
         if let Some((_scroll_x, scroll_y)) = window.get_scroll_wheel() {
             input_state.scroll_delta = scroll_y;
         }
-        if let Some(scroll) = window.get_scroll_wheel() {
+
         // ---- PROCESAR INPUT DEL JUEGO ----
         ecs::process_input(&mut world, &input_state);
 
@@ -126,13 +129,6 @@ fn main() {
             sim_accumulator -= MICROS_PER_TICK;
             sim::tick(&mut world, MICROS_PER_TICK as f32 / 1_000_000.0);
         }
-            sim_accumulator -= MICROS_PER_TICK;
-            sim::tick_simulation(&mut world);
-        }
-
-        // ---- RENDER ----
-        // Limpiar framebuffer
-        framebuffer.fill(0xFF_1A_1A_2E);
 
         // Renderizar mundo
         render::render_world_cached(

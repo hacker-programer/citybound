@@ -417,6 +417,15 @@ impl DesignTool {
             .iter()
         {
             if (pos.x - x).abs() < 0.5 && (pos.y - y).abs() < 0.5 {
+    /// Ejecuta una acción de eliminar edificio
+    pub fn execute_remove_building(&mut self, gw: &mut GameWorld, x: f32, y: f32) {
+        let mut removed = None;
+
+        for (entity, (pos, construction, resources)) in gw.world
+            .query::<(&Position, &ConstructionState, &ResourceStorage)>()
+            .iter()
+        {
+            if (pos.x - x).abs() < 0.5 && (pos.y - y).abs() < 0.5 {
                 removed = Some((
                     entity,
                     construction.building_type,
@@ -425,6 +434,8 @@ impl DesignTool {
                     resources.goods,
                 ));
                 break;
+            }
+        }
         if let Some((entity, btype, money, food, goods)) = removed {
             gw.bitgrid.clear(0, x, y);
             let _ = gw.world.despawn(entity);
@@ -446,23 +457,13 @@ impl DesignTool {
 // ---------------------------------------------------------------------------
 
 /// Procesa input para la herramienta de diseño
+pub fn process_design_input(
+    tool: &mut DesignTool,
+    gw: &mut GameWorld,
+    input: &InputState,
+    window_width: u32,
+    window_height: u32,
 ) {
-    if input.is_key_pressed(GameKey::Tab) {
-        tool.toggle();
-    }
-
-    if !tool.active {
-        return;
-    }
-
-    // Cambiar modo con teclas
-    if input.is_key_pressed(GameKey::Key1) {
-        if input.is_key_down(GameKey::Shift) {
-            tool.cycle_building();
-        } else {
-            tool.set_paint_mode();
-            tool.cycle_zone();
-        }
     }
     if input.is_key_pressed(GameKey::Key2) {
         if input.is_key_down(GameKey::Shift) {

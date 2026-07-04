@@ -8,13 +8,9 @@
 // [FIX STACK OVERFLOW]: GameWorld se almacena como Box para evitar
 // que los arrays masivos de sub-sistemas (TerrainMap 144KB, FlowField 128KB×8,
 // UtilityGrids, etc.) desborden el stack de 1MB de Windows.
-//
-// [DIAGNÓSTICO STATUS_STACK_BUFFER_OVERRUN]:
-// Temporalmente desactivado windows_subsystem para ver output de consola.
-// Stack size: 32MB
 
 #![allow(unsafe_code)]
-// #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // DIAGNÓSTICO: desactivado
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use citybound_native::*;
 use std::time::{Duration, Instant};
@@ -28,39 +24,25 @@ pub const TARGET_FPS: u32 = 30;
 
 fn main() {
     std::panic::set_hook(Box::new(|info| {
-        let payload = info.payload();
-        let msg = if let Some(s) = payload.downcast_ref::<&str>() {
-            s.to_string()
-        } else if let Some(s) = payload.downcast_ref::<String>() {
-            s.clone()
-        } else {
-            "Unknown panic".to_string()
-        };
-        let location = info.location().map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
-            .unwrap_or_else(|| "unknown location".to_string());
-        eprintln!("FATAL PANIC at {}: {}", location, msg);
+        eprintln!("FATAL: {}", info);
         std::process::abort();
     }));
 
-    eprintln!("[DIAG] Iniciando...");
-
     // ===== DETECCIÓN DE HARDWARE =====
-    eprintln!("[DIAG] Detectando hardware...");
     let hw_tier = gpu_backend::HardwareTier::current();
     let gpu_api = gpu_backend::GpuApi::detect();
 
-    eprintln!("══════════════════════════════════════════════════");
-    eprintln!("  Citybound Native v0.15.0 — City Builder Realista");
-    eprintln!("  Plataforma: {} | {}", platform::platform_name(), platform::arch_name());
-    eprintln!("  GPU API: {} | Tier: {:?} (nivel {})",
+    println!("══════════════════════════════════════════════════");
+    println!("  Citybound Native v0.15.0 — City Builder Realista");
+    println!("  Plataforma: {} | {}", platform::platform_name(), platform::arch_name());
+    println!("  GPU API: {} | Tier: {:?} (nivel {})",
         gpu_api.name(), hw_tier, hw_tier as u8);
-    eprintln!("  Compute Shaders: {} | Max Textures: {}",
+    println!("  Compute Shaders: {} | Max Textures: {}",
         if hw_tier.supports_compute_shaders() { "SI" } else { "NO" },
         hw_tier.max_texture_units());
-    eprintln!("══════════════════════════════════════════════════");
+    println!("══════════════════════════════════════════════════");
 
     // ===== VENTANA NATIVA =====
-    eprintln!("[DIAG] Creando ventana...");
     let mut window = match minifb::Window::new(
         "Citybound Native v0.15.0",
         WINDOW_WIDTH,
@@ -81,26 +63,18 @@ fn main() {
     window.set_target_fps(TARGET_FPS as usize);
 
     // ===== FRAMEBUFFER (heap) =====
-    eprintln!("[DIAG] Asignando framebuffer {} píxeles...", FB_SIZE);
     let mut framebuffer: Vec<u32> = vec![0xFF_00_00_00u32; FB_SIZE];
 
     // ===== LUTS Y RNG =====
-    eprintln!("[DIAG] Inicializando LUTs trigonométricas...");
     luts::init_trig_luts();
-    eprintln!("[DIAG] Inicializando RNG pool...");
     rng_pool::init_rng_pool(42);
 
     // ===== MUNDO (Box — en heap, NO en stack) =====
-    eprintln!("[DIAG] Creando entity pool...");
     let mut pool = object_pool::EntityPool::new(10000);
-    eprintln!("[DIAG] Creando mundo (esto puede tomar un momento)...");
     let mut world = ecs::create_world(&mut pool);
-    eprintln!("[DIAG] Mundo creado: {} entidades", ecs::entity_count(&world));
 
     // ===== RENDER BACKEND (CPU SIMD + GPU opcional) =====
-    eprintln!("[DIAG] Inicializando render backend...");
     let _render_backend = gpu_backend::init_render_backend(WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32);
-    eprintln!("[DIAG] Render backend listo.");
 
     // ===== INPUT =====
     let mut input_state = input::InputState::default();
@@ -112,11 +86,10 @@ fn main() {
     let mut fps_timer = Instant::now();
 
     // Warm render cache
-    eprintln!("[DIAG] Reconstruyendo render cache...");
     world.render_cache.rebuild_from_world(&world.world);
-    eprintln!("[DIAG] Render cache: {} entradas", world.render_cache.total_entries());
 
-    eprintln!("[OK] Inicialización completa. Entrando al game loop...");
+    println!("[OK] Mundo creado: {} entidades", ecs::entity_count(&world));
+    println!("[OK] GPU Backend: CPU SIMD (Tier {})", hw_tier as u8);
 
     // ===== GAME LOOP =====
     while window.is_open() && !window.is_key_down(minifb::Key::Escape) {
@@ -129,10 +102,13 @@ fn main() {
         // Capturar input
         input_state.update(&window);
 
+        // Procesar input para diseño y cámara
+        ecs::process_input(&mut world, &input_state);
+        input_state.end_frame();
+
         // Simulación a paso fijo (10 ticks/s)
         while sim_accumulator >= MICROS_PER_TICK {
             sim_accumulator -= MICROS_PER_TICK;
-            // dt_fixed = 1.0 / SIM_TICKS_PER_SECOND = 0.1 segundos por tick
             sim::tick(&mut world, 1.0 / SIM_TICKS_PER_SECOND as f32);
         }
 
@@ -143,19 +119,21 @@ fn main() {
         render::render_world_cached(&world, &mut framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
 
         // Stats panel
-        render::render_stats_panel(&world, &mut framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT, TARGET_FPS);
+        let current_fps = if fps_timer.elapsed() >= Duration::from_secs(1) {
+            let fps = frame_count;
+            frame_count = 0;
+            fps_timer = Instant::now();
+            fps
+        } else {
+            TARGET_FPS as u64
+        };
+        render::render_stats_panel(&world, &mut framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT, current_fps as u32);
 
         // Update window
         window.update_with_buffer(&framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT).ok();
 
-        // FPS counter
         frame_count += 1;
-        if fps_timer.elapsed() >= Duration::from_secs(1) {
-            let _fps = frame_count;
-            frame_count = 0;
-            fps_timer = Instant::now();
-        }
     }
 
-    eprintln!("[OK] Saliendo limpiamente.");
+    println!("[OK] Saliendo limpiamente.");
 }

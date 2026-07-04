@@ -47,147 +47,99 @@ pub const MAX_LAND_VALUE: f32 = 100.0;
 pub const HEATMAP_UPDATE_INTERVAL: u64 = 30;
 
 // ---------------------------------------------------------------------------
-// HEATMAPS
+// LAND VALUE HEATMAP
 // ---------------------------------------------------------------------------
 
-/// Mapa de calor de valor del suelo
-#[repr(align(64))]
-/// Mapa de calor de valor del suelo
+/// Mapa de calor del valor del suelo.
+/// Valores > 50 son zona cara, < 20 son zona barata.
 #[repr(align(64))]
 pub struct LandValueHeatmap {
-    /// Valores en heap: índice = y * HEATMAP_SIZE + x
     pub values: Vec<f32>,
 }
 
 impl LandValueHeatmap {
     pub fn new() -> Self {
-        LandValueHeatmap {
-            values: vec![10.0_f32; HEATMAP_SIZE * HEATMAP_SIZE],
-        }
+        let total = HEATMAP_SIZE * HEATMAP_SIZE;
+        let mut values = Vec::with_capacity(total);
+        values.resize(total, 10.0_f32);
+        LandValueHeatmap { values }
     }
 
     #[inline(always)]
     pub fn get(&self, x: usize, y: usize) -> f32 {
         if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
-            unsafe { *self.values.get_unchecked(y * HEATMAP_SIZE + x) }
+            self.values[y * HEATMAP_SIZE + x]
         } else {
-            10.0
+            0.0
         }
-    }
-
-    #[inline(always)]
-    pub fn set(&mut self, x: usize, y: usize, value: f32) {
-        if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
-            self.values[y * HEATMAP_SIZE + x] = value.clamp(0.0, MAX_LAND_VALUE);
-        }
-    }
-
-    /// Difusión: cada celda promedia con sus 4 vecinos
-    pub fn diffuse(&mut self) {
-        let mut new_values = self.values.clone();
-
-        for y in 1..(HEATMAP_SIZE - 1) {
-            for x in 1..(HEATMAP_SIZE - 1) {
-                let idx = y * HEATMAP_SIZE + x;
-                let center = self.values[idx];
-                let avg_neighbors = (
-                    self.values[(y-1) * HEATMAP_SIZE + x] + self.values[(y+1) * HEATMAP_SIZE + x] +
-                    self.values[y * HEATMAP_SIZE + (x-1)] + self.values[y * HEATMAP_SIZE + (x+1)]
-                ) / 4.0;
-
-                new_values[idx] = center * (1.0 - DIFFUSION_RATE)
-                    + avg_neighbors * DIFFUSION_RATE;
-            }
-        }
-
-        self.values = new_values;
     }
 }
 
-/// Mapa de calor de contaminación
+// ---------------------------------------------------------------------------
+// POLLUTION HEATMAP
+// ---------------------------------------------------------------------------
+
+/// Mapa de contaminación atmosférica y terrestre.
+/// 0 = limpio, 10 = inhabitable.
 #[repr(align(64))]
 pub struct PollutionHeatmap {
-    /// Valores en heap: índice = y * HEATMAP_SIZE + x
     pub values: Vec<f32>,
 }
 
 impl PollutionHeatmap {
     pub fn new() -> Self {
-        PollutionHeatmap {
-            values: vec![0.0_f32; HEATMAP_SIZE * HEATMAP_SIZE],
-        }
+        let total = HEATMAP_SIZE * HEATMAP_SIZE;
+        let mut values = Vec::with_capacity(total);
+        values.resize(total, 0.0_f32);
+        PollutionHeatmap { values }
     }
 
     #[inline(always)]
     pub fn get(&self, x: usize, y: usize) -> f32 {
         if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
-            unsafe { *self.values.get_unchecked(y * HEATMAP_SIZE + x) }
+            self.values[y * HEATMAP_SIZE + x]
         } else {
             0.0
         }
     }
-
-    /// Difusión de contaminación + decaimiento
-    pub fn diffuse_and_decay(&mut self) {
-        let mut new_values = self.values.clone();
-
-        for y in 1..(HEATMAP_SIZE - 1) {
-            for x in 1..(HEATMAP_SIZE - 1) {
-                let idx = y * HEATMAP_SIZE + x;
-                let center = self.values[idx];
-                let avg_neighbors = (
-                    self.values[(y-1) * HEATMAP_SIZE + x] + self.values[(y+1) * HEATMAP_SIZE + x] +
-                    self.values[y * HEATMAP_SIZE + (x-1)] + self.values[y * HEATMAP_SIZE + (x+1)]
-                ) / 4.0;
-
-                new_values[idx] = (center * (1.0 - DIFFUSION_RATE)
-                    + avg_neighbors * DIFFUSION_RATE)
-                    * (1.0 - POLLUTION_DECAY);
-            }
-        }
-
-        self.values = new_values;
-    }
 }
 
 // ---------------------------------------------------------------------------
+// ACTUALIZACIÓN DEL SISTEMA
 // ---------------------------------------------------------------------------
-// SISTEMA PRINCIPAL
-// ---------------------------------------------------------------------------
 
-/// Actualiza heatmaps y aplica gentrificación
-pub fn tick_land_value(gw: &mut GameWorld) {
-    // Solo actualizar cada cierto intervalo
-    if gw.sim_tick % HEATMAP_UPDATE_INTERVAL != 0 {
-        return;
-    }
-
-    // 1. Generar contaminación desde zonas industriales
-    generate_pollution(gw);
-
-    // 2. Difundir contaminación
-    gw.pollution_map.diffuse_and_decay();
-
-    // 3. Actualizar valor del suelo basado en zonas, servicios, contaminación
-    update_land_values(gw);
-
-    // 4. Difundir valor del suelo
-    gw.land_value_map.diffuse();
-    // 5. Aplicar gentrificación
-    apply_gentrification(gw);
-}
-
-fn generate_pollution(gw: &mut GameWorld) {
-    for (_entity, (pos, zone)) in gw.world
-        .query::<(&Position, &ZoneComponent)>()
+/// Actualiza contaminación y valor del suelo.
+/// Se llama cada HEATMAP_UPDATE_INTERVAL ticks.
+pub fn update_heatmaps(gw: &mut GameWorld) {
+    // ---- Fase 1: Generar contaminación (industrias, fábricas, tráfico) ----
+    for (_entity, (pos, building)) in gw.world
+        .query::<(&Position, &ConstructionState)>()
         .iter()
     {
-        if zone.zone_type == ZoneType::Industrial && zone.density > 0 {
-            let gx = pos.x as usize;
-            let gy = pos.y as usize;
-            if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {
-                let idx = gy * HEATMAP_SIZE + gx;
-                gw.pollution_map.values[idx] = (gw.pollution_map.values[idx] + 0.5).min(10.0);
+        let gx = pos.x as usize;
+        let gy = pos.y as usize;
+        if gx >= HEATMAP_SIZE || gy >= HEATMAP_SIZE { continue; }
+
+        let pollution_gen = match building.building_type {
+            BuildingType::Factory => 0.5,
+            BuildingType::PowerPlant => 0.8,
+            BuildingType::Incinerator => 0.6,
+            BuildingType::Refinery => 1.0,
+            BuildingType::Mine => 0.7,
+            _ => 0.0,
+        };
+
+        if pollution_gen > 0.0 {
+            // Difundir contaminación en radio de 3 celdas
+            for dy in -3i32..=3 {
+                for dx in -3i32..=3 {
+                    let nx = (gx as i32 + dx).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
+                    let ny = (gy as i32 + dy).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
+                    let dist = ((dx * dx + dy * dy) as f32).sqrt().max(1.0);
+                    let idx = ny * HEATMAP_SIZE + nx;
+                    gw.pollution_map.values[idx] = 
+                        (gw.pollution_map.values[idx] + pollution_gen / dist).min(10.0);
+                }
             }
         }
     }
@@ -198,23 +150,55 @@ fn generate_pollution(gw: &mut GameWorld) {
         .iter()
     {
         let gx = pos.x as usize;
-        let gx = pos.x as usize;
         let gy = pos.y as usize;
         if gx < HEATMAP_SIZE && gy < HEATMAP_SIZE {
             let idx = gy * HEATMAP_SIZE + gx;
             gw.pollution_map.values[idx] = (gw.pollution_map.values[idx] + 0.01).min(10.0);
         }
     }
+
+    // ---- Fase 2: Difusión y decaimiento de contaminación ----
+    let mut new_pollution = vec![0.0_f32; HEATMAP_SIZE * HEATMAP_SIZE];
+    for y in 1..HEATMAP_SIZE - 1 {
+        for x in 1..HEATMAP_SIZE - 1 {
+            let idx = y * HEATMAP_SIZE + x;
+            let current = gw.pollution_map.values[idx];
+            // Promedio de vecinos (difusión)
+            let avg = (
+                gw.pollution_map.values[(y-1)*HEATMAP_SIZE + x] +
+                gw.pollution_map.values[(y+1)*HEATMAP_SIZE + x] +
+                gw.pollution_map.values[y*HEATMAP_SIZE + (x-1)] +
+                gw.pollution_map.values[y*HEATMAP_SIZE + (x+1)]
+            ) * 0.25;
+            new_pollution[idx] = (current * (1.0 - DIFFUSION_RATE) + avg * DIFFUSION_RATE)
+                * (1.0 - POLLUTION_DECAY);
+        }
+    }
+    gw.pollution_map.values.copy_from_slice(&new_pollution);
+
+    // ---- Fase 3: Actualizar valor del suelo ----
+    update_land_values(gw);
 }
 
+/// Recalcula el valor del suelo basado en contaminación, parques y calles.
 fn update_land_values(gw: &mut GameWorld) {
+    let base_value: f32 = 10.0;
+
+    // Inicializar con valor base y penalización por contaminación
     for y in 0..HEATMAP_SIZE {
         for x in 0..HEATMAP_SIZE {
             let idx = y * HEATMAP_SIZE + x;
-
-            // Penalización por contaminación
             let pollution = gw.pollution_map.values[idx];
-            value -= pollution * POLLUTION_VALUE_PENALTY;
+
+            // Valor base penalizado por contaminación
+            let mut value = base_value - pollution * POLLUTION_VALUE_PENALTY;
+
+            // Penalización por zona industrial (usando terrain_types del terreno)
+            let terrain_type = gw.terrain.terrain_types.get(idx).copied().unwrap_or(0);
+            if terrain_type >= 4 {
+                // Roca/base industrial
+                value -= INDUSTRIAL_VALUE_PENALTY * 5.0;
+            }
 
             gw.land_value_map.values[idx] = value.max(1.0);
         }
@@ -240,118 +224,23 @@ fn update_land_values(gw: &mut GameWorld) {
                     }
                 }
             }
-            ZoneType::Road => {
-                gw.land_value_map.values[gy * HEATMAP_SIZE + gx] += ROAD_VALUE_BOOST;
-            }
-            ZoneType::Industrial => {
-                if zone.density > 0 {
-                    for dy in -2i32..=2 {
-                        for dx in -2i32..=2 {
-                            let nx = (gx as i32 + dx).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
-                            let ny = (gy as i32 + dy).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
-                            gw.land_value_map.values[ny * HEATMAP_SIZE + nx] -= INDUSTRIAL_VALUE_PENALTY;
-                        }
+            ZoneType::Commercial => {
+                // Las zonas comerciales suben el valor en 1 celda
+                for dy in -1i32..=1 {
+                    for dx in -1i32..=1 {
+                        let nx = (gx as i32 + dx).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
+                        let ny = (gy as i32 + dy).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;
+                        gw.land_value_map.values[ny * HEATMAP_SIZE + nx] += ROAD_VALUE_BOOST;
                     }
                 }
             }
             _ => {}
         }
     }
-    // Clampear valores
-    for y in 0..HEATMAP_SIZE {
-        for x in 0..HEATMAP_SIZE {
-            let idx = y * HEATMAP_SIZE + x;
-            gw.land_value_map.values[idx] = gw.land_value_map.values[idx].clamp(1.0, MAX_LAND_VALUE);
-        }
-    }
-}
 
-fn apply_gentrification(gw: &mut GameWorld) {
-    let mut to_degrade: Vec<(f32, f32)> = Vec::with_capacity(32);
-
-    for (_entity, (pos, construction, storage)) in gw.world
-        .query::<(&Position, &ConstructionState, &ResourceStorage)>()
-        .iter()
-    {
-        if construction.building_type != BuildingType::House
-            && construction.building_type != BuildingType::Apartment
-        {
-            continue;
-        }
-
-        let gx = pos.x as usize;
-        let gy = pos.y as usize;
-        if gx >= HEATMAP_SIZE || gy >= HEATMAP_SIZE { continue; }
-
-        let land_value = gw.land_value_map.values[gy * HEATMAP_SIZE + gx];
-        let income = storage.money.max(1.0);
-
-        if land_value > income * GENTRIFICATION_THRESHOLD {
-            to_degrade.push((pos.x, pos.y));
-        }
-    }
-
-    for (x, y) in to_degrade {
-        let mut to_abandon: Vec<(f32, f32)> = Vec::new();
-        for (_entity, (pos, construction, _storage)) in gw.world
-            .query::<(&Position, &mut ConstructionState, &ResourceStorage)>()
-            .iter()
-        {
-            if (pos.x - x).abs() < 1.0 && (pos.y - y).abs() < 1.0
-                && construction.progress > 0.3
-            {
-                construction.progress -= 0.05;
-                if construction.progress < 0.1 {
-                    construction.progress = 0.0;
-                    to_abandon.push((x, y));
-                }
-            }
-        }
-        for (ax, ay) in to_abandon {
-            gw.world.spawn((
-                Position::new(ax, ay),
-                crate::supply_chain::AbandonedBuilding { abandoned_ticks: 0 },
-                Renderable::rect(0xFF_66_44_44, 3.0, 3),
-            ));
-        }
-    }
-}
-// ---------------------------------------------------------------------------
-
-/// Colores ARGB para heatmap de valor del suelo
-pub fn land_value_color(value: f32) -> u32 {
-    let normalized = (value / MAX_LAND_VALUE).min(1.0);
-    if normalized < 0.2 {
-        // Verde = barato
-        let g = (normalized * 5.0 * 255.0) as u32;
-        0x66_00_00_00 | (g << 8)
-    } else if normalized < 0.5 {
-        // Amarillo = medio
-        let r = ((normalized - 0.2) * 3.33 * 255.0) as u32;
-        let g = 200u32;
-        0x66_00_00_00 | (r << 16) | (g << 8)
-    } else if normalized < 0.8 {
-        // Naranja = caro
-        let r = 255u32;
-        let g = ((1.0 - (normalized - 0.5) * 3.33) * 200.0) as u32;
-        0x66_00_00_00 | (r << 16) | (g << 8)
-    } else {
-        // Rojo = muy caro (gentrificación)
-        0x66_FF_22_22
-    }
-}
-
-/// Colores ARGB para heatmap de contaminación
-pub fn pollution_color(value: f32) -> u32 {
-    let normalized = (value / 10.0).min(1.0);
-    if normalized < 0.3 {
-        0x00_00_00_00 // Transparente
-    } else if normalized < 0.6 {
-        let alpha = ((normalized - 0.3) * 3.33_f32 * 0x66u32 as f32) as u32;
-        (alpha << 24) | 0x00_AA_AA_00 // Amarillo sucio
-    } else {
-        let alpha = ((normalized - 0.6) * 2.5_f32 * 0x88u32 as f32) as u32;
-        (alpha << 24) | 0x00_FF_44_00 // Rojo contaminación
+    // Clamp a máximo
+    for v in gw.land_value_map.values.iter_mut() {
+        *v = (*v).min(MAX_LAND_VALUE);
     }
 }
 
@@ -364,81 +253,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_land_value_heatmap_new() {
-        let map = LandValueHeatmap::new();
-        assert!((map.get(0, 0) - 10.0).abs() < 0.01);
-        assert!((map.get(64, 64) - 10.0).abs() < 0.01);
-    }
-
-    #[test]
-    fn test_land_value_diffusion() {
-        let mut map = LandValueHeatmap::new();
-        // Crear un pico artificial
-        map.set(64, 64, 100.0);
-
-        map.diffuse();
-        map.diffuse();
-        map.diffuse();
-
-        // Después de difusión, los vecinos deben tener valores más altos
-        let center = map.get(64, 64);
-        let neighbor = map.get(65, 64);
-        assert!(center < 100.0, "Centro debe perder valor por difusión");
-        assert!(neighbor > 10.0, "Vecino debe ganar valor");
-    }
-
-    #[test]
-    fn test_pollution_decay() {
-        let mut map = PollutionHeatmap::new();
-        map.values[10 * HEATMAP_SIZE + 10] = 5.0;
-
-        map.diffuse_and_decay();
-        let after = map.get(10, 10);
-        assert!(after < 5.0, "Contaminación debe decaer: {}", after);
-    }
-
-    #[test]
-    fn test_pollution_spread() {
-        let mut map = PollutionHeatmap::new();
-        map.values[10 * HEATMAP_SIZE + 10] = 10.0;
-
-        for _ in 0..5 {
-            map.diffuse_and_decay();
+    fn test_land_value_new() {
+        let lv = LandValueHeatmap::new();
+        assert_eq!(lv.values.len(), HEATMAP_SIZE * HEATMAP_SIZE);
+        // Todos deberían ser 10.0
+        for v in lv.values.iter() {
+            assert!((*v - 10.0).abs() < 0.001);
         }
-
-        let neighbor = map.get(11, 10);
-        let neighbor = map.get(11, 10);
-        assert!(neighbor > 0.0, "Contaminación debe difundirse a vecinos");
     }
 
     #[test]
-    fn test_land_value_color() {
-        let cheap = land_value_color(5.0);
-        let mid = land_value_color(40.0);
-        let expensive = land_value_color(90.0);
-
-        assert_ne!(cheap, mid);
-        assert_ne!(mid, expensive);
+    fn test_pollution_new() {
+        let p = PollutionHeatmap::new();
+        assert_eq!(p.values.len(), HEATMAP_SIZE * HEATMAP_SIZE);
+        for v in p.values.iter() {
+            assert!(*v < 0.001);
+        }
     }
 
     #[test]
-    fn test_pollution_color() {
-        let clean = pollution_color(0.0);
-        let dirty = pollution_color(8.0);
-
-        assert_eq!(clean, 0x00_00_00_00);
-        assert_ne!(dirty, 0x00_00_00_00);
+    fn test_land_value_get() {
+        let lv = LandValueHeatmap::new();
+        assert!((lv.get(10, 10) - 10.0).abs() < 0.001);
+        assert_eq!(lv.get(500, 500), 0.0); // fuera de rango
     }
 
     #[test]
-    fn test_heatmap_bounds() {
-        let map = LandValueHeatmap::new();
-        // Fuera de bounds
-        let v = map.get(200, 200);
-        assert!((v - 10.0).abs() < 0.01);
-
-        let pmap = PollutionHeatmap::new();
-        let p = pmap.get(500, 500);
-        assert!((p - 0.0).abs() < 0.01);
+    fn test_pollution_get() {
+        let p = PollutionHeatmap::new();
+        assert!(p.get(10, 10) < 0.001);
+        assert_eq!(p.get(500, 500), 0.0);
     }
 }

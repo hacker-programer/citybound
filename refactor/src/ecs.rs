@@ -144,6 +144,10 @@ impl SpatialGrid {
 
     #[inline(always)]
     pub fn insert(&mut self, x: f32, y: f32, entity_bits: u64) {
+        let (cx, cy) = Self::cell_index(x, y);
+        unsafe { self.cells.get_unchecked_mut(cy).get_unchecked_mut(cx).push(entity_bits); }
+    }
+
     #[inline(always)]
     fn cell_index(x: f32, y: f32) -> (usize, usize) {
         let cx = (x / SPATIAL_CELL_SIZE) as usize % SPATIAL_GRID_DIM;
@@ -173,9 +177,8 @@ impl SpatialGrid {
         }
     }
 }
+
 pub struct SpatialQueryIter<'a> {
-    grid: &'a SpatialGrid,
-    center_x: usize, center_y: usize,
     radius: usize,
     current_dx: usize, current_dy: usize,
     current_cell_idx: usize,

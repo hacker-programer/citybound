@@ -295,10 +295,10 @@ impl Quadtree {
     }
 
     fn subdivide(&mut self, node_idx: u32) {
+        let bounds = self.nodes[node_idx as usize].bounds;
         let depth = self.nodes[node_idx as usize].depth;
         let half_w = bounds.w / 2.0;
         let half_h = bounds.h / 2.0;
-
         let child_idx = self.nodes.len() as u32;
 
         // Crear 4 hijos: NW, NE, SW, SE

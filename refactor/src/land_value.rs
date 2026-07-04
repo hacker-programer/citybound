@@ -280,9 +280,15 @@ fn update_land_values(gw: &mut GameWorld) {
         *v = (*v).min(MAX_LAND_VALUE);
     }
 }
+/// Alias para compatibilidad con código existente
+#[inline]
+pub fn tick_land_value(gw: &mut GameWorld) {
+    update_heatmaps(gw);
+}
 
 // ---------------------------------------------------------------------------
 // TESTS
+// ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]

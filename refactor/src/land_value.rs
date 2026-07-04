@@ -264,6 +264,7 @@ fn update_land_values(gw: &mut GameWorld) {
     for v in gw.land_value_map.values.iter_mut() {
         *v = (*v).min(MAX_LAND_VALUE);
     }
+}
 
 /// Alias para compatibilidad con código existente
 /// Alias para compatibilidad con código existente

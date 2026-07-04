@@ -56,56 +56,40 @@ impl Velocity {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Camera { pub offset_x: f32, pub offset_y: f32, pub zoom: f32 }
-
 #[derive(Copy, Clone, Debug)]
 pub struct Renderable {
     pub color: u32,
     pub size_x: f32,
     pub size_y: f32,
     pub layer: i8,
+    pub shape_type: u8, // 0=rect, 1=circle
 }
 impl Renderable {
-    #[inline(always)] pub fn rect(color: u32, w: f32, layer: i8) -> Self { Renderable { color, size_x: w, size_y: w, layer } }
-    #[inline(always)] pub fn circle(color: u32, r: f32, layer: i8) -> Self { Renderable { color, size_x: r, size_y: r, layer } }
+    #[inline(always)] pub fn rect(color: u32, w: f32, layer: i8) -> Self { Renderable { color, size_x: w, size_y: w, layer, shape_type: 0 } }
+    #[inline(always)] pub fn circle(color: u32, r: f32, layer: i8) -> Self { Renderable { color, size_x: r, size_y: r, layer, shape_type: 1 } }
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct TrafficCar {
     pub speed: f32,
     pub max_speed: f32,
-    pub acceleration: f32,
-    pub lane_position: f32,
-    pub lane_id: u32,
-}
+
+// ... (líneas 75-95 sin cambios)
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum BuildingType {
-    House, Shop, Factory, Apartment, Office, Farm,
-    Hospital, School, Police,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct ConstructionState {
-    pub progress: f32,
-    pub building_type: BuildingType,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct ResourceStorage {
-    pub money: f32,
-    pub food: f32,
-    pub goods: f32,
-}
-
-#[derive(Copy, Clone, Debug)]
 pub enum ZoneType {
     Residential, Commercial, Industrial, Agricultural,
+    Road, Park,
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct ZoneComponent {
-    pub zone_type: ZoneType,
-    pub density: u8,
+pub struct Lifetime {
+    pub remaining_ticks: u64,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum PedestrianState {
+    Idle, Walking, Running, Crossing, Panicking,
 }
 
 // ---------------------------------------------------------------------------

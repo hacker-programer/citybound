@@ -169,9 +169,9 @@ pub fn update_heatmaps(gw: &mut GameWorld) {
                     let idx = ny * HEATMAP_SIZE + nx;
                     gw.pollution_map.values[idx] = 
                         (gw.pollution_map.values[idx] + pollution_gen / dist).min(10.0);
-                }
             }
         }
+    }
     }
 
     // Tráfico también genera contaminación

@@ -104,13 +104,16 @@ impl RenderCache {
         }
         self.dirty = false;
     }
+
+    #[inline]
+    pub fn iter_layers(&self) -> RenderCacheIter<'_> {
+        RenderCacheIter {
             cache: self,
             current_layer: 0,
             current_idx: 0,
         }
     }
 }
-
 pub struct RenderCacheIter<'a> {
     cache: &'a RenderCache,
     current_layer: usize,

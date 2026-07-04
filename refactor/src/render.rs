@@ -155,6 +155,7 @@ pub fn render_stats_panel(
 ) {
     let panel_x = w as i32 - 140;
     let panel_y = 30;
+    let panel_w = 135;
     let panel_h = 200;
 
     // Fondo del panel

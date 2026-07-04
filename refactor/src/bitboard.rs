@@ -154,12 +154,6 @@ pub const BIT_BLOCKS: usize = BIT_GRID_SIZE / 8;
 pub const BIT_TOTAL_BLOCKS: usize = BIT_BLOCKS * BIT_BLOCKS;
 
 /// Grid de ocupación usando bitboards
-/// Cada bit representa una celda de 1x1 en el mundo.
-/// Capas disponibles:
-/// - 0: Ocupación general (edificios, obstáculos)
-/// - 1: Zonas residenciales
-/// - 2: Zonas comerciales
-/// - 3: Zonas industriales
 /// Grid de ocupación usando bitboards
 /// Cada bit representa una celda de 1x1 en el mundo.
 /// Capas disponibles:
@@ -173,7 +167,6 @@ pub struct BitGrid {
     /// Capas de bitboards en heap: índice = layer * BIT_TOTAL_BLOCKS + block_idx
     pub layers: Vec<Bitboard64>,
 }
-
 impl BitGrid {
     /// Crea un grid vacío con todas las capas
     pub fn new() -> Self {

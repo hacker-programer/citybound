@@ -68,8 +68,6 @@ impl Renderable {
     #[inline(always)] pub fn rect(color: u32, w: f32, layer: i8) -> Self { Renderable { color, size_x: w, size_y: w, layer, shape_type: 0 } }
     #[inline(always)] pub fn circle(color: u32, r: f32, layer: i8) -> Self { Renderable { color, size_x: r, size_y: r, layer, shape_type: 1 } }
 }
-
-#[derive(Copy, Clone, Debug)]
 #[derive(Copy, Clone, Debug)]
 pub struct TrafficCar {
     pub speed: f32,

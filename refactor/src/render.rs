@@ -113,7 +113,7 @@ fn render_from_cache(
         let sy = entry.world_y * scale + oy;
 
         // Viewport culling
-        let size_px = entry.size * scale;
+        let size_px = entry.size_x * scale;
         if sx < -size_px || sx > w_f + size_px || sy < -size_px || sy > h_f + size_px {
             continue;
         }

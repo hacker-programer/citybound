@@ -212,6 +212,9 @@ fn update_land_values(gw: &mut GameWorld) {
     let base_value: f32 = 10.0;
 
     for y in 0..HEATMAP_SIZE {
+        for x in 0..HEATMAP_SIZE {
+            let idx = y * HEATMAP_SIZE + x;
+            let pollution = gw.pollution_map.values[idx];
 
             // Valor base penalizado por contaminación
             let mut value = base_value - pollution * POLLUTION_VALUE_PENALTY;

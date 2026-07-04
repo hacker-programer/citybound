@@ -70,11 +70,33 @@ impl Renderable {
 }
 
 #[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct TrafficCar {
     pub speed: f32,
     pub max_speed: f32,
+    pub acceleration: f32,
+    pub lane_position: f32,
+    pub lane_id: u32,
+}
 
-// ... (líneas 75-95 sin cambios)
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum BuildingType {
+    House, Shop, Factory, Apartment, Office, Farm,
+    Hospital, School, Police,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct ConstructionState {
+    pub progress: f32,
+    pub building_type: BuildingType,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct ResourceStorage {
+    pub money: f32,
+    pub food: f32,
+    pub goods: f32,
+}
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ZoneType {
@@ -91,26 +113,6 @@ pub struct Lifetime {
 pub enum PedestrianState {
     Idle, Walking, Running, Crossing, Panicking,
 }
-
-// ---------------------------------------------------------------------------
-// SPATIAL GRID — Búsqueda O(1) de entidades por posición [FASE 6]
-// ---------------------------------------------------------------------------
-
-pub const SPATIAL_CELL_SIZE: f32 = 8.0;
-pub const SPATIAL_GRID_DIM: usize = 16;
-pub const SPATIAL_GRID_SIZE: usize = SPATIAL_GRID_DIM * SPATIAL_GRID_DIM;
-
-#[derive(Clone)]
-pub struct SpatialGrid {
-    pub cells: [[Vec<u64>; SPATIAL_GRID_DIM]; SPATIAL_GRID_DIM],
-    pub dirty: bool,
-}
-
-impl SpatialGrid {
-    pub fn new() -> Self {
-        let cells: [[Vec<u64>; SPATIAL_GRID_DIM]; SPATIAL_GRID_DIM] = 
-            std::array::from_fn(|_| std::array::from_fn(|_| Vec::with_capacity(64)));
-        SpatialGrid { cells, dirty: true }
     }
 
     #[inline(always)]

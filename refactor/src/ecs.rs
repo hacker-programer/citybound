@@ -105,6 +105,12 @@ pub enum ZoneType {
 }
 
 #[derive(Copy, Clone, Debug)]
+pub struct ZoneComponent {
+    pub zone_type: ZoneType,
+    pub density: u8,
+}
+
+#[derive(Copy, Clone, Debug)]
 pub struct Lifetime {
     pub remaining_ticks: u64,
 }

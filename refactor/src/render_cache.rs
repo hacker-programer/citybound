@@ -88,7 +88,7 @@ impl RenderCache {
             if renderable.layer >= 2 && renderable.layer <= 3 {
                 self.push(RenderCacheEntry::new(
                     pos.x, pos.y, renderable.shape_type,
-                    renderable.color, renderable.size, renderable.layer,
+                    renderable.color, renderable.size_x, renderable.layer,
                 ));
             }
         }
@@ -98,9 +98,8 @@ impl RenderCache {
             if renderable.layer >= 4 {
                 self.push(RenderCacheEntry::new(
                     pos.x, pos.y, renderable.shape_type,
-                    renderable.color, renderable.size, renderable.layer,
+                    renderable.color, renderable.size_x, renderable.layer,
                 ));
-            }
         }
 
         self.dirty = false;

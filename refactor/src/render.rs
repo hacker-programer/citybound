@@ -117,7 +117,6 @@ fn render_from_cache(
         if sx < -size_px || sx > w_f + size_px || sy < -size_px || sy > h_f + size_px {
             continue;
         }
-
         let sx_i = sx as i32;
         let sy_i = sy as i32;
         let size_i = size_px as i32;
@@ -135,7 +134,6 @@ fn render_from_cache(
 
 /// Mantenemos render_world original para compatibilidad
 pub fn render_world(
-    height: usize,
     game_world: &GameWorld,
     framebuffer: &mut [u32],
     width: usize,
@@ -147,12 +145,6 @@ pub fn render_world(
 // ---------------------------------------------------------------------------
 // [FASE 7]: PANEL DE ESTADÍSTICAS
 // ---------------------------------------------------------------------------
-
-pub fn render_stats_panel(
-    gw: &GameWorld,
-    fb: &mut [u32],
-    w: usize,
-    h: usize,
     fps: u32,
 ) {
     let panel_x = w as i32 - 140;

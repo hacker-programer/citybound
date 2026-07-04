@@ -92,7 +92,6 @@ impl RenderCache {
                 ));
             }
         }
-
         // Tráfico (capa 4)
         for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
             if renderable.layer >= 4 {
@@ -100,8 +99,8 @@ impl RenderCache {
                     pos.x, pos.y, renderable.shape_type,
                     renderable.color, renderable.size_x, renderable.layer,
                 ));
+            }
         }
-
         self.dirty = false;
     }
 

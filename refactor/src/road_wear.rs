@@ -18,9 +18,9 @@
 
 
 use crate::ecs::{GameWorld, Position, TrafficCar};
+use crate::ecs::{GameWorld, Position, TrafficCar};
 use crate::supply_chain::CargoTruck;
-
-// ---------------------------------------------------------------------------
+use crate::flow_field::FLOW_GRID_SIZE;
 // CONSTANTES
 // ---------------------------------------------------------------------------
 

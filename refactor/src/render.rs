@@ -123,7 +123,6 @@ fn render_from_cache(
         let size_i = size_px as i32;
 
         match entry.shape_type {
-        match entry.shape_type {
             0 => unsafe {
                 simd_render::fill_rect_alpha_simd(fb, w, h, sx_i, sy_i, size_i, size_i, entry.color);
             },
@@ -132,6 +131,7 @@ fn render_from_cache(
             _ => {}
         }
     }
+}
 }
 
 /// Mantenemos render_world original para compatibilidad

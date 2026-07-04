@@ -145,9 +145,14 @@ pub fn render_world(
 // ---------------------------------------------------------------------------
 // [FASE 7]: PANEL DE ESTADÍSTICAS
 // ---------------------------------------------------------------------------
+
+pub fn render_stats_panel(
+    gw: &GameWorld,
+    fb: &mut [u32],
+    w: usize,
+    h: usize,
     fps: u32,
 ) {
-    let panel_x = w as i32 - 140;
     let panel_y = 30;
     let panel_w = 135;
     let panel_h = 200;

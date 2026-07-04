@@ -101,11 +101,11 @@ fn main() {
 
         // Capturar input
         input_state.update(&window);
+        // Capturar input
+        input_state.update(&window);
 
         // Procesar input para diseño y cámara
         ecs::process_input(&mut world, &input_state);
-        input_state.end_frame();
-
         // Simulación a paso fijo (10 ticks/s)
         while sim_accumulator >= MICROS_PER_TICK {
             sim_accumulator -= MICROS_PER_TICK;

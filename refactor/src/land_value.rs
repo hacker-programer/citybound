@@ -155,16 +155,12 @@ pub fn update_heatmaps(gw: &mut GameWorld) {
         if gx >= HEATMAP_SIZE || gy >= HEATMAP_SIZE { continue; }
 
         let pollution_gen = match building.building_type {
+        let pollution_gen = match building.building_type {
             BuildingType::Factory => 0.5,
-            _ => 0.0,
-        };
-            BuildingType::Refinery => 1.0,
-            BuildingType::Mine => 0.7,
             _ => 0.0,
         };
 
         if pollution_gen > 0.0 {
-            // Difundir contaminación en radio de 3 celdas
             for dy in -3i32..=3 {
                 for dx in -3i32..=3 {
                     let nx = (gx as i32 + dx).max(0).min(HEATMAP_SIZE as i32 - 1) as usize;

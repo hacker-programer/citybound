@@ -1,24 +1,40 @@
-# Citybound Native — Configuración de compilación
-# Stack overflow fix: Windows default 1MB → 8MB, Android → 16MB
+# Citybound Native — Configuración de compilación v0.16.0
+# Stack overflow fix: Windows default 1MB → 16MB, Android → 16MB
+# Usamos stack size grande como respaldo; la arquitectura también
+# minimiza el uso de stack mediante fases de construcción.
 
 [target.'cfg(all(target_os = "windows", target_env = "msvc"))']
-rustflags = ["-C", "link-args=/STACK:8388608"]
+rustflags = ["-C", "link-args=/STACK:16777216"]
 
 [target.'cfg(all(target_os = "windows", target_env = "gnu"))']
-rustflags = ["-C", "link-args=-Wl,--stack,8388608"]
+rustflags = ["-C", "link-args=-Wl,--stack,16777216"]
 
 [target.'cfg(target_os = "android")']
 rustflags = ["-C", "link-args=-Wl,-z,stack-size=16777216"]
 
 [target.'cfg(target_os = "linux")']
-rustflags = ["-C", "link-args=-Wl,-z,stack-size=8388608"]
+rustflags = ["-C", "link-args=-Wl,-z,stack-size=16777216"]
 
 [target.'cfg(target_os = "macos")']
-rustflags = ["-C", "link-args=-Wl,-stack_size,0x800000"]
+rustflags = ["-C", "link-args=-Wl,-stack_size,0x1000000"]
 
 [build]
-# Compilación más rápida para desarrollo
+# Optimizaciones base para todos los targets
 rustflags = ["-C", "target-feature=+sse4.2,+popcnt"]
+
+# Perfil Release ultra-agresivo
+[profile.release]
+opt-level = "s"         # Optimizar por tamaño (mejor cache)
+lto = "fat"             # Link-Time Optimization total
+codegen-units = 1       # Una sola unidad de código (mejor inline)
+panic = "abort"         # Sin unwind (binario más pequeño)
+strip = "symbols"       # Quitar símbolos
+incremental = false     # Sin incremental (más rápido el build final)
+
+# Perfil Dev rápido para iteración
+[profile.dev]
+opt-level = 1
+codegen-units = 4
 
 [profile.dev.package."*"]
 opt-level = 2

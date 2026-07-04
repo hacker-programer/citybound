@@ -100,7 +100,6 @@ pub fn rng_usize(max: usize) -> usize {
 pub fn rng_chance(probability: f32) -> bool {
     rng_fast() < probability
 }
-}
 
 // ---------------------------------------------------------------------------
 // SPLITMIX64 DIRECTO (para valores que no deberían consumir el pool)

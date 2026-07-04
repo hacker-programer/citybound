@@ -113,13 +113,12 @@ pub struct Lifetime {
 pub enum PedestrianState {
     Idle, Walking, Running, Crossing, Panicking,
 }
-    }
 
-    #[inline(always)]
-    fn cell_index(x: f32, y: f32) -> (usize, usize) {
-        let cx = (x / SPATIAL_CELL_SIZE) as usize % SPATIAL_GRID_DIM;
-        let cy = (y / SPATIAL_CELL_SIZE) as usize % SPATIAL_GRID_DIM;
-        (cx, cy)
+// ---------------------------------------------------------------------------
+// SPATIAL GRID — Búsqueda O(1) de entidades por posición [FASE 6]
+// ---------------------------------------------------------------------------
+
+pub const SPATIAL_CELL_SIZE: f32 = 8.0;
     }
 
     pub fn clear(&mut self) {

@@ -130,8 +130,8 @@ fn render_from_cache(
             2 => fill_triangle(fb, w, h, sx_i, sy_i, size_i, entry.color),
             _ => {}
         }
+        }
     }
-}
 }
 
 /// Mantenemos render_world original para compatibilidad

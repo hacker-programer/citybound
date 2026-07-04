@@ -565,4 +565,3 @@ mod tests {
         assert!(gw.render_cache.total_entries() > 0, "RenderCache debe llenarse en create_world");
     }
 }
-}

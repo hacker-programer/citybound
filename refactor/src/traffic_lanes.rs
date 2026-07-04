@@ -307,18 +307,18 @@ impl LaneManager {
         }
     }
     pub fn generate_default_network(&mut self) {
-        let mut next_id: u32 = 0;
+        let mut _next_id: u32 = 0;
         let highway_y: f32 = 64.0;
 
-        // Autopista horizontal central
-        self.lanes.push(Lane::new(next_id, 0.0, highway_y - 3.0, 128.0, highway_y - 3.0, LaneDirection::East, HIGHWAY_LANE_SPEED));
-        next_id += 1;
-        self.lanes.push(Lane::new(next_id, 0.0, highway_y - 0.5, 128.0, highway_y - 0.5, LaneDirection::East, HIGHWAY_LANE_SPEED));
-        next_id += 1;
-        self.lanes.push(Lane::new(next_id, 128.0, highway_y + 0.5, 0.0, highway_y + 0.5, LaneDirection::West, HIGHWAY_LANE_SPEED));
-        next_id += 1;
-        self.lanes.push(Lane::new(next_id, 128.0, highway_y + 3.0, 0.0, highway_y + 3.0, LaneDirection::West, HIGHWAY_LANE_SPEED));
-        next_id += 1;
+        // Autopista horizontal central (4 carriles)
+        self.lanes.push(Lane::new(_next_id, 0.0, highway_y - 3.0, 128.0, highway_y - 3.0, LaneDirection::East, HIGHWAY_LANE_SPEED));
+        _next_id += 1;
+        self.lanes.push(Lane::new(_next_id, 0.0, highway_y - 0.5, 128.0, highway_y - 0.5, LaneDirection::East, HIGHWAY_LANE_SPEED));
+        _next_id += 1;
+        self.lanes.push(Lane::new(_next_id, 128.0, highway_y + 0.5, 0.0, highway_y + 0.5, LaneDirection::West, HIGHWAY_LANE_SPEED));
+        _next_id += 1;
+        self.lanes.push(Lane::new(_next_id, 128.0, highway_y + 3.0, 0.0, highway_y + 3.0, LaneDirection::West, HIGHWAY_LANE_SPEED));
+        _next_id += 1;
 
         self.lanes[0].right_lane = Some(1); self.lanes[1].left_lane = Some(0);
         self.lanes[2].left_lane = Some(3); self.lanes[3].right_lane = Some(2);
@@ -326,36 +326,47 @@ impl LaneManager {
         // Avenidas verticales
         for i in 0..6 {
             let ave_x = 20.0 + i as f32 * 20.0;
-            let id_n = next_id;
-            self.lanes.push(Lane::new(id_n, ave_x - 1.0, 100.0, ave_x - 1.0, 20.0, LaneDirection::North, AVENUE_SPEED_LIMIT));
-            next_id += 1;
-            let id_s = next_id;
-            self.lanes.push(Lane::new(id_s, ave_x + 1.0, 20.0, ave_x + 1.0, 100.0, LaneDirection::South, AVENUE_SPEED_LIMIT));
-            next_id += 1;
-            self.lanes[id_n as usize].right_lane = Some(id_s);
-            self.lanes[id_s as usize].left_lane = Some(id_n);
 
-            let intersection = Intersection::new(next_id, ave_x, highway_y);
+            // Carril norte
+            let idx_n = self.lanes.len();
+            self.lanes.push(Lane::new(_next_id, ave_x - 1.0, 100.0, ave_x - 1.0, 20.0, LaneDirection::North, AVENUE_SPEED_LIMIT));
+            _next_id += 1;
+
+            // Carril sur
+            let idx_s = self.lanes.len();
+            self.lanes.push(Lane::new(_next_id, ave_x + 1.0, 20.0, ave_x + 1.0, 100.0, LaneDirection::South, AVENUE_SPEED_LIMIT));
+            _next_id += 1;
+
+            // Vincular carriles entre sí
+            self.lanes[idx_n].right_lane = Some(_next_id - 1);
+            self.lanes[idx_s].left_lane = Some(_next_id - 2);
+
+            // Intersección con la autopista
+            let intersection = Intersection::new(_next_id, ave_x, highway_y);
             self.intersections.push(intersection);
-            let intersection_id = next_id;
-            next_id += 1;
-            self.lanes[id_n as usize].to_intersection = Some(intersection_id);
-            self.lanes[id_s as usize].to_intersection = Some(intersection_id);
+            self.lanes[idx_n].to_intersection = Some(_next_id);
+            self.lanes[idx_s].to_intersection = Some(_next_id);
+            _next_id += 1;
         }
 
         // Calles residenciales horizontales
         for row in 0..8 {
             let street_y = 10.0 + row as f32 * 15.0;
             if (street_y - highway_y).abs() < 10.0 { continue; }
-            let id_e = next_id;
-            self.lanes.push(Lane::new(id_e, 0.0, street_y, 128.0, street_y, LaneDirection::East, URBAN_SPEED_LIMIT));
-            next_id += 1;
-            let id_w = next_id;
-            self.lanes.push(Lane::new(id_w, 128.0, street_y + 2.0, 0.0, street_y + 2.0, LaneDirection::West, URBAN_SPEED_LIMIT));
-            self.lanes.push(Lane::new(id_w, 128.0, street_y + 2.0, 0.0, street_y + 2.0, LaneDirection::West, URBAN_SPEED_LIMIT));
-            next_id += 1;
-            self.lanes[id_e as usize].right_lane = Some(id_w);
-            self.lanes[id_w as usize].left_lane = Some(id_e);
+
+            // Carril este
+            let idx_e = self.lanes.len();
+            self.lanes.push(Lane::new(_next_id, 0.0, street_y, 128.0, street_y, LaneDirection::East, URBAN_SPEED_LIMIT));
+            _next_id += 1;
+
+            // Carril oeste
+            let idx_w = self.lanes.len();
+            self.lanes.push(Lane::new(_next_id, 128.0, street_y + 2.0, 0.0, street_y + 2.0, LaneDirection::West, URBAN_SPEED_LIMIT));
+            _next_id += 1;
+
+            // Vincular carriles entre sí
+            self.lanes[idx_e].right_lane = Some(_next_id - 1);
+            self.lanes[idx_w].left_lane = Some(_next_id - 2);
         }
 
         self.build_spatial_grid();

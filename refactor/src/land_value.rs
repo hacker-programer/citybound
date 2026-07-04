@@ -144,11 +144,7 @@ impl PollutionHeatmap {
 /// Actualiza contaminación y valor del suelo.
 /// Se llama cada HEATMAP_UPDATE_INTERVAL ticks.
 pub fn update_heatmaps(gw: &mut GameWorld) {
-/// Actualiza contaminación y valor del suelo.
-/// Se llama cada HEATMAP_UPDATE_INTERVAL ticks.
-pub fn update_heatmaps(gw: &mut GameWorld) {
     // ---- Fase 1: Generar contaminación (industrias, fábricas, tráfico) ----
-    for (_entity, (pos, building)) in gw.world
         .query::<(&Position, &ConstructionState)>()
         .iter()
     {

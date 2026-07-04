@@ -274,10 +274,6 @@ impl BitGrid {
             if !(self.layers[off_a + i] & self.layers[off_b + i]).is_empty() {
                 return true;
             }
-        for i in 0..BIT_TOTAL_BLOCKS {
-            if !(self.layers[off_a + i] & self.layers[off_b + i]).is_empty() {
-                return true;
-            }
         }
         false
     }
@@ -285,7 +281,6 @@ impl BitGrid {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test_bitboard_set_clear_test() {

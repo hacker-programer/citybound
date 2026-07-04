@@ -150,13 +150,14 @@ pub fn update_heatmaps(gw: &mut GameWorld) {
         .query::<(&Position, &ConstructionState)>()
         .iter()
     {
+        let gx = pos.x as usize;
         let gy = pos.y as usize;
         if gx >= HEATMAP_SIZE || gy >= HEATMAP_SIZE { continue; }
 
         let pollution_gen = match building.building_type {
             BuildingType::Factory => 0.5,
-            BuildingType::PowerPlant => 0.8,
-            BuildingType::Incinerator => 0.6,
+            _ => 0.0,
+        };
             BuildingType::Refinery => 1.0,
             BuildingType::Mine => 0.7,
             _ => 0.0,

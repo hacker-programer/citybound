@@ -136,23 +136,14 @@ impl PollutionHeatmap {
         self.values.copy_from_slice(&new_values);
     }
 }
-// ---------------------------------------------------------------------------
-
-/// Actualiza contaminación y valor del suelo.
-/// Se llama cada HEATMAP_UPDATE_INTERVAL ticks.
-pub fn update_heatmaps(gw: &mut GameWorld) {
-        if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
-            self.values[y * HEATMAP_SIZE + x]
-        } else {
-            0.0
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // ACTUALIZACIÓN DEL SISTEMA
 // ---------------------------------------------------------------------------
 
+/// Actualiza contaminación y valor del suelo.
+/// Se llama cada HEATMAP_UPDATE_INTERVAL ticks.
+pub fn update_heatmaps(gw: &mut GameWorld) {
 /// Actualiza contaminación y valor del suelo.
 /// Se llama cada HEATMAP_UPDATE_INTERVAL ticks.
 pub fn update_heatmaps(gw: &mut GameWorld) {

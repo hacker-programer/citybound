@@ -144,7 +144,6 @@ impl PollutionHeatmap {
 /// Actualiza contaminación y valor del suelo.
 /// Se llama cada HEATMAP_UPDATE_INTERVAL ticks.
 pub fn update_heatmaps(gw: &mut GameWorld) {
-pub fn update_heatmaps(gw: &mut GameWorld) {
     // ---- Fase 1: Generar contaminación (industrias, fábricas, tráfico) ----
     for (_entity, (pos, building)) in gw.world
         .query::<(&Position, &ConstructionState)>()
@@ -154,7 +153,6 @@ pub fn update_heatmaps(gw: &mut GameWorld) {
         let gy = pos.y as usize;
         if gx >= HEATMAP_SIZE || gy >= HEATMAP_SIZE { continue; }
 
-        let pollution_gen = match building.building_type {
         let pollution_gen = match building.building_type {
             BuildingType::Factory => 0.5,
             _ => 0.0,
@@ -169,9 +167,9 @@ pub fn update_heatmaps(gw: &mut GameWorld) {
                     let idx = ny * HEATMAP_SIZE + nx;
                     gw.pollution_map.values[idx] = 
                         (gw.pollution_map.values[idx] + pollution_gen / dist).min(10.0);
+                }
             }
         }
-    }
     }
 
     // Tráfico también genera contaminación
@@ -193,7 +191,6 @@ pub fn update_heatmaps(gw: &mut GameWorld) {
         for x in 1..HEATMAP_SIZE - 1 {
             let idx = y * HEATMAP_SIZE + x;
             let current = gw.pollution_map.values[idx];
-            // Promedio de vecinos (difusión)
             let avg = (
                 gw.pollution_map.values[(y-1)*HEATMAP_SIZE + x] +
                 gw.pollution_map.values[(y+1)*HEATMAP_SIZE + x] +
@@ -209,12 +206,6 @@ pub fn update_heatmaps(gw: &mut GameWorld) {
     // ---- Fase 3: Actualizar valor del suelo ----
     update_land_values(gw);
 }
-
-/// Recalcula el valor del suelo basado en contaminación, parques y calles.
-fn update_land_values(gw: &mut GameWorld) {
-    let base_value: f32 = 10.0;
-
-    // Inicializar con valor base y penalización por contaminación
     for y in 0..HEATMAP_SIZE {
         for x in 0..HEATMAP_SIZE {
             let idx = y * HEATMAP_SIZE + x;

@@ -135,6 +135,7 @@ fn render_from_cache(
 }
 
 /// Mantenemos render_world original para compatibilidad
+/// Mantenemos render_world original para compatibilidad
 pub fn render_world(
     game_world: &GameWorld,
     framebuffer: &mut [u32],

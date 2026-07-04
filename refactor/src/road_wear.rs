@@ -190,7 +190,7 @@ fn apply_wear_to_flow_fields(gw: &mut GameWorld) {
 }
 
 // ---------------------------------------------------------------------------
-// TESTS
+
 // ---------------------------------------------------------------------------
 // TESTS
 // ---------------------------------------------------------------------------
@@ -265,9 +265,6 @@ mod tests {
         assert_ne!(damaged, 0x00_00_00_00);
 
         grid.values[10 * WEAR_GRID_SIZE + 10] = SEVERE_DAMAGE_THRESHOLD + 5.0;
-        let severe = grid.wear_color(10, 10);
-        assert_ne!(severe, damaged);
-    }
         let severe = grid.wear_color(10, 10);
         assert_ne!(severe, damaged);
     }

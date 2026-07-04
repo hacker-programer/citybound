@@ -185,6 +185,8 @@ impl SpatialGrid {
 }
 
 pub struct SpatialQueryIter<'a> {
+    grid: &'a SpatialGrid,
+    center_x: usize, center_y: usize,
     radius: usize,
     current_dx: usize, current_dy: usize,
     current_cell_idx: usize,

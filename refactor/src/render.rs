@@ -123,10 +123,11 @@ fn render_from_cache(
         let size_i = size_px as i32;
 
         match entry.shape_type {
-            0 => fill_circle(fb, w, h, sx_i, sy_i, size_i, entry.color),
-            1 => unsafe {
+        match entry.shape_type {
+            0 => unsafe {
                 simd_render::fill_rect_alpha_simd(fb, w, h, sx_i, sy_i, size_i, size_i, entry.color);
             },
+            1 => fill_circle(fb, w, h, sx_i, sy_i, size_i, entry.color),
             2 => fill_triangle(fb, w, h, sx_i, sy_i, size_i, entry.color),
             _ => {}
         }

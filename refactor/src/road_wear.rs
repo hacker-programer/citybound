@@ -143,17 +143,6 @@ fn accumulate_wear(gw: &mut GameWorld) {
         let gx = pos.x as usize;
         let gy = pos.y as usize;
         if gx < WEAR_GRID_SIZE && gy < WEAR_GRID_SIZE {
-            gw.road_wear.values[gy][gx] = (gw.road_wear.values[gy][gx] + CAR_WEAR).min(MAX_WEAR);
-        }
-fn accumulate_wear(gw: &mut GameWorld) {
-    // Coches normales
-    for (_entity, (pos, _car)) in gw.world
-        .query::<(&Position, &TrafficCar)>()
-        .iter()
-    {
-        let gx = pos.x as usize;
-        let gy = pos.y as usize;
-        if gx < WEAR_GRID_SIZE && gy < WEAR_GRID_SIZE {
             let idx = gy * WEAR_GRID_SIZE + gx;
             gw.road_wear.values[idx] = (gw.road_wear.values[idx] + CAR_WEAR).min(MAX_WEAR);
         }
@@ -172,12 +161,24 @@ fn accumulate_wear(gw: &mut GameWorld) {
         }
     }
 }
+
+fn apply_wear_to_flow_fields(gw: &mut GameWorld) {
+    for gy in 0..FLOW_GRID_SIZE {
+        for gx in 0..FLOW_GRID_SIZE {
+            let wear = gw.road_wear.get(gx, gy);
+            let wear_factor = if wear < DAMAGE_THRESHOLD {
+                1.0
+            } else if wear < SEVERE_DAMAGE_THRESHOLD {
+                let t = (wear - DAMAGE_THRESHOLD) / (SEVERE_DAMAGE_THRESHOLD - DAMAGE_THRESHOLD);
+                1.0 - t * MAX_SPEED_PENALTY
+            } else {
+                1.0 - MAX_SPEED_PENALTY
+            };
+
             if wear_factor < 1.0 {
                 // Reducir magnitud del flow field primario
                 let idx = gy * FLOW_GRID_SIZE + gx;
                 let cell = &mut gw.flow_fields.primary.cells[idx];
-
-                // La magnitud se reduce proporcionalmente al desgaste
                 cell.magnitude *= wear_factor;
 
                 // También aplicar al flow field de autopista
@@ -188,6 +189,8 @@ fn accumulate_wear(gw: &mut GameWorld) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// TESTS
 // ---------------------------------------------------------------------------
 // TESTS
 // ---------------------------------------------------------------------------

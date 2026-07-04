@@ -73,11 +73,25 @@ impl LandValueHeatmap {
             0.0
         }
     }
-}
 
-// ---------------------------------------------------------------------------
-// POLLUTION HEATMAP
-// ---------------------------------------------------------------------------
+    /// Difusión: cada celda promedia con sus 4 vecinos
+    pub fn diffuse(&mut self) {
+        let mut new_values = self.values.clone();
+        for y in 1..HEATMAP_SIZE - 1 {
+            for x in 1..HEATMAP_SIZE - 1 {
+                let idx = y * HEATMAP_SIZE + x;
+                let avg = (
+                    self.values[(y-1)*HEATMAP_SIZE + x] +
+                    self.values[(y+1)*HEATMAP_SIZE + x] +
+                    self.values[y*HEATMAP_SIZE + (x-1)] +
+                    self.values[y*HEATMAP_SIZE + (x+1)]
+                ) * 0.25;
+                new_values[idx] = self.values[idx] * (1.0 - DIFFUSION_RATE) + avg * DIFFUSION_RATE;
+            }
+        }
+        self.values.copy_from_slice(&new_values);
+    }
+}
 
 /// Mapa de contaminación atmosférica y terrestre.
 /// 0 = limpio, 10 = inhabitable.

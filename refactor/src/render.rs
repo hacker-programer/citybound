@@ -490,7 +490,7 @@ fn draw_shape(fb: &mut [u32], w: usize, h: usize,
               ox: f32, oy: f32, scale: f32) {
     let sx = (x * scale + ox) as i32;
     let sy = (y * scale + oy) as i32;
-    let size = (r.size * scale) as i32;
+    let size = (r.size_x * scale) as i32;
     let color = r.color;
 
     match r.shape_type {

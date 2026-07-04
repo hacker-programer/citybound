@@ -555,11 +555,11 @@ mod tests {
         let gw = create_world(&mut pool);
         assert!(gw.world.len() > 100);
     }
-
     #[test]
     fn test_render_cache_filled() {
         let mut pool = EntityPool::new(1000);
         let gw = create_world(&mut pool);
         assert!(gw.render_cache.total_entries() > 0, "RenderCache debe llenarse en create_world");
     }
+}
 }

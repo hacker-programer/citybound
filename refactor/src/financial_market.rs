@@ -205,7 +205,7 @@ impl WaterFuturesMarket {
                 0.0
             };
 
-            let random_shock = crate::rng_pool::rng_range(-1.0, 1.0) * self.volatility;
+            let random_shock = crate::rng_pool::rng_range_inclusive(-1.0, 1.0) * self.volatility;
             let speculation_factor = 1.0 + random_shock + scarcity_panic;
 
             self.spot_price = (self.spot_price * speculation_factor)

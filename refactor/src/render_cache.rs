@@ -21,23 +21,23 @@ pub const LAYER_UI: u8 = 5;
 pub const NUM_RENDER_LAYERS: usize = 6;
 
 /// Entrada en el cache de render — datos mínimos para dibujar
+/// Entrada en el cache de render — datos mínimos para dibujar
 #[derive(Copy, Clone, Debug)]
 pub struct RenderCacheEntry {
     pub world_x: f32,
     pub world_y: f32,
     pub shape_type: u8,
     pub color: u32,
-    pub size: f32,
+    pub size_x: f32,
     pub layer: u8,
 }
 
 impl RenderCacheEntry {
     #[inline(always)]
-    pub fn new(x: f32, y: f32, shape: u8, color: u32, size: f32, layer: u8) -> Self {
-        RenderCacheEntry { world_x: x, world_y: y, shape_type: shape, color, size, layer }
+    pub fn new(x: f32, y: f32, shape: u8, color: u32, size_x: f32, layer: u8) -> Self {
+        RenderCacheEntry { world_x: x, world_y: y, shape_type: shape, color, size_x, layer }
     }
 }
-
 /// Cache de render con buckets pre-ordenados por capa.
 pub struct RenderCache {
     pub buckets: [Vec<RenderCacheEntry>; NUM_RENDER_LAYERS],

@@ -94,8 +94,19 @@ impl LandValueHeatmap {
 }
 
 /// Mapa de contaminación atmosférica y terrestre.
+/// Mapa de contaminación atmosférica y terrestre.
 /// 0 = limpio, 10 = inhabitable.
 #[repr(align(64))]
+pub struct PollutionHeatmap {
+    pub values: Vec<f32>,
+}
+
+impl PollutionHeatmap {
+    pub fn new() -> Self {
+        let total = HEATMAP_SIZE * HEATMAP_SIZE;
+        PollutionHeatmap { values: vec![0.0_f32; total] }
+    }
+
     #[inline(always)]
     pub fn get(&self, x: usize, y: usize) -> f32 {
         if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
@@ -125,9 +136,6 @@ impl LandValueHeatmap {
         self.values.copy_from_slice(&new_values);
     }
 }
-
-// ---------------------------------------------------------------------------
-// ACTUALIZACIÓN DEL SISTEMA
 // ---------------------------------------------------------------------------
 
 /// Actualiza contaminación y valor del suelo.

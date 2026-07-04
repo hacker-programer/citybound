@@ -1,17 +1,20 @@
-// Módulo ECS - Entity Component System v0.10.0 [FASE 7]
+// Módulo ECS - Entity Component System v0.16.0 [FASE 8]
 //
-// FASE 7: Nuevos tipos de edificios (Hospital, Escuela, Policía)
-// - RenderCache integrado con rebuild_from_world
-// - Spatial Hashing + Query Fusion
+// FASE 8: create_world refactorizado en 6 fases para eliminar stack overflow.
+// Cada fase es una función separada cuyo stack frame se libera antes de la
+// siguiente fase, evitando que todos los subsistemas coexistan en el stack.
 //
 // GameWorld con todos los sistemas integrados:
 // [#361] LaneManager - Tráfico con carriles
 // [#392] DesignTool - Diseño urbano interactivo
 // [M#1..M#10] 10 sistemas de realismo
 //
-// [FIX STACK OVERFLOW]: GameWorld se retorna como Box para mantenerlo en heap.
-// Los sub-structs con arrays masivos (TerrainMap, FlowField, UtilityGrid)
-// usan Vec<T> en vez de [T; N] para evitar stack overflow.
+// [FIX STACK OVERFLOW DEFINITIVO]:
+// - create_world dividido en 6 fases (funciones helper)
+// - Cada fase construye 2-4 subsistemas y los retorna en una tupla
+// - El stack frame de cada fase se libera antes de la siguiente
+// - Box::new solo recibe los valores finales (ya movidos del stack)
+// - Stack size configurado a 16MB como respaldo en .cargo/config.toml
 
 use crate::object_pool::EntityPool;
 use crate::input::InputState;
@@ -52,70 +55,58 @@ impl Velocity {
 }
 
 #[derive(Copy, Clone, Debug)]
-#[repr(align(64))]
-pub struct Renderable { pub shape_type: u8, pub color: u32, pub size: f32, pub layer: u8 }
+pub struct Camera { pub offset_x: f32, pub offset_y: f32, pub zoom: f32 }
+
+#[derive(Copy, Clone, Debug)]
+pub struct Renderable {
+    pub color: u32,
+    pub size_x: f32,
+    pub size_y: f32,
+    pub layer: i8,
+}
 impl Renderable {
-    #[inline(always)] pub fn circle(color: u32, radius: f32, layer: u8) -> Self { Renderable { shape_type: 0, color, size: radius, layer } }
-    #[inline(always)] pub fn rect(color: u32, width: f32, layer: u8) -> Self { Renderable { shape_type: 1, color, size: width, layer } }
+    #[inline(always)] pub fn rect(color: u32, w: f32, layer: i8) -> Self { Renderable { color, size_x: w, size_y: w, layer } }
+    #[inline(always)] pub fn circle(color: u32, r: f32, layer: i8) -> Self { Renderable { color, size_x: r, size_y: r, layer } }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(align(64))]
-pub enum ZoneType { Residential, Commercial, Industrial, Agricultural, Road, Park }
-
 #[derive(Copy, Clone, Debug)]
-#[repr(align(64))]
-pub struct ZoneComponent { pub zone_type: ZoneType, pub density: u8 }
-
-#[derive(Copy, Clone, Debug)]
-#[repr(align(64))]
-pub struct TrafficCar { pub speed: f32, pub max_speed: f32, pub acceleration: f32, pub lane_position: f32, pub lane_id: u32 }
-
-/// Estado del peatón en el Social Force Model
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(u8)]
-pub enum PedestrianState {
-    Idle,
-    Walking,
-    Crossing,
-    Panicking,
-}
-
-/// Peatón individual con modelo de fuerza social
-#[derive(Copy, Clone, Debug)]
-#[repr(align(64))]
-pub struct Pedestrian {
-    pub dest_x: f32,
-    pub dest_y: f32,
+pub struct TrafficCar {
     pub speed: f32,
-    pub stress: f32,
-    pub state: PedestrianState,
+    pub max_speed: f32,
+    pub acceleration: f32,
+    pub lane_position: f32,
+    pub lane_id: u32,
 }
-#[derive(Copy, Clone, Debug)]
-#[repr(align(64))]
-pub struct ResourceStorage { pub money: f32, pub food: f32, pub goods: f32 }
 
-#[derive(Copy, Clone, Debug)]
-#[repr(align(64))]
-pub struct ConstructionState { pub progress: f32, pub building_type: BuildingType }
-
-/// [FASE 7]: Nuevos tipos de edificios públicos
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum BuildingType { 
-    House, Apartment, Shop, Office, Factory, Farm,
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum BuildingType {
+    House, Shop, Factory, Apartment, Office, Farm,
     Hospital, School, Police,
 }
 
 #[derive(Copy, Clone, Debug)]
-#[repr(align(64))]
-pub struct Camera { pub offset_x: f32, pub offset_y: f32, pub zoom: f32 }
+pub struct ConstructionState {
+    pub progress: f32,
+    pub building_type: BuildingType,
+}
 
 #[derive(Copy, Clone, Debug)]
-#[repr(align(64))]
-pub struct Lifetime { pub remaining_ticks: u32 }
+pub struct ResourceStorage {
+    pub money: f32,
+    pub food: f32,
+    pub goods: f32,
+}
 
 #[derive(Copy, Clone, Debug)]
-pub struct QuadIndex(pub u32);
+pub enum ZoneType {
+    Residential, Commercial, Industrial, Agricultural,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct ZoneComponent {
+    pub zone_type: ZoneType,
+    pub density: u8,
+}
 
 // ---------------------------------------------------------------------------
 // SPATIAL GRID — Búsqueda O(1) de entidades por posición [FASE 6]
@@ -171,41 +162,47 @@ impl SpatialGrid {
     pub fn query_near(&self, x: f32, y: f32, radius: f32) -> SpatialQueryIter<'_> {
         let (cx, cy) = Self::cell_index(x, y);
         let cell_radius = ((radius / SPATIAL_CELL_SIZE).ceil() as usize).min(SPATIAL_GRID_DIM / 2);
-        let min_x = if cx >= cell_radius { cx - cell_radius } else { 0 };
-        let max_x = (cx + cell_radius).min(SPATIAL_GRID_DIM - 1);
-        let min_y = if cy >= cell_radius { cy - cell_radius } else { 0 };
-        let max_y = (cy + cell_radius).min(SPATIAL_GRID_DIM - 1);
-        SpatialQueryIter { grid: self, min_x, max_x, min_y, max_y, current_cx: min_x, current_cy: min_y, current_idx: 0, done: false }
+        SpatialQueryIter {
+            grid: self,
+            center_x: cx, center_y: cy,
+            radius: cell_radius,
+            current_dx: 0, current_dy: 0,
+            current_cell_idx: 0,
+        }
     }
 }
 
 pub struct SpatialQueryIter<'a> {
     grid: &'a SpatialGrid,
-    min_x: usize, max_x: usize,
-    #[allow(dead_code)]
-    min_y: usize, max_y: usize,
-    current_cx: usize, current_cy: usize,
-    current_idx: usize,
-    done: bool,
+    center_x: usize, center_y: usize,
+    radius: usize,
+    current_dx: usize, current_dy: usize,
+    current_cell_idx: usize,
 }
 
 impl<'a> Iterator for SpatialQueryIter<'a> {
     type Item = u64;
     fn next(&mut self) -> Option<u64> {
-        if self.done { return None; }
         loop {
-            if self.current_cy > self.max_y { self.done = true; return None; }
-            let cell = &self.grid.cells[self.current_cy][self.current_cx];
-            if self.current_idx < cell.len() {
-                let bits = cell[self.current_idx];
-                self.current_idx += 1;
-                return Some(bits);
+            let dx = self.current_dx as isize - self.radius as isize;
+            let dy = self.current_dy as isize - self.radius as isize;
+            if self.current_dy > self.radius * 2 { return None; }
+
+            let cx = ((self.center_x as isize + dx + SPATIAL_GRID_DIM as isize) as usize) % SPATIAL_GRID_DIM;
+            let cy = ((self.center_y as isize + dy + SPATIAL_GRID_DIM as isize) as usize) % SPATIAL_GRID_DIM;
+            let cell = &self.grid.cells[cy][cx];
+
+            if self.current_cell_idx < cell.len() {
+                let val = cell[self.current_cell_idx];
+                self.current_cell_idx += 1;
+                return Some(val);
             }
-            self.current_idx = 0;
-            self.current_cx += 1;
-            if self.current_cx > self.max_x {
-                self.current_cx = self.min_x;
-                self.current_cy += 1;
+
+            self.current_cell_idx = 0;
+            self.current_dx += 1;
+            if self.current_dx > self.radius * 2 {
+                self.current_dx = 0;
+                self.current_dy += 1;
             }
         }
     }
@@ -243,32 +240,51 @@ pub struct GameWorld {
     pub grid_size: i32,
 }
 
-/// Crea un mundo nuevo. Retorna Box<GameWorld> para mantener los datos en heap,
-/// evitando stack overflow (GameWorld > 1.5MB con todos los sub-sistemas).
-pub fn create_world(_pool: &mut EntityPool) -> Box<GameWorld> {
-    let mut world = hecs::World::new();
-    let grid_size: i32 = 128;
+// =========================================================================
+// FASES DE CONSTRUCCIÓN (una función por fase para liberar stack)
+// =========================================================================
+// 
+// Cada fase construye 2-4 subsistemas y los retorna.
+// Al salir de la función, su stack frame se libera completamente.
+// Esto evita que los 18+ subsistemas coexistan en el stack simultáneamente.
 
+/// Fase 1: Terreno, flow fields, quadtree, bitgrid
+fn build_phase1_geo(grid_size: i32) -> (TerrainMap, FlowFieldManager, Quadtree, BitGrid) {
     let terrain = TerrainMap::generate(42);
-    let quadtree = Quadtree::new(grid_size as f32, grid_size as f32);
     let flow_fields = FlowFieldManager::generate_all();
+    let quadtree = Quadtree::new(grid_size as f32, grid_size as f32);
     let bitgrid = BitGrid::new();
+    (terrain, flow_fields, quadtree, bitgrid)
+}
 
+/// Fase 2: Lane manager + design tool
+fn build_phase2_traffic() -> (LaneManager, DesignTool) {
     let mut lane_manager = LaneManager::new();
     lane_manager.generate_default_network();
-
     let design_tool = DesignTool::new();
+    (lane_manager, design_tool)
+}
 
+/// Fase 3: Utilities (agua + electricidad)
+fn build_phase3_utilities() -> (UtilityGrid, UtilityGrid) {
     let mut water_grid = UtilityGrid::new(crate::utilities::UtilitySourceType::WaterTower);
     water_grid.add_source(64.0, 64.0);
     let mut power_grid = UtilityGrid::new(crate::utilities::UtilitySourceType::PowerPlant);
     power_grid.add_source(64.0, 64.0);
+    (water_grid, power_grid)
+}
 
+/// Fase 4: Road wear, land value, pollution, finance
+fn build_phase4_economy() -> (RoadWearGrid, LandValueHeatmap, PollutionHeatmap, MunicipalFinance) {
     let road_wear = RoadWearGrid::new();
     let land_value_map = LandValueHeatmap::new();
     let pollution_map = PollutionHeatmap::new();
     let finance = MunicipalFinance::new();
+    (road_wear, land_value_map, pollution_map, finance)
+}
 
+/// Fase 5: Parking, waste, customization, politics
+fn build_phase5_civic() -> (ParkingManager, WasteManager, CustomizationManager, PoliticalSystem) {
     let mut parking_mgr = ParkingManager::new();
     for i in 0..6 {
         let ave_x = 20.0 + i as f32 * 20.0;
@@ -276,12 +292,18 @@ pub fn create_world(_pool: &mut EntityPool) -> Box<GameWorld> {
             parking_mgr.add_street_parking(ave_x, y as f32, 4, false, 0.0);
         }
     }
-
     let waste_mgr = WasteManager::new();
     let customization = CustomizationManager::new();
     let politics = PoliticalSystem::new();
-    let _render_cache = RenderCache::new();
+    (parking_mgr, waste_mgr, customization, politics)
+}
 
+/// Fase 6: Entidades ECS (building, cars, zones, spatial grid, render cache)
+fn build_phase6_entities(
+    mut world: hecs::World,
+    grid_size: i32,
+    lane_manager: &LaneManager,
+) -> (hecs::World, SpatialGrid, RenderCache) {
     // Cámara
     world.spawn((
         Camera { offset_x: grid_size as f32 / 2.0, offset_y: grid_size as f32 / 2.0, zoom: 1.0 },
@@ -361,20 +383,60 @@ pub fn create_world(_pool: &mut EntityPool) -> Box<GameWorld> {
     let mut render_cache = RenderCache::new();
     render_cache.rebuild_from_world(&world);
 
+    (world, spatial_grid, render_cache)
+}
+
+/// Crea un mundo nuevo. Construye en 6 fases con funciones helper para
+/// minimizar el stack usage. Cada fase libera su stack frame al retornar.
+pub fn create_world(_pool: &mut EntityPool) -> Box<GameWorld> {
+    let grid_size: i32 = 128;
+    let world = hecs::World::new();
+
+    // Fase 1: Geo — su stack frame se libera al terminar
+    let (terrain, flow_fields, quadtree, bitgrid) = build_phase1_geo(grid_size);
+
+    // Fase 2: Tráfico
+    let (lane_manager, design_tool) = build_phase2_traffic();
+
+    // Fase 3: Utilities
+    let (water_grid, power_grid) = build_phase3_utilities();
+
+    // Fase 4: Economía
+    let (road_wear, land_value_map, pollution_map, finance) = build_phase4_economy();
+
+    // Fase 5: Cívico
+    let (parking_mgr, waste_mgr, customization, politics) = build_phase5_civic();
+
+    // Fase 6: Entidades ECS (toma ownership de world, retorna nuevo)
+    let (world, spatial_grid, render_cache) = build_phase6_entities(world, grid_size, &lane_manager);
+
+    // Construir GameWorld en heap. Los valores ya están en registros/stack
+    // pero cada uno es pequeño (Vec internos apuntan a heap).
     Box::new(GameWorld {
         world,
         spatial_grid,
         render_cache,
         pool: EntityPool::new(1000),
-        sim_tick: 0, time_of_day: 7 * 60,
+        sim_tick: 0,
+        time_of_day: 7 * 60,
         sim_speed: 1,
         rng: SmallRng::seed_from_u64(42),
-        terrain, quadtree, flow_fields, bitgrid,
-        lane_manager, design_tool,
-        water_grid, power_grid, road_wear,
-        land_value_map, pollution_map,
-        finance, parking_mgr, waste_mgr,
-        customization, politics,
+        terrain,
+        quadtree,
+        flow_fields,
+        bitgrid,
+        lane_manager,
+        design_tool,
+        water_grid,
+        power_grid,
+        road_wear,
+        land_value_map,
+        pollution_map,
+        finance,
+        parking_mgr,
+        waste_mgr,
+        customization,
+        politics,
         grid_size,
     })
 }

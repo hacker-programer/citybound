@@ -380,10 +380,6 @@ impl LaneManager {
         println!("Red de carriles: {} carriles, {} intersecciones", self.lanes.len(), self.intersections.len());
     }
 
-        self.build_spatial_grid();
-        println!("Red de carriles: {} carriles, {} intersecciones", self.lanes.len(), self.intersections.len());
-    }
-
     fn build_spatial_grid(&mut self) {
         for cell in self.spatial_grid.iter_mut() { cell.clear(); }
         for lane in &self.lanes {

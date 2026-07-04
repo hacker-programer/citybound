@@ -75,9 +75,6 @@ impl RenderCache {
         // Zonas (capa 1)
         for (_entity, (pos, zone)) in world.query::<(&Position, &ZoneComponent)>().iter() {
             if zone.density > 0 {
-        // Zonas (capa 1)
-        for (_entity, (pos, zone)) in world.query::<(&Position, &ZoneComponent)>().iter() {
-            if zone.density > 0 {
                 self.push(RenderCacheEntry::new(
                     pos.x, pos.y, 0, // rect (shape_type 0)
                     zone_color(zone.zone_type),
@@ -85,6 +82,9 @@ impl RenderCache {
                 ));
             }
         }
+
+        // Edificios y construcciones (capa 2-3)
+        for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
             if renderable.layer >= 2 && renderable.layer <= 3 {
                 self.push(RenderCacheEntry::new(
                     pos.x, pos.y, renderable.shape_type,
@@ -92,6 +92,7 @@ impl RenderCache {
                 ));
             }
         }
+
         // Tráfico (capa 4)
         for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
             if renderable.layer >= 4 {
@@ -103,10 +104,6 @@ impl RenderCache {
         }
         self.dirty = false;
     }
-
-    #[inline]
-    pub fn iter_layers(&self) -> RenderCacheIter<'_> {
-        RenderCacheIter {
             cache: self,
             current_layer: 0,
             current_idx: 0,

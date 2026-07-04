@@ -268,4 +268,3 @@ mod tests {
         assert_ne!(hospital, police);
     }
 }
-}

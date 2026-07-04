@@ -96,20 +96,43 @@ impl LandValueHeatmap {
 /// Mapa de contaminación atmosférica y terrestre.
 /// 0 = limpio, 10 = inhabitable.
 #[repr(align(64))]
-pub struct PollutionHeatmap {
-    pub values: Vec<f32>,
-}
-
-impl PollutionHeatmap {
-    pub fn new() -> Self {
-        let total = HEATMAP_SIZE * HEATMAP_SIZE;
-        let mut values = Vec::with_capacity(total);
-        values.resize(total, 0.0_f32);
-        PollutionHeatmap { values }
-    }
-
     #[inline(always)]
     pub fn get(&self, x: usize, y: usize) -> f32 {
+        if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
+            self.values[y * HEATMAP_SIZE + x]
+        } else {
+            0.0
+        }
+    }
+
+    /// Difusión y decaimiento de contaminación
+    pub fn diffuse_and_decay(&mut self) {
+        let mut new_values = vec![0.0_f32; HEATMAP_SIZE * HEATMAP_SIZE];
+        for y in 1..HEATMAP_SIZE - 1 {
+            for x in 1..HEATMAP_SIZE - 1 {
+                let idx = y * HEATMAP_SIZE + x;
+                let current = self.values[idx];
+                let avg = (
+                    self.values[(y-1)*HEATMAP_SIZE + x] +
+                    self.values[(y+1)*HEATMAP_SIZE + x] +
+                    self.values[y*HEATMAP_SIZE + (x-1)] +
+                    self.values[y*HEATMAP_SIZE + (x+1)]
+                ) * 0.25;
+                new_values[idx] = (current * (1.0 - DIFFUSION_RATE) + avg * DIFFUSION_RATE)
+                    * (1.0 - POLLUTION_DECAY);
+            }
+        }
+        self.values.copy_from_slice(&new_values);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ACTUALIZACIÓN DEL SISTEMA
+// ---------------------------------------------------------------------------
+
+/// Actualiza contaminación y valor del suelo.
+/// Se llama cada HEATMAP_UPDATE_INTERVAL ticks.
+pub fn update_heatmaps(gw: &mut GameWorld) {
         if x < HEATMAP_SIZE && y < HEATMAP_SIZE {
             self.values[y * HEATMAP_SIZE + x]
         } else {

@@ -130,14 +130,11 @@ fn render_from_cache(
             2 => fill_triangle(fb, w, h, sx_i, sy_i, size_i, entry.color),
             _ => {}
         }
-        }
     }
 }
+
 /// Mantenemos render_world original para compatibilidad
 pub fn render_world(
-    game_world: &GameWorld,
-    framebuffer: &mut [u32],
-    width: usize,
     height: usize,
     game_world: &GameWorld,
     framebuffer: &mut [u32],

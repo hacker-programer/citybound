@@ -88,19 +88,18 @@ impl RenderCache {
             if renderable.layer >= 2 && renderable.layer <= 3 {
                 self.push(RenderCacheEntry::new(
                     pos.x, pos.y, renderable.shape_type,
-                    renderable.color, renderable.size_x, renderable.layer,
+                    renderable.color, renderable.size_x, renderable.layer as u8,
                 ));
             }
         }
+
         // Tráfico (capa 4)
         for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
             if renderable.layer >= 4 {
                 self.push(RenderCacheEntry::new(
                     pos.x, pos.y, renderable.shape_type,
-                    renderable.color, renderable.size_x, renderable.layer,
+                    renderable.color, renderable.size_x, renderable.layer as u8,
                 ));
-            }
-        }
         self.dirty = false;
     }
 

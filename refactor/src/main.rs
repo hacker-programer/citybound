@@ -132,7 +132,8 @@ fn main() {
         // Simulación a paso fijo (10 ticks/s)
         while sim_accumulator >= MICROS_PER_TICK {
             sim_accumulator -= MICROS_PER_TICK;
-            sim::tick(&mut world);
+            // dt_fixed = 1.0 / SIM_TICKS_PER_SECOND = 0.1 segundos por tick
+            sim::tick(&mut world, 1.0 / SIM_TICKS_PER_SECOND as f32);
         }
 
         // Reconstruir cache de render si dirty

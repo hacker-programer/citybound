@@ -261,7 +261,6 @@ fn update_land_values(gw: &mut GameWorld) {
         }
     }
 
-    // Clamp a máximo
     for v in gw.land_value_map.values.iter_mut() {
         *v = (*v).min(MAX_LAND_VALUE);
     }

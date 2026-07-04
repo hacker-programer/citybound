@@ -95,6 +95,13 @@ pub fn rng_usize(max: usize) -> usize {
     (rng_fast() * max as f32) as usize
 }
 
+/// Devuelve true con la probabilidad dada (0.0 - 1.0).
+#[inline(always)]
+pub fn rng_chance(probability: f32) -> bool {
+    rng_fast() < probability
+}
+}
+
 // ---------------------------------------------------------------------------
 // SPLITMIX64 DIRECTO (para valores que no deberían consumir el pool)
 // ---------------------------------------------------------------------------

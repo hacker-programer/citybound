@@ -290,14 +290,11 @@ impl Quadtree {
 
         // Necesitamos subdividir
         self.subdivide(node_idx);
-        // Reintentar inserción
-        self.insert_into_node(node_idx, handle);
-        // Necesitamos subdividir
-        self.subdivide(node_idx);
         // Reintentar inserción (solo una vez; los hijos ahora existen)
         self.insert_into_node(node_idx, handle);
     }
-        let bounds = self.nodes[node_idx as usize].bounds;
+
+    fn subdivide(&mut self, node_idx: u32) {
         let depth = self.nodes[node_idx as usize].depth;
         let half_w = bounds.w / 2.0;
         let half_h = bounds.h / 2.0;

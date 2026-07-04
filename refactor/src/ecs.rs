@@ -144,13 +144,35 @@ impl SpatialGrid {
 
     #[inline(always)]
     pub fn insert(&mut self, x: f32, y: f32, entity_bits: u64) {
-        let (cx, cy) = Self::cell_index(x, y);
-        unsafe { self.cells.get_unchecked_mut(cy).get_unchecked_mut(cx).push(entity_bits); }
+    #[inline(always)]
+    fn cell_index(x: f32, y: f32) -> (usize, usize) {
+        let cx = (x / SPATIAL_CELL_SIZE) as usize % SPATIAL_GRID_DIM;
+        let cy = (y / SPATIAL_CELL_SIZE) as usize % SPATIAL_GRID_DIM;
+        (cx, cy)
     }
+
+    pub fn rebuild(&mut self, world: &hecs::World) {
+        self.clear();
+        for (_entity, pos) in world.query::<&Position>().iter() {
+            let bits = 0; // placeholder
+            self.insert(pos.x, pos.y, bits);
+        }
+        self.dirty = false;
+    }
+
+    #[inline]
+    pub fn query_near(&self, x: f32, y: f32, radius: f32) -> SpatialQueryIter<'_> {
+        let (cx, cy) = Self::cell_index(x, y);
+        let cell_radius = ((radius / SPATIAL_CELL_SIZE).ceil() as usize).min(SPATIAL_GRID_DIM / 2);
+        SpatialQueryIter {
+            grid: self,
+            center_x: cx, center_y: cy,
+            radius: cell_radius,
+            current_dx: 0, current_dy: 0,
+            current_cell_idx: 0,
         }
     }
 }
-
 pub struct SpatialQueryIter<'a> {
     grid: &'a SpatialGrid,
     center_x: usize, center_y: usize,

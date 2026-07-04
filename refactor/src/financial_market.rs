@@ -307,7 +307,7 @@ impl StockExchange {
 
         for company in &mut self.listed_companies {
             let drift = (city_economy_health - 0.5) * 0.01;
-            let random = crate::rng_pool::rng_range(-1.0, 1.0) * company.volatility;
+            let random = crate::rng_pool::rng_range_inclusive(-1.0, 1.0) * company.volatility;
             company.share_price *= 1.0 + drift + random;
             company.share_price = company.share_price.max(0.01);
             company.market_cap = company.share_price as f64 * company.shares_outstanding as f64;

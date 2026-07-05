@@ -1,7 +1,8 @@
-// Citybound Native v0.15.0 — Punto de entrada principal
+// Citybound Native v0.16.0 — Punto de entrada principal
 //
 // Game loop cross-platform con minifb (desktop) + platform.rs (Android)
 // Simulación a 10 ticks/s, renderizado a 30 FPS objetivo
+// FASE 8: Integración de TextureAtlas con spritesheets
 //
 // PLATAFORMAS: Windows, Android, macOS, Linux
 //
@@ -10,7 +11,6 @@
 // UtilityGrids, etc.) desborden el stack de 1MB de Windows.
 
 #![allow(unsafe_code)]
-// #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // DIAG
 
 use citybound_native::*;
 use std::time::{Duration, Instant};
@@ -33,7 +33,7 @@ fn main() {
     let gpu_api = gpu_backend::GpuApi::detect();
 
     println!("══════════════════════════════════════════════════");
-    println!("  Citybound Native v0.15.0 — City Builder Realista");
+    println!("  Citybound Native v0.16.0 — City Builder Realista");
     println!("  Plataforma: {} | {}", platform::platform_name(), platform::arch_name());
     println!("  GPU API: {} | Tier: {:?} (nivel {})",
         gpu_api.name(), hw_tier, hw_tier as u8);
@@ -44,7 +44,7 @@ fn main() {
 
     // ===== VENTANA NATIVA =====
     let mut window = match minifb::Window::new(
-        "Citybound Native v0.15.0",
+        "Citybound Native v0.16.0",
         WINDOW_WIDTH,
         WINDOW_HEIGHT,
         minifb::WindowOptions {
@@ -64,14 +64,6 @@ fn main() {
 
     // ===== FRAMEBUFFER (heap) =====
     let mut framebuffer: Vec<u32> = vec![0xFF_00_00_00u32; FB_SIZE];
-
-    // ===== LUTS Y RNG =====
-    luts::init_trig_luts();
-    rng_pool::init_rng_pool(42);
-
-    // ===== MUNDO (Box — en heap, NO en stack) =====
-    let mut pool = object_pool::EntityPool::new(10000);
-    let mut world = ecs::create_world(&mut pool);
 
     // ===== RENDER BACKEND (CPU SIMD + GPU opcional) =====
     let _render_backend = gpu_backend::init_render_backend(WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32);
@@ -111,38 +103,21 @@ fn main() {
         Err(e) => println!("[WARN] No se pudo cargar LPC Terrain: {}", e),
     }
 
-    // Si no se cargaron assets, generar tiles procedurales
+    // Si no se cargaron assets, generar tiles procedurales como fallback
     if atlas.len() <= 1 {
         println!("[INFO] Sin assets externos. Generando texturas procedurales...");
         let start = atlas.len();
-        // Generar tiles de terreno
         for i in 0..8 {
-            let tile = texture_atlas::generate_grass_tile(i);
-            atlas.tiles.push(tile);
+            atlas.tiles.push(texture_atlas::generate_grass_tile(i));
         }
-        for i in 0..4 {
-        // Reconstruir cache de render si dirty
-        world.render_cache.rebuild_from_world(&world.world);
-
-        // Render con texturas
-        render::render_world_cached(&world, &atlas, &mut framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
-        atlas.tiles.push(road_tile);
-        // Generar tiles de edificios
+        atlas.tiles.push(texture_atlas::generate_road_tile());
         let building_colors = [
-            0xFF_C4_7B_4A, // House - beige
-            0xFF_B0_BEC5, // Apartment - grey
-            0xFF_26_C6_DA, // Shop - cyan
-            0xFF_78_90_9C, // Office - blue-grey
-            0xFF_8D_6E_63, // Factory - brown
-            0xFF_8B_C3_4A, // Farm - green
-            0xFF_F4_81_81, // Hospital - red
-            0xFF_FF_D5_4F, // School - yellow
-            0xFF_42_45_E8, // Police - blue
+            0xFF_C4_7B_4A, 0xFF_B0_BEC5, 0xFF_26_C6_DA,
+            0xFF_78_90_9C, 0xFF_8D_6E_63, 0xFF_8B_C3_4A,
+            0xFF_F4_81_81, 0xFF_FF_D5_4F, 0xFF_42_45_E8,
         ];
-        for (i, &color) in building_colors.iter().enumerate() {
-            let height = 8 + (i as u32 % 6) * 1;
-            let tile = texture_atlas::generate_building_tile(color, height);
-            atlas.tiles.push(tile);
+        for &color in &building_colors {
+            atlas.tiles.push(texture_atlas::generate_building_tile(color, 10));
         }
         println!("[OK] Generados {} tiles procedurales", atlas.len() - start);
     }
@@ -152,38 +127,44 @@ fn main() {
     // ===== MUNDO (Box — en heap, NO en stack) =====
     let mut pool = object_pool::EntityPool::new(10000);
     let mut world = ecs::create_world(&mut pool);
+
     // Warm render cache
     world.render_cache.rebuild_from_world(&world.world);
 
     println!("[OK] Mundo creado: {} entidades", ecs::entity_count(&world));
     println!("[OK] GPU Backend: CPU SIMD (Tier {})", hw_tier as u8);
+    println!("[OK] Iniciando game loop...");
 
     // ===== GAME LOOP =====
+    let mut input_state = input::InputState::new();
+    let mut last_time = Instant::now();
+    let mut sim_accumulator: u64 = 0;
+    let mut fps_timer = Instant::now();
+    let mut frame_count: u64 = 0;
+
     while window.is_open() && !window.is_key_down(minifb::Key::Escape) {
         let now = Instant::now();
         let dt = now.duration_since(last_time).as_micros() as u64;
         last_time = now;
-
         sim_accumulator += dt;
 
-        // Capturar input
-        input_state.update(&window);
         // Capturar input
         input_state.update(&window);
 
         // Procesar input para diseño y cámara
         ecs::process_input(&mut world, &input_state);
+
         // Simulación a paso fijo (10 ticks/s)
         while sim_accumulator >= MICROS_PER_TICK {
             sim_accumulator -= MICROS_PER_TICK;
             sim::tick(&mut world, 1.0 / SIM_TICKS_PER_SECOND as f32);
         }
 
-        // Reconstruir cache de render si dirty
+        // Reconstruir cache de render
         world.render_cache.rebuild_from_world(&world.world);
 
-        // Render
-        render::render_world_cached(&world, &mut framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
+        // Render con texturas
+        render::render_world_cached(&world, &atlas, &mut framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
 
         // Stats panel
         let current_fps = if fps_timer.elapsed() >= Duration::from_secs(1) {

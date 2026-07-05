@@ -1,10 +1,10 @@
 [package]
 name = "citybound_native"
-version = "0.15.0"
+version = "0.16.0"
 authors = ["Citybound Refactor Team"]
 license = "AGPL-3.0"
 edition = "2021"
-description = "Citybound native refactor - Realistic city builder with adaptive GPU acceleration, supply chains, and 150+ building types"
+description = "Citybound native refactor - Realistic city builder with adaptive GPU acceleration, sprite-based rendering, supply chains, and 150+ building types"
 
 [workspace]
 
@@ -43,6 +43,10 @@ rayon = "1.9"
 cpal = "0.15"
 num_cpus = "1"
 sys-info = "0.9"
+
+# PNG loading for sprite textures (lightweight, no heavy image crate)
+png = "0.17"
+miniz_oxide = "0.7"
 
 # GPU acceleration (optional - activates at build time for native window)
 wgpu = { version = "0.19", optional = true, features = ["spirv"] }

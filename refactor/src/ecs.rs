@@ -59,20 +59,20 @@ pub struct Camera { pub offset_x: f32, pub offset_y: f32, pub zoom: f32 }
 #[derive(Copy, Clone, Debug)]
 pub struct Renderable {
     pub color: u32,
+#[derive(Copy, Clone, Debug)]
+pub struct Renderable {
+    pub color: u32,
     pub size_x: f32,
     pub size_y: f32,
     pub layer: i8,
     pub shape_type: u8, // 0=rect, 1=circle
+    pub sprite_index: u16, // 0 = sin sprite, >0 = índice en TextureAtlas
 }
 impl Renderable {
-    #[inline(always)] pub fn rect(color: u32, w: f32, layer: i8) -> Self { Renderable { color, size_x: w, size_y: w, layer, shape_type: 0 } }
-    #[inline(always)] pub fn circle(color: u32, r: f32, layer: i8) -> Self { Renderable { color, size_x: r, size_y: r, layer, shape_type: 1 } }
+    #[inline(always)] pub fn rect(color: u32, w: f32, layer: i8) -> Self { Renderable { color, size_x: w, size_y: w, layer, shape_type: 0, sprite_index: 0 } }
+    #[inline(always)] pub fn circle(color: u32, r: f32, layer: i8) -> Self { Renderable { color, size_x: r, size_y: r, layer, shape_type: 1, sprite_index: 0 } }
+    #[inline(always)] pub fn sprite(sprite_idx: u16, w: f32, h: f32, layer: i8) -> Self { Renderable { color: 0, size_x: w, size_y: h, layer, shape_type: 0, sprite_index: sprite_idx } }
 }
-#[derive(Copy, Clone, Debug)]
-pub struct TrafficCar {
-    pub speed: f32,
-    pub max_speed: f32,
-    pub acceleration: f32,
     pub lane_position: f32,
     pub lane_id: u32,
 }

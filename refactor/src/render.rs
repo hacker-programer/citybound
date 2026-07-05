@@ -147,24 +147,20 @@ fn render_from_cache(
         }
     }
 }
-
 /// Compatibilidad con versión anterior (sin atlas)
 pub fn render_world(
     game_world: &GameWorld,
     framebuffer: &mut [u32],
     width: usize,
     height: usize,
-}
-
-// ---------------------------------------------------------------------------
-// [FASE 7]: PANEL DE ESTADÍSTICAS
-// ---------------------------------------------------------------------------
 ) {
-    render_world_cached(game_world, framebuffer, width, height);
+    let atlas = TextureAtlas::new();
+    render_world_cached(game_world, &atlas, framebuffer, width, height);
 }
 
 // ---------------------------------------------------------------------------
 // [FASE 7]: PANEL DE ESTADÍSTICAS
+// ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 
 pub fn render_stats_panel(

@@ -1,13 +1,13 @@
-// RenderCache v0.10 — Pre-sort estático de entidades por capa [FASE 7]
+// RenderCache v0.16 — Pre-sort estático de entidades por capa [FASE 8]
 //
 // En vez de ordenar/sortear entidades cada frame, las entidades se
 // insertan en el bucket de capa correcto al crearse.
 // El render solo itera los buckets en orden (0..=5), sin sort.
 //
-// FASE 7: 
-// - rebuild_from_world para sincronizar con ECS
-// - Colores para nuevos edificios (Hospital, Escuela, Policía)
-// - Integración completa con pipeline de render
+// FASE 8:
+// - sprite_index en RenderCacheEntry para renderizado con texturas
+// - zone_sprite y building_sprite mappings
+// - rebuild_from_world propaga sprite_index desde ECS
 
 use crate::ecs::{BuildingType, ZoneType, Position, Renderable, ZoneComponent};
 
@@ -20,9 +20,6 @@ pub const LAYER_TRAFFIC: u8 = 4;
 pub const LAYER_UI: u8 = 5;
 pub const NUM_RENDER_LAYERS: usize = 6;
 
-/// Entrada en el cache de render — datos mínimos para dibujar
-/// Entrada en el cache de render — datos mínimos para dibujar
-#[derive(Copy, Clone, Debug)]
 /// Entrada en el cache de render — datos mínimos para dibujar
 #[derive(Copy, Clone, Debug)]
 pub struct RenderCacheEntry {
@@ -45,16 +42,16 @@ impl RenderCacheEntry {
         RenderCacheEntry { world_x: x, world_y: y, shape_type: 0, color: 0, size_x, layer, sprite_index: sprite_idx }
     }
 }
-    }
-}
+
 /// Cache de render con buckets pre-ordenados por capa.
 pub struct RenderCache {
     pub buckets: [Vec<RenderCacheEntry>; NUM_RENDER_LAYERS],
     pub dirty: bool,
 }
+
 impl RenderCache {
     pub fn new() -> Self {
-        let buckets: [Vec<RenderCacheEntry>; NUM_RENDER_LAYERS] = 
+        let buckets: [Vec<RenderCacheEntry>; NUM_RENDER_LAYERS] =
             std::array::from_fn(|_| Vec::with_capacity(4096));
         RenderCache { buckets, dirty: true }
     }
@@ -75,7 +72,9 @@ impl RenderCache {
 
     pub fn total_entries(&self) -> usize {
         self.buckets.iter().map(|b| b.len()).sum()
-    /// [FASE 7]: Reconstruye el cache desde el mundo ECS
+    }
+
+    /// [FASE 8]: Reconstruye el cache desde el mundo ECS con sprite_index
     pub fn rebuild_from_world(&mut self, world: &hecs::World) {
         self.clear();
 
@@ -124,20 +123,6 @@ impl RenderCache {
         }
         self.dirty = false;
     }
-            }
-        }
-
-        // Tráfico (capa 4)
-        for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
-            if renderable.layer >= 4 {
-                self.push(RenderCacheEntry::new(
-                    pos.x, pos.y, renderable.shape_type,
-                    renderable.color, renderable.size_x, renderable.layer as u8,
-                ));
-            }
-        }
-        self.dirty = false;
-    }
 
     #[inline]
     pub fn iter_layers(&self) -> RenderCacheIter<'_> {
@@ -148,6 +133,7 @@ impl RenderCache {
         }
     }
 }
+
 pub struct RenderCacheIter<'a> {
     cache: &'a RenderCache,
     current_layer: usize,
@@ -175,8 +161,6 @@ impl<'a> Iterator for RenderCacheIter<'a> {
 }
 
 // ---------------------------------------------------------------------------
-// COLORES POR TIPO (centralizados para consistencia)
-// ---------------------------------------------------------------------------
 // COLORES Y SPRITES POR TIPO (centralizados para consistencia)
 // ---------------------------------------------------------------------------
 
@@ -197,22 +181,19 @@ pub fn building_color(btype: BuildingType) -> u32 {
 
 /// Índices de sprite del Roguelike Modern City spritesheet.
 /// Los edificios están en las filas 4-8 del spritesheet (~30 tiles por fila).
-/// Ajustados manualmente según la disposición del spritesheet de Kenney.
 #[inline(always)]
 pub fn building_sprite(btype: BuildingType) -> u16 {
-    // Base offset para edificios en Roguelike Modern City (bank 0, después de roads/parking)
-    // Roads ocupan ~fila 0-2, parking ~fila 3, edificios desde fila 4
     const BUILDING_BASE: u16 = 60;
     match btype {
-        BuildingType::House      => BUILDING_BASE + 0,   // Casa pequeña beige
-        BuildingType::Apartment  => BUILDING_BASE + 5,   // Edificio alto gris
-        BuildingType::Shop       => BUILDING_BASE + 10,  // Tienda azul
-        BuildingType::Office     => BUILDING_BASE + 15,  // Oficina gris oscuro
-        BuildingType::Factory    => BUILDING_BASE + 20,  // Fábrica marrón
-        BuildingType::Farm       => BUILDING_BASE + 25,  // Granero verde
-        BuildingType::Hospital   => BUILDING_BASE + 30,  // Edificio rojo/blanco
-        BuildingType::School     => BUILDING_BASE + 35,  // Edificio amarillo
-        BuildingType::Police     => BUILDING_BASE + 40,  // Edificio azul
+        BuildingType::House      => BUILDING_BASE + 0,
+        BuildingType::Apartment  => BUILDING_BASE + 5,
+        BuildingType::Shop       => BUILDING_BASE + 10,
+        BuildingType::Office     => BUILDING_BASE + 15,
+        BuildingType::Factory    => BUILDING_BASE + 20,
+        BuildingType::Farm       => BUILDING_BASE + 25,
+        BuildingType::Hospital   => BUILDING_BASE + 30,
+        BuildingType::School     => BUILDING_BASE + 35,
+        BuildingType::Police     => BUILDING_BASE + 40,
     }
 }
 
@@ -228,19 +209,10 @@ pub fn zone_color(ztype: ZoneType) -> u32 {
     }
 }
 
-/// Sprites de terreno/zonas desde LPC Terrain o procedural
+/// Sprites de terreno/zonas (por ahora 0 = colores planos)
 #[inline(always)]
-pub fn zone_sprite(ztype: ZoneType) -> u16 {
-    // Por ahora, las zonas usan colores planos (sprite_index = 0)
-    // En el futuro, se mapearán a tiles de terreno
+pub fn zone_sprite(_ztype: ZoneType) -> u16 {
     0
-}
-        ZoneType::Commercial => 0x44_42_A5_F5,
-        ZoneType::Industrial => 0x44_EF_5350,
-        ZoneType::Agricultural => 0x44_9C_CC_65,
-        ZoneType::Road => 0x44_55_55_55,
-        ZoneType::Park => 0x44_4C_AF_50,
-    }
 }
 
 #[cfg(test)]
@@ -252,7 +224,6 @@ mod tests {
     #[test]
     fn test_render_cache_push_and_iter() {
         let mut cache = RenderCache::new();
-
         cache.push(RenderCacheEntry::new(10.0, 10.0, 0, 0xFF_FF_00_00, 2.0, LAYER_TRAFFIC));
         cache.push(RenderCacheEntry::new(20.0, 20.0, 1, 0xFF_00_FF_00, 3.0, LAYER_BUILDINGS));
         cache.push(RenderCacheEntry::new(30.0, 30.0, 1, 0xFF_00_00_FF, 1.0, LAYER_ZONES));
@@ -336,5 +307,18 @@ mod tests {
         assert_ne!(hospital, school);
         assert_ne!(school, police);
         assert_ne!(hospital, police);
+    }
+
+    #[test]
+    fn test_sprite_index_default() {
+        let entry = RenderCacheEntry::new(0.0, 0.0, 0, 0xFF_FF_FF_FF, 1.0, 0);
+        assert_eq!(entry.sprite_index, 0);
+    }
+
+    #[test]
+    fn test_new_sprite_entry() {
+        let entry = RenderCacheEntry::new_sprite(5.0, 5.0, 42, 2.0, LAYER_BUILDINGS);
+        assert_eq!(entry.sprite_index, 42);
+        assert_eq!(entry.layer, LAYER_BUILDINGS);
     }
 }

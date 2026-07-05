@@ -1,4 +1,4 @@
-// Citybound Native - Biblioteca central v0.13.0 [FASE 8: GPU ADAPTATIVA]
+// Citybound Native - Biblioteca central v0.16.0 [FASE 8: TEXTURAS Y SPRITES]
 //
 // Re-exporta todos los módulos públicos para uso en main.rs y tests.
 //
@@ -6,6 +6,7 @@
 // - ecs: Entity Component System (hecs)
 // - sim: Sistemas de simulación (tiempo, tráfico, economía, suelo)
 // - render: Renderizado software al framebuffer (con SIMD) + RenderCache
+// - texture_atlas: Atlas de texturas con sprites PNG pre-extraídos [v0.16]
 // - gpu_backend: Aceleración GPU adaptativa [FASE 8]
 //   * Detecta hardware: Tier 0(CPU) a Tier 3(High-end GPU)
 //   * Atlas de texturas combinado
@@ -46,6 +47,7 @@ pub mod ecs;
 pub mod sim;
 pub mod render;
 pub mod render_cache;
+pub mod texture_atlas;
 pub mod luts;
 pub mod object_pool;
 pub mod bump_alloc;

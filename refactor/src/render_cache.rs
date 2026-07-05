@@ -23,6 +23,8 @@ pub const NUM_RENDER_LAYERS: usize = 6;
 /// Entrada en el cache de render — datos mínimos para dibujar
 /// Entrada en el cache de render — datos mínimos para dibujar
 #[derive(Copy, Clone, Debug)]
+/// Entrada en el cache de render — datos mínimos para dibujar
+#[derive(Copy, Clone, Debug)]
 pub struct RenderCacheEntry {
     pub world_x: f32,
     pub world_y: f32,
@@ -30,12 +32,19 @@ pub struct RenderCacheEntry {
     pub color: u32,
     pub size_x: f32,
     pub layer: u8,
+    pub sprite_index: u16, // 0 = sin sprite, >0 = índice en TextureAtlas
 }
 
 impl RenderCacheEntry {
     #[inline(always)]
     pub fn new(x: f32, y: f32, shape: u8, color: u32, size_x: f32, layer: u8) -> Self {
-        RenderCacheEntry { world_x: x, world_y: y, shape_type: shape, color, size_x, layer }
+        RenderCacheEntry { world_x: x, world_y: y, shape_type: shape, color, size_x, layer, sprite_index: 0 }
+    }
+    #[inline(always)]
+    pub fn new_sprite(x: f32, y: f32, sprite_idx: u16, size_x: f32, layer: u8) -> Self {
+        RenderCacheEntry { world_x: x, world_y: y, shape_type: 0, color: 0, size_x, layer, sprite_index: sprite_idx }
+    }
+}
     }
 }
 /// Cache de render con buckets pre-ordenados por capa.

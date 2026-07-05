@@ -10,7 +10,7 @@
 // UtilityGrids, etc.) desborden el stack de 1MB de Windows.
 
 #![allow(unsafe_code)]
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // DIAG
 
 use citybound_native::*;
 use std::time::{Duration, Instant};
@@ -76,15 +76,81 @@ fn main() {
     // ===== RENDER BACKEND (CPU SIMD + GPU opcional) =====
     let _render_backend = gpu_backend::init_render_backend(WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32);
 
-    // ===== INPUT =====
-    let mut input_state = input::InputState::default();
+    // ===== LUTS Y RNG =====
+    luts::init_trig_luts();
+    rng_pool::init_rng_pool(42);
 
-    // ===== VARIABLES DE CONTROL =====
-    let mut sim_accumulator: u64 = 0;
-    let mut last_time = Instant::now();
-    let mut frame_count: u64 = 0;
-    let mut fps_timer = Instant::now();
+    // ===== TEXTURE ATLAS (spritesheets) =====
+    let mut atlas = texture_atlas::TextureAtlas::new();
 
+    // Cargar Roguelike Modern City (edificios, carreteras)
+    let city_path = std::path::Path::new("assets/textures/kenney/roguelike_modern_city/Spritesheet/roguelikeCity_transparent.png");
+    match atlas.load_spritesheet(city_path, "roguelike_modern_city", 16, 16, 1) {
+        Ok((start, count)) => println!("[OK] Roguelike Modern City: {} sprites (idx {}-{})", count, start, start + count - 1),
+        Err(e) => println!("[WARN] No se pudo cargar Roguelike Modern City: {}", e),
+    }
+
+    // Cargar Tiny Town (edificios adicionales)
+    let tiny_path = std::path::Path::new("assets/textures/kenney/tiny_town/tilemap_packed.png");
+    match atlas.load_spritesheet(tiny_path, "tiny_town", 16, 16, 1) {
+        Ok((start, count)) => println!("[OK] Tiny Town: {} sprites (idx {}-{})", count, start, start + count - 1),
+        Err(e) => println!("[WARN] No se pudo cargar Tiny Town: {}", e),
+    }
+
+    // Cargar Pico-8 City (decoraciones)
+    let pico_path = std::path::Path::new("assets/textures/kenney/pico8_city/tilemap_packed.png");
+    match atlas.load_spritesheet(pico_path, "pico8_city", 8, 8, 1) {
+        Ok((start, count)) => println!("[OK] Pico-8 City: {} sprites (idx {}-{})", count, start, start + count - 1),
+        Err(e) => println!("[WARN] No se pudo cargar Pico-8 City: {}", e),
+    }
+
+    // Cargar LPC Terrain
+    let lpc_path = std::path::Path::new("assets/textures/terrain/lpc/terrain.png");
+    match atlas.load_spritesheet(lpc_path, "lpc_terrain", 32, 32, 0) {
+        Ok((start, count)) => println!("[OK] LPC Terrain: {} sprites (idx {}-{})", count, start, start + count - 1),
+        Err(e) => println!("[WARN] No se pudo cargar LPC Terrain: {}", e),
+    }
+
+    // Si no se cargaron assets, generar tiles procedurales
+    if atlas.len() <= 1 {
+        println!("[INFO] Sin assets externos. Generando texturas procedurales...");
+        let start = atlas.len();
+        // Generar tiles de terreno
+        for i in 0..8 {
+            let tile = texture_atlas::generate_grass_tile(i);
+            atlas.tiles.push(tile);
+        }
+        for i in 0..4 {
+            let tile = texture_atlas::generate_water_tile(i);
+            atlas.tiles.push(tile);
+        }
+        let road_tile = texture_atlas::generate_road_tile();
+        atlas.tiles.push(road_tile);
+        // Generar tiles de edificios
+        let building_colors = [
+            0xFF_C4_7B_4A, // House - beige
+            0xFF_B0_BEC5, // Apartment - grey
+            0xFF_26_C6_DA, // Shop - cyan
+            0xFF_78_90_9C, // Office - blue-grey
+            0xFF_8D_6E_63, // Factory - brown
+            0xFF_8B_C3_4A, // Farm - green
+            0xFF_F4_81_81, // Hospital - red
+            0xFF_FF_D5_4F, // School - yellow
+            0xFF_42_45_E8, // Police - blue
+        ];
+        for (i, &color) in building_colors.iter().enumerate() {
+            let height = 8 + (i as u32 % 6) * 1;
+            let tile = texture_atlas::generate_building_tile(color, height);
+            atlas.tiles.push(tile);
+        }
+        println!("[OK] Generados {} tiles procedurales", atlas.len() - start);
+    }
+
+    println!("[OK] Atlas: {} tiles en {} banks", atlas.len(), atlas.banks.len());
+
+    // ===== MUNDO (Box — en heap, NO en stack) =====
+    let mut pool = object_pool::EntityPool::new(10000);
+    let mut world = ecs::create_world(&mut pool);
     // Warm render cache
     world.render_cache.rebuild_from_world(&world.world);
 

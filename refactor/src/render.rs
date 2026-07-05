@@ -154,11 +154,11 @@ pub fn render_world(
     framebuffer: &mut [u32],
     width: usize,
     height: usize,
-) {
-    // Crear atlas vacío como fallback
-    let atlas = TextureAtlas::new();
-    render_world_cached(game_world, &atlas, framebuffer, width, height);
 }
+
+// ---------------------------------------------------------------------------
+// [FASE 7]: PANEL DE ESTADÍSTICAS
+// ---------------------------------------------------------------------------
 ) {
     render_world_cached(game_world, framebuffer, width, height);
 }

@@ -121,10 +121,11 @@ fn main() {
             atlas.tiles.push(tile);
         }
         for i in 0..4 {
-            let tile = texture_atlas::generate_water_tile(i);
-            atlas.tiles.push(tile);
-        }
-        let road_tile = texture_atlas::generate_road_tile();
+        // Reconstruir cache de render si dirty
+        world.render_cache.rebuild_from_world(&world.world);
+
+        // Render con texturas
+        render::render_world_cached(&world, &atlas, &mut framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
         atlas.tiles.push(road_tile);
         // Generar tiles de edificios
         let building_colors = [

@@ -177,6 +177,8 @@ impl<'a> Iterator for RenderCacheIter<'a> {
 // ---------------------------------------------------------------------------
 // COLORES POR TIPO (centralizados para consistencia)
 // ---------------------------------------------------------------------------
+// COLORES Y SPRITES POR TIPO (centralizados para consistencia)
+// ---------------------------------------------------------------------------
 
 #[inline(always)]
 pub fn building_color(btype: BuildingType) -> u32 {
@@ -187,10 +189,30 @@ pub fn building_color(btype: BuildingType) -> u32 {
         BuildingType::Office => 0xFF_78_90_9C,
         BuildingType::Factory => 0xFF_8D_6E_63,
         BuildingType::Farm => 0xFF_8B_C3_4A,
-        // [FASE 7]: Edificios públicos
-        BuildingType::Hospital => 0xFF_F4_81_81,   // Rojo claro (cruz roja)
-        BuildingType::School => 0xFF_FF_D5_4F,     // Amarillo
-        BuildingType::Police => 0xFF_42_45_E8,     // Azul policía
+        BuildingType::Hospital => 0xFF_F4_81_81,
+        BuildingType::School => 0xFF_FF_D5_4F,
+        BuildingType::Police => 0xFF_42_45_E8,
+    }
+}
+
+/// Índices de sprite del Roguelike Modern City spritesheet.
+/// Los edificios están en las filas 4-8 del spritesheet (~30 tiles por fila).
+/// Ajustados manualmente según la disposición del spritesheet de Kenney.
+#[inline(always)]
+pub fn building_sprite(btype: BuildingType) -> u16 {
+    // Base offset para edificios en Roguelike Modern City (bank 0, después de roads/parking)
+    // Roads ocupan ~fila 0-2, parking ~fila 3, edificios desde fila 4
+    const BUILDING_BASE: u16 = 60;
+    match btype {
+        BuildingType::House      => BUILDING_BASE + 0,   // Casa pequeña beige
+        BuildingType::Apartment  => BUILDING_BASE + 5,   // Edificio alto gris
+        BuildingType::Shop       => BUILDING_BASE + 10,  // Tienda azul
+        BuildingType::Office     => BUILDING_BASE + 15,  // Oficina gris oscuro
+        BuildingType::Factory    => BUILDING_BASE + 20,  // Fábrica marrón
+        BuildingType::Farm       => BUILDING_BASE + 25,  // Granero verde
+        BuildingType::Hospital   => BUILDING_BASE + 30,  // Edificio rojo/blanco
+        BuildingType::School     => BUILDING_BASE + 35,  // Edificio amarillo
+        BuildingType::Police     => BUILDING_BASE + 40,  // Edificio azul
     }
 }
 
@@ -198,6 +220,21 @@ pub fn building_color(btype: BuildingType) -> u32 {
 pub fn zone_color(ztype: ZoneType) -> u32 {
     match ztype {
         ZoneType::Residential => 0x44_66_BB_6A,
+        ZoneType::Commercial => 0x44_42_A5_F5,
+        ZoneType::Industrial => 0x44_EF_5350,
+        ZoneType::Agricultural => 0x44_9C_CC_65,
+        ZoneType::Road => 0x44_55_55_55,
+        ZoneType::Park => 0x44_4C_AF_50,
+    }
+}
+
+/// Sprites de terreno/zonas desde LPC Terrain o procedural
+#[inline(always)]
+pub fn zone_sprite(ztype: ZoneType) -> u16 {
+    // Por ahora, las zonas usan colores planos (sprite_index = 0)
+    // En el futuro, se mapearán a tiles de terreno
+    0
+}
         ZoneType::Commercial => 0x44_42_A5_F5,
         ZoneType::Industrial => 0x44_EF_5350,
         ZoneType::Agricultural => 0x44_9C_CC_65,

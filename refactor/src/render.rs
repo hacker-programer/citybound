@@ -1,9 +1,10 @@
-// Módulo de Renderizado Software v0.10.0 — Fase 7 Full Features
+// Módulo de Renderizado Software v0.16.0 — Fase 8: Texturas y Sprites
 //
-// FASE 7:
-// - render_world_cached: usa RenderCache para pre-sort O(1)
-// - render_stats_panel: panel lateral con estadísticas
-// - Más colores para nuevos edificios
+// FASE 8:
+// - Sprite blitting desde TextureAtlas
+// - Fallback a colores planos si no hay sprite
+// - Alpha blending para edificios
+// - Tiles de terreno desde atlas
 //
 // TÉCNICAS:
 // [TC#3]  Baking de iluminación
@@ -14,13 +15,15 @@
 // [TC#17] Culling viewport
 // [TC#21] Distancias²
 // [TC#23] Pre-orden Z-Index (capas vía RenderCache)
-use crate::ecs::{GameWorld, Renderable, Camera, ConstructionState, BuildingType, TrafficCar};
+// [TI#28] Texturas pre-extraídas en atlas indexado
 
+use crate::ecs::{GameWorld, Renderable, Camera, ConstructionState, BuildingType, TrafficCar};
+use crate::texture_atlas::TextureAtlas;
 use crate::simd_render;
 
 
 // ---------------------------------------------------------------------------
-// PALETA DE COLORES (ARGB)
+// PALETA DE COLORES (ARGB) — usados como fallback si no hay texturas
 // ---------------------------------------------------------------------------
 
 pub const COLOR_GRASS: u32 = 0xFF_2D_5A_27;
@@ -54,12 +57,13 @@ pub const COLOR_CONGESTION_HIGH: u32 = 0x88_FF_00_00;
 const CELL_SIZE: f32 = 4.0;
 
 // ---------------------------------------------------------------------------
-// RENDER PRINCIPAL (usa RenderCache para entidades)
+// RENDER PRINCIPAL (usa RenderCache + TextureAtlas)
 // ---------------------------------------------------------------------------
 
-/// [FASE 7]: Renderiza usando el RenderCache pre-ordenado
+/// Renderiza usando el RenderCache pre-ordenado y TextureAtlas para sprites
 pub fn render_world_cached(
     game_world: &GameWorld,
+    atlas: &TextureAtlas,
     framebuffer: &mut [u32],
     width: usize,
     height: usize,
@@ -85,18 +89,19 @@ pub fn render_world_cached(
     // Red de carriles
     render_lane_network(game_world, framebuffer, width, height, offset_x, offset_y, scale);
 
-    // [FASE 7]: Entidades desde RenderCache (pre-ordenadas por capa)
-    render_from_cache(&game_world.render_cache, framebuffer, width, height, offset_x, offset_y, scale);
+    // Entidades desde RenderCache (pre-ordenadas por capa) con texturas
+    render_from_cache(atlas, &game_world.render_cache, framebuffer, width, height, offset_x, offset_y, scale);
 
-    // Indicadores de congestión (no están en el cache)
+    // Indicadores de congestión
     render_congestion_indicators(game_world, framebuffer, width, height, offset_x, offset_y, scale);
 
     // UI overlay
     render_ui(game_world, framebuffer, width, height);
 }
 
-/// Renderiza entidades desde el RenderCache (ya pre-ordenadas por capa)
+/// Renderiza entidades desde el RenderCache con soporte de sprites
 fn render_from_cache(
+    atlas: &TextureAtlas,
     cache: &crate::render_cache::RenderCache,
     fb: &mut [u32],
     w: usize,
@@ -121,23 +126,39 @@ fn render_from_cache(
         let sy_i = sy as i32;
         let size_i = size_px as i32;
 
-        match entry.shape_type {
-            0 => unsafe {
-                simd_render::fill_rect_alpha_simd(fb, w, h, sx_i, sy_i, size_i, size_i, entry.color);
-            },
-            1 => fill_circle(fb, w, h, sx_i, sy_i, size_i, entry.color),
-            2 => fill_triangle(fb, w, h, sx_i, sy_i, size_i, entry.color),
-            _ => {}
+        // Si tiene sprite, usar textura
+        if entry.sprite_index > 0 {
+            atlas.blit_sprite(
+                entry.sprite_index as usize,
+                fb, w, h,
+                sx_i, sy_i,
+                scale / CELL_SIZE, // Normalizar escala para sprite
+            );
+        } else {
+            // Fallback a formas geométricas
+            match entry.shape_type {
+                0 => unsafe {
+                    simd_render::fill_rect_alpha_simd(fb, w, h, sx_i, sy_i, size_i, size_i, entry.color);
+                },
+                1 => fill_circle(fb, w, h, sx_i, sy_i, size_i, entry.color),
+                2 => fill_triangle(fb, w, h, sx_i, sy_i, size_i, entry.color),
+                _ => {}
+            }
         }
     }
 }
 
-/// Mantenemos render_world original para compatibilidad
+/// Compatibilidad con versión anterior (sin atlas)
 pub fn render_world(
     game_world: &GameWorld,
     framebuffer: &mut [u32],
     width: usize,
     height: usize,
+) {
+    // Crear atlas vacío como fallback
+    let atlas = TextureAtlas::new();
+    render_world_cached(game_world, &atlas, framebuffer, width, height);
+}
 ) {
     render_world_cached(game_world, framebuffer, width, height);
 }

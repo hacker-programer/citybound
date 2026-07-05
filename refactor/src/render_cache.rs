@@ -75,8 +75,6 @@ impl RenderCache {
 
     pub fn total_entries(&self) -> usize {
         self.buckets.iter().map(|b| b.len()).sum()
-    }
-
     /// [FASE 7]: Reconstruye el cache desde el mundo ECS
     pub fn rebuild_from_world(&mut self, world: &hecs::World) {
         self.clear();
@@ -84,21 +82,48 @@ impl RenderCache {
         // Zonas (capa 1)
         for (_entity, (pos, zone)) in world.query::<(&Position, &ZoneComponent)>().iter() {
             if zone.density > 0 {
-                self.push(RenderCacheEntry::new(
-                    pos.x, pos.y, 0, // rect (shape_type 0)
-                    zone_color(zone.zone_type),
-                    1.0, LAYER_ZONES,
-                ));
+                let zc = zone_color(zone.zone_type);
+                let zs = zone_sprite(zone.zone_type);
+                self.push(RenderCacheEntry {
+                    world_x: pos.x, world_y: pos.y,
+                    shape_type: 0,
+                    color: zc,
+                    size_x: 1.0,
+                    layer: LAYER_ZONES,
+                    sprite_index: zs,
+                });
             }
         }
 
         // Edificios y construcciones (capa 2-3)
         for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
             if renderable.layer >= 2 && renderable.layer <= 3 {
-                self.push(RenderCacheEntry::new(
-                    pos.x, pos.y, renderable.shape_type,
-                    renderable.color, renderable.size_x, renderable.layer as u8,
-                ));
+                self.push(RenderCacheEntry {
+                    world_x: pos.x, world_y: pos.y,
+                    shape_type: renderable.shape_type,
+                    color: renderable.color,
+                    size_x: renderable.size_x,
+                    layer: renderable.layer as u8,
+                    sprite_index: renderable.sprite_index,
+                });
+            }
+        }
+
+        // Tráfico (capa 4)
+        for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
+            if renderable.layer >= 4 {
+                self.push(RenderCacheEntry {
+                    world_x: pos.x, world_y: pos.y,
+                    shape_type: renderable.shape_type,
+                    color: renderable.color,
+                    size_x: renderable.size_x,
+                    layer: renderable.layer as u8,
+                    sprite_index: renderable.sprite_index,
+                });
+            }
+        }
+        self.dirty = false;
+    }
             }
         }
 

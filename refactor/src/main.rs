@@ -91,14 +91,15 @@ fn main() {
 
     // Cargar Pico-8 City (decoraciones)
     let pico_path = std::path::Path::new("assets/textures/kenney/pico8_city/tilemap_packed.png");
-    match atlas.load_spritesheet(pico_path, "pico8_city", 8, 8, 1) {
-        Ok((start, count)) => println!("[OK] Pico-8 City: {} sprites (idx {}-{})", count, start, start + count - 1),
-        Err(e) => println!("[WARN] No se pudo cargar Pico-8 City: {}", e),
+    // Cargar Tiny Town (edificios adicionales)
+    let tiny_path = std::path::Path::new("assets/textures/kenney/tiny_town/Tilemap/tilemap_packed.png");
+    match atlas.load_spritesheet(tiny_path, "tiny_town", 16, 16, 1) {
+        Ok((start, count)) => println!("[OK] Tiny Town: {} sprites (idx {}-{})", count, start, start + count - 1),
+        Err(e) => println!("[WARN] No se pudo cargar Tiny Town: {}", e),
     }
 
-    // Cargar LPC Terrain
-    let lpc_path = std::path::Path::new("assets/textures/terrain/lpc/terrain.png");
-    match atlas.load_spritesheet(lpc_path, "lpc_terrain", 32, 32, 0) {
+    // Cargar Pico-8 City (decoraciones)
+    let pico_path = std::path::Path::new("assets/textures/kenney/pico8_city/Tilemap/tilemap_packed.png");
         Ok((start, count)) => println!("[OK] LPC Terrain: {} sprites (idx {}-{})", count, start, start + count - 1),
         Err(e) => println!("[WARN] No se pudo cargar LPC Terrain: {}", e),
     }

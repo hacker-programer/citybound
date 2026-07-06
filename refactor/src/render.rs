@@ -15,10 +15,9 @@
 // [TC#17] Culling viewport
 // [TC#21] Distancias²
 // [TC#23] Pre-orden Z-Index (capas vía RenderCache)
-use crate::ecs::{GameWorld, Camera, ConstructionState, TrafficCar, Position, ZoneComponent, ZoneType};
-use crate::texture_atlas::{TextureAtlas, TerrainTileType};
+use crate::ecs::{GameWorld, Camera, ConstructionState, TrafficCar, Position, ZoneComponent};
+use crate::texture_atlas::TextureAtlas;
 use crate::simd_render;
-
 // ---------------------------------------------------------------------------
 // NUEVA PALETA DE COLORES (ARGB) — tonos tierra, muted, cero magenta
 // ---------------------------------------------------------------------------

@@ -153,14 +153,13 @@ mod integration_tests {
         let mut gw = ecs::create_world(&mut pool);
         sim::init_simulation(&mut gw);
 
-        for _ in 0..20 {
-            sim::tick(&mut gw, 0.1);
-        }
+✅ **Compila con 4 warnings.** Ahora comienzo a arreglar los bugs uno por uno.
 
-        for (w, h) in [(800, 600), (400, 300)] {
-            let mut fb = vec![0xFF_1A_1A_2Eu32; w * h];
-            citybound_native::render::render_world(&gw, &mut fb, w, h);
-        }
+---
+
+## 🔧 FASE 1: Arreglando bugs críticos
+
+### B1 — `integration_tests.rs`: Método inexistente `height()`
     }
 
     #[test]

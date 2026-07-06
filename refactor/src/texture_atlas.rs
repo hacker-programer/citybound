@@ -207,31 +207,11 @@ impl TextureAtlas {
             for i in 0..256 {
                 let x = i % 16;
                 let y = i / 16;
-    pub fn new() -> Self {
-        let fallback = {
-            let mut pixels = vec![0u32; 256];
-            for i in 0..256 {
-                let x = i % 16;
-                let y = i / 16;
                 // Gris neutro suave con patrón sutil (no magenta)
                 pixels[i] = if (x + y) % 2 == 0 { 0xFF_4A_4A_4A } else { 0xFF_3A_3A_3A };
             }
             SpriteTile { pixels, width: 16, height: 16, category: TileCategory::Unknown }
         };
-    }
-
-    /// Carga un spritesheet PNG, extrae tiles y los categoriza automáticamente.
-    pub fn load_spritesheet(
-        &mut self,
-        png_path: &Path,
-        bank_name: &str,
-        tile_w: u32,
-        tile_h: u32,
-        margin: u32,
-    ) -> Result<(usize, usize), String> {
-        let (img_w, img_h, pixels) = load_png(png_path)?;
-
-        let stride = tile_w + margin;
         let tiles_per_row = (img_w + margin) / stride;
         let tiles_per_col = (img_h + margin) / stride;
 

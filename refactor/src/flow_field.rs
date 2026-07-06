@@ -105,15 +105,7 @@ impl FlowField {
         field
     }
 
-    #[inline(always)]
-    pub fn sample(&self, world_x: f32, world_y: f32) -> FlowCell {
-        let gx = world_x as usize % FLOW_GRID_SIZE;
-        let gy = world_y as usize % FLOW_GRID_SIZE;
-        debug_assert!(gx < FLOW_GRID_SIZE && gy < FLOW_GRID_SIZE);
-        unsafe {
-            *self.cells.get_unchecked(gy * FLOW_GRID_SIZE + gx)
-        }
-    }
+✅ **B5 fixed.** Ahora **B6** — `flow_field.rs` `sample()` con coordenadas negativas:
 
     #[inline(always)]
     pub unsafe fn sample_unchecked(&self, gx: usize, gy: usize) -> FlowCell {

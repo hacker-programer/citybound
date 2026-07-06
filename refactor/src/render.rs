@@ -279,15 +279,21 @@ fn render_entities_architectural(
     // Edificios (con ConstructionState para saber el tipo)
     for (_entity, (pos, renderable, cs)) in gw.world.query::<(&Position, &Renderable, &ConstructionState)>().iter() {
         let cx = (pos.x * scale + ox) as i32;
+    // Vehículos
+    for (_entity, (pos, car)) in gw.world.query::<(&Position, &TrafficCar)>().iter() {
+        let cx = (pos.x * scale + ox) as i32;
         let cy = (pos.y * scale + oy) as i32;
-        let size = (renderable.size_x * scale) as i32;
+        let car_size = (scale * 0.35) as i32;
 
-        if cx + size < 0 || cx - size > w as i32 || cy + size < 0 || cy - size > h as i32 {
+        if cx < -car_size || cx > w as i32 + car_size || cy < -car_size || cy > h as i32 + car_size {
             continue;
         }
 
-        // Dibujar según tipo de edificio
-        draw_building(fb, w, h, cx, cy, size, cs.building_type, cs.progress);
+        // Orientación basada en speed/lane_id (simplificado)
+        let angle = (car.lane_id as f32 * 1.7).sin(); // pseudo-dirección
+        draw_car(fb, w, h, cx, cy, car_size.max(2), angle);
+    }
+}
     }
 
     // Entidades sin ConstructionState (fallback: usar color)

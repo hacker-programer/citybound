@@ -344,15 +344,18 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
 
     let info = reader.info();
     let (width, height) = (info.width, info.height);
+    let color_type = info.color_type;
+    // Drop the immutable borrow on reader before calling next_frame
+    let output_buffer_size = reader.output_buffer_size();
+    drop(info);
 
     // Configurar transformaciones para obtener RGBA
-    let mut buf = vec![0u8; reader.output_buffer_size()];
+    let mut buf = vec![0u8; output_buffer_size];
     let frame_info = reader
         .next_frame(&mut buf)
         .map_err(|e| format!("Error leyendo frame {}: {}", path.display(), e))?;
 
-    let bytes_per_pixel = match info.color_type {
-        png::ColorType::Rgba => 4,
+    let bytes_per_pixel = match color_type {
         png::ColorType::Rgb => 3,
         png::ColorType::GrayscaleAlpha => 2,
         png::ColorType::Grayscale => 1,

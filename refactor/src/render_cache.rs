@@ -1,16 +1,14 @@
-// RenderCache v0.17 — Pre-sort estático con sprites reales [FASE 9]
+// RenderCache v0.18 — Pre-sort estático con sprites reales [REFACTOR VISUAL]
 //
-// Ahora usa las categorías del TextureAtlas para asignar sprites
-// reales a edificios, terreno y vehículos.
+// Usa las categorías del TextureAtlas para asignar sprites reales a edificios,
+// terreno y vehículos. Si no hay sprites, el renderizador dibuja formas
+// arquitectónicas reconocibles (casas con tejado, fábricas con chimeneas, etc.)
 //
-// NOVEDADES v0.17:
-// - rebuild_from_world_with_atlas: asigna sprites reales usando el atlas
-// - building_sprite_for: lookup de sprite por BuildingType en el atlas
-// - terrain_sprite_for: lookup de sprite de terreno en el atlas
-// - vehicle_sprite: sprite de coche aleatorio del atlas
+// PALETA v0.18: Tonos tierra muted, sin colores saturados.
 
 use crate::ecs::{BuildingType, ZoneType, Position, Renderable, ZoneComponent, ConstructionState, TrafficCar};
 use crate::texture_atlas::{TextureAtlas, BuildingTileStyle};
+
 pub const LAYER_TERRAIN: u8 = 0;
 pub const LAYER_ZONES: u8 = 1;
 pub const LAYER_BUILDINGS: u8 = 2;
@@ -71,11 +69,10 @@ impl RenderCache {
         self.buckets.iter().map(|b| b.len()).sum()
     }
 
-    /// [FASE 9]: Reconstruye el cache asignando sprites reales del atlas
+    /// Reconstruye el cache asignando sprites reales del atlas
     pub fn rebuild_from_world_with_atlas(&mut self, world: &hecs::World, atlas: &TextureAtlas) {
         self.clear();
 
-        // Contador para variar sprites
         let mut sprite_offset: usize = 0;
 
         // ---- Zonas (capa 1) — colores planos con alpha ----
@@ -93,11 +90,10 @@ impl RenderCache {
             }
         }
 
-        // ---- Edificios completos (capa 2-3) — sprites del atlas ----
+        // ---- Edificios completos (capa 2) — sprites del atlas ----
         {
             let mut building_entries: Vec<RenderCacheEntry> = Vec::with_capacity(512);
 
-            // Query principal: edificios con ConstructionState
             for (_entity, (pos, cs)) in world.query::<(&Position, &ConstructionState)>().iter() {
                 if cs.progress >= 1.0 {
                     let style = building_type_to_style(cs.building_type);
@@ -118,7 +114,6 @@ impl RenderCache {
             // Fallback: edificios con Renderable pero sin ConstructionState
             for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
                 if renderable.layer == 2 || renderable.layer == 3 {
-                    // Saltar si ya tiene ConstructionState (ya procesado)
                     if world.query_one::<&ConstructionState>(_entity).is_ok() {
                         continue;
                     }
@@ -150,7 +145,7 @@ impl RenderCache {
                     world_x: pos.x,
                     world_y: pos.y,
                     shape_type: 0,
-                    color: 0x88_FF_FF_00,
+                    color: 0xFF_C8_B8_5C, // amarillo construcción
                     size_x: 3.0 * cs.progress,
                     layer: LAYER_CONSTRUCTION,
                     sprite_index: if si > 0 { si } else { 0 },
@@ -217,7 +212,32 @@ impl<'a> Iterator for RenderCacheIter<'a> {
                 self.current_idx += 1;
                 return Some(entry);
             }
-/// Adivina la categoría de edificio por su color legacy
+            self.current_layer += 1;
+            self.current_idx = 0;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// MAPEO DE BUILDINGTYPE → BUILDINGTILESTYLE
+// ---------------------------------------------------------------------------
+
+#[inline(always)]
+pub fn building_type_to_style(btype: BuildingType) -> BuildingTileStyle {
+    match btype {
+        BuildingType::House => BuildingTileStyle::House,
+        BuildingType::Apartment => BuildingTileStyle::Apartment,
+        BuildingType::Shop => BuildingTileStyle::Shop,
+        BuildingType::Office => BuildingTileStyle::Office,
+        BuildingType::Factory => BuildingTileStyle::Factory,
+        BuildingType::Farm => BuildingTileStyle::Farm,
+        BuildingType::Hospital => BuildingTileStyle::Hospital,
+        BuildingType::School => BuildingTileStyle::School,
+        BuildingType::Police => BuildingTileStyle::Police,
+    }
+}
+
+/// Adivina la categoría de edificio por su color
 fn guess_building_category(color: u32) -> BuildingTileStyle {
     let r = (color >> 16) & 0xFF;
     let g = (color >> 8) & 0xFF;
@@ -253,50 +273,38 @@ fn is_near(r: u32, g: u32, b: u32, tr: u32, tg: u32, tb: u32, tol: u32) -> bool 
         && (g as i32 - tg as i32).abs() < tol as i32
         && (b as i32 - tb as i32).abs() < tol as i32
 }
-    if r > 200 && g < 120 && b < 120 { return BuildingTileStyle::Hospital; }
-    if b > 200 && r < 100 && g < 150 { return BuildingTileStyle::Police; }
-    if r < 120 && g < 120 && b < 120 { return BuildingTileStyle::Factory; }
-    if g > 150 && r > 100 && b < 100 { return BuildingTileStyle::Farm; }
-    BuildingTileStyle::Generic
+
+// ---------------------------------------------------------------------------
+// COLORES DE ZONA Y EDIFICIO (paleta v0.18 muted)
+// ---------------------------------------------------------------------------
+
 #[inline(always)]
 pub fn building_color(btype: BuildingType) -> u32 {
     match btype {
-        BuildingType::House => 0xFF_C4_8E_6A,     // terracota suave
+        BuildingType::House     => 0xFF_C4_8E_6A,  // terracota suave
         BuildingType::Apartment => 0xFF_A8_A8_B0,  // gris medio
-        BuildingType::Shop => 0xFF_5C_A0_B8,       // azul comercio
-        BuildingType::Office => 0xFF_8A_9B_A8,     // gris azulado
-        BuildingType::Factory => 0xFF_8A_7A_6E,    // marrón industrial
-        BuildingType::Farm => 0xFF_8C_A8_6A,       // verde rural
-        BuildingType::Hospital => 0xFF_E8_E8_F0,   // blanco hospital
-        BuildingType::School => 0xFF_E8_D8_8C,     // amarillo educativo
-        BuildingType::Police => 0xFF_5C_70_C4,     // azul policial
-    }
-}
-        BuildingType::Apartment => 0xFF_B0_BEC5,
-        BuildingType::Shop => 0xFF_26_C6_DA,
-        BuildingType::Office => 0xFF_78_90_9C,
-        BuildingType::Factory => 0xFF_8D_6E_63,
-        BuildingType::Farm => 0xFF_8B_C3_4A,
-        BuildingType::Hospital => 0xFF_F4_81_81,
-        BuildingType::School => 0xFF_FF_D5_4F,
-        BuildingType::Police => 0xFF_42_45_E8,
+        BuildingType::Shop      => 0xFF_5C_A0_B8,  // azul comercio
+        BuildingType::Office    => 0xFF_8A_9B_A8,  // gris azulado
+        BuildingType::Factory   => 0xFF_8A_7A_6E,  // marrón industrial
+        BuildingType::Farm      => 0xFF_8C_A8_6A,  // verde rural
+        BuildingType::Hospital  => 0xFF_E8_E8_F0,  // blanco hospital
+        BuildingType::School    => 0xFF_E8_D8_8C,  // amarillo educativo
+        BuildingType::Police    => 0xFF_5C_70_C4,  // azul policial
     }
 }
 
 #[inline(always)]
-pub fn building_sprite(_btype: BuildingType) -> u16 {
-    0
-}
+pub fn building_sprite(_btype: BuildingType) -> u16 { 0 }
 
 #[inline(always)]
 pub fn zone_color(ztype: ZoneType) -> u32 {
     match ztype {
-        ZoneType::Residential => 0x44_66_BB_6A,
-        ZoneType::Commercial => 0x44_42_A5_F5,
-        ZoneType::Industrial => 0x44_EF_5350,
-        ZoneType::Agricultural => 0x44_9C_CC_65,
-        ZoneType::Road => 0x44_55_55_55,
-        ZoneType::Park => 0x44_4C_AF_50,
+        ZoneType::Residential  => 0x88_7B_A0_5C,  // verde apagado
+        ZoneType::Commercial   => 0x88_5C_8F_A0,  // azul apagado
+        ZoneType::Industrial   => 0x88_A0_6C_5C,  // rojo apagado
+        ZoneType::Agricultural => 0x88_8F_A0_5C,  // amarillo apagado
+        ZoneType::Road         => 0x88_88_88_88,  // gris
+        ZoneType::Park         => 0x88_5C_A0_6C,  // verde menta
     }
 }
 

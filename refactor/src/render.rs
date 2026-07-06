@@ -186,16 +186,10 @@ fn render_zones_subtle(
     ox: f32,
     oy: f32,
     scale: f32,
-    let _w_i32 = w as i32;
-    let _h_i32 = h as i32;
-    let _grid_size = gw.grid_size as f32;
-    let _grid_size = gw.grid_size as f32;
+) {
     if scale < 1.2 {
         return;
     }
-
-    for (_entity, (pos, zone)) in gw.world.query::<(&crate::ecs::Position, &crate::ecs::ZoneComponent)>().iter() {
-        if zone.density <= 0 {
             continue;
         }
 

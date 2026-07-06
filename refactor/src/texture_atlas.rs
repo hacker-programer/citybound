@@ -235,8 +235,119 @@ impl TextureAtlas {
         let stride = tile_w + margin;
         let tiles_per_row = (img_w + margin) / stride;
         let tiles_per_col = (img_h + margin) / stride;
+        let stride = tile_w + margin;
+        let tiles_per_row = (img_w + margin) / stride;
+        let tiles_per_col = (img_h + margin) / stride;
 
-    // -----------------------------------------------------------------------
+        let start_idx = self.tiles.len();
+        let mut count = 0usize;
+
+        for row in 0..tiles_per_col {
+            for col in 0..tiles_per_row {
+                let src_x = col * stride;
+                let src_y = row * stride;
+
+                if src_x + tile_w > img_w || src_y + tile_h > img_h {
+                    continue;
+                }
+
+                let mut tile_pixels = vec![0u32; (tile_w * tile_h) as usize];
+                let mut has_content = false;
+                let mut sum_r: u32 = 0;
+                let mut sum_g: u32 = 0;
+                let mut sum_b: u32 = 0;
+                let mut pixel_count: u32 = 0;
+                let mut edge_pixels: u32 = 0;
+                let mut corner_dark: u32 = 0;
+
+                for py in 0..tile_h {
+                    for px in 0..tile_w {
+                        let src_idx = ((src_y + py) * img_w + (src_x + px)) as usize;
+                        let pixel = pixels[src_idx];
+                        let alpha = (pixel >> 24) & 0xFF;
+
+                        if alpha > 30 && pixel & 0x00_FF_FF_FF != 0x00_FF_00_FF {
+                            has_content = true;
+                            let r = (pixel >> 16) & 0xFF;
+                            let g = (pixel >> 8) & 0xFF;
+                            let b = pixel & 0xFF;
+                            sum_r += r;
+                            sum_g += g;
+                            sum_b += b;
+                            pixel_count += 1;
+
+                            if px == 0 || px == tile_w - 1 || py == 0 || py == tile_h - 1 {
+                                edge_pixels += 1;
+                                if (r + g + b) < 120 {
+                                    corner_dark += 1;
+                                }
+                            }
+                        }
+                        tile_pixels[(py * tile_w + px) as usize] = pixel;
+                    }
+                }
+
+                if !has_content {
+                    continue;
+                }
+
+                let avg_r = (sum_r / pixel_count.max(1)) as f32;
+                let avg_g = (sum_g / pixel_count.max(1)) as f32;
+                let avg_b = (sum_b / pixel_count.max(1)) as f32;
+                let avg_brightness = (avg_r + avg_g + avg_b) / 3.0;
+
+                let category = categorize_tile(
+                    avg_r, avg_g, avg_b,
+                    avg_brightness,
+                    pixel_count,
+                    edge_pixels,
+                    corner_dark,
+                    tile_w,
+                    row,
+                    col,
+                );
+
+                self.tiles.push(SpriteTile {
+                    pixels: tile_pixels,
+                    width: tile_w,
+                    height: tile_h,
+                    category,
+                });
+
+                let tile_idx = self.tiles.len() - 1;
+                match category {
+                    TileCategory::Grass => self.categories.grass.push(tile_idx),
+                    TileCategory::Dirt => self.categories.dirt.push(tile_idx),
+                    TileCategory::Road => self.categories.road.push(tile_idx),
+                    TileCategory::Sand => self.categories.sand.push(tile_idx),
+                    TileCategory::Water => self.categories.water.push(tile_idx),
+                    TileCategory::Building(style) => {
+                        self.categories.buildings
+                            .entry(style)
+                            .or_insert_with(Vec::new)
+                            .push(tile_idx);
+                    }
+                    TileCategory::Vehicle => self.categories.vehicles.push(tile_idx),
+                    TileCategory::Decoration => self.categories.decorations.push(tile_idx),
+                    TileCategory::Character => self.categories.characters.push(tile_idx),
+                    TileCategory::Unknown => {}
+                }
+
+                count += 1;
+            }
+        }
+
+        let end_idx = self.tiles.len();
+        self.banks.push(TileBank {
+            name: bank_name.to_string(),
+            start_idx,
+            end_idx,
+            tile_w,
+            tile_h,
+        });
+
+        Ok((start_idx, count))
+    }
     // Blit de sprites
     // -----------------------------------------------------------------------
 

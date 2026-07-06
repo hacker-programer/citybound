@@ -295,34 +295,7 @@ unsafe fn fill_rect_alpha_scalar(
 
     // Loop unrolling 8-wide
     for py in y1..y2 {
-        let row_start = (py as usize) * fb_w;
-        let width = (x2 - x1) as usize;
-        let mut px = x1 as usize;
-        let unrolled_end = x1 as usize + (width / 8) * 8;
-
-        while px < unrolled_end {
-            for off in 0..8 {
-                let idx = row_start + px + off;
-                let dst = *fb.get_unchecked(idx);
-                let dst_r = (dst >> 16) & 0xFF;
-                let dst_g = (dst >> 8) & 0xFF;
-                let dst_b = dst & 0xFF;
-                let dst_a = (dst >> 24) & 0xFF;
-                let out_a = (src_a * 255 + dst_a * inv_a) * DIV255_MUL + 32768 >> 23;
-                let out_r = (sr_a + dst_r * inv_a) * DIV255_MUL + 32768 >> 23;
-                let out_g = (sg_a + dst_g * inv_a) * DIV255_MUL + 32768 >> 23;
-                let out_b = (sb_a + dst_b * inv_a) * DIV255_MUL + 32768 >> 23;
-                *fb.get_unchecked_mut(idx) = (out_a << 24) | (out_r << 16) | (out_g << 8) | out_b;
-            }
-            px += 8;
-        }
-        while px < x2 as usize {
-            let idx = row_start + px;
-            let dst = *fb.get_unchecked(idx);
-            let dst_r = (dst >> 16) & 0xFF;
-            let dst_g = (dst >> 8) & 0xFF;
-            let dst_b = dst & 0xFF;
-            let dst_a = (dst >> 24) & 0xFF;
+Cargo está disponible pero la captura de salida falla. Continúo con los bugs restantes. **B4**: `blit_scaled` usa `step_y` para escalado horizontal:
             let out_a = (src_a * 255 + dst_a * inv_a) * DIV255_MUL + 32768 >> 23;
             let out_r = (sr_a + dst_r * inv_a) * DIV255_MUL + 32768 >> 23;
             let out_g = (sg_a + dst_g * inv_a) * DIV255_MUL + 32768 >> 23;

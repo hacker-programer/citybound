@@ -895,11 +895,43 @@ pub fn generate_building_tile(color: u32, _height_px: u32) -> SpriteTile {
     let roof_r = (r as f32 * 0.65) as u32;
     let roof_g = (g as f32 * 0.45) as u32;
     let roof_b = (b as f32 * 0.40) as u32;
+pub fn generate_dirt_tile(variant: u32) -> SpriteTile {
+    let size = 16u32;
+    let mut pixels = vec![0u32; (size * size) as usize];
+    let base_r = 155 + (variant % 15) as u32;
+    let base_g = 130 + (variant % 12) as u32;
+    let base_b = 100 + (variant % 10) as u32;
+    for y in 0u32..size {
+        for x in 0u32..size {
+            let noise = ((x.wrapping_mul(11) ^ y.wrapping_mul(17)) % 18) as u32;
+            let r = base_r + noise / 2;
+            let g = base_g + noise / 2;
+            let b = base_b + noise / 3;
+            pixels[(y * size + x) as usize] =
+                0xFF_00_00_00 | (r << 16) | (g << 8) | b;
+        }
+    }
+    SpriteTile { pixels, width: size, height: size, category: TileCategory::Dirt }
+}
 
-    // Pared (color principal)
-    let wall_r = r;
-    let wall_g = g;
-    let wall_b = b;
+pub fn generate_sand_tile(variant: u32) -> SpriteTile {
+    let size = 16u32;
+    let mut pixels = vec![0u32; (size * size) as usize];
+    let base_r = 210 + (variant % 12) as u32;
+    let base_g = 195 + (variant % 10) as u32;
+    let base_b = 150 + (variant % 8) as u32;
+    for y in 0u32..size {
+        for x in 0u32..size {
+            let noise = ((x.wrapping_mul(9) ^ y.wrapping_mul(15)) % 12) as u32;
+            let r = base_r + noise / 3;
+            let g = base_g + noise / 3;
+            let b = base_b + noise / 4;
+            pixels[(y * size + x) as usize] =
+                0xFF_00_00_00 | (r << 16) | (g << 8) | b;
+        }
+    }
+    SpriteTile { pixels, width: size, height: size, category: TileCategory::Sand }
+}
 
     // Ventana (azul claro/amarillo cálido)
     let win_r = 180u32;

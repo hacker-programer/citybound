@@ -1,1 +1,1 @@
-## 🔴 FASE 2: Arreglando bugs de lógica
+El archivo se corrompió. Lo restauro con el contenido correcto:

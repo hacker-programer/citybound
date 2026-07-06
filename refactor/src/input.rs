@@ -133,7 +133,7 @@ impl InputState {
                     self.keys_down |= 1u128 << (gk as u8);
                 }
             }
-            PlatformEvent::KeyReleased(key) => {
+            PlatformEvent::KeyReleased(_key) => {
             }
             PlatformEvent::MouseMoved { x, y } => {
                 self.mouse_x = x;

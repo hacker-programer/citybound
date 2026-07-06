@@ -131,12 +131,7 @@ pub const SPATIAL_GRID_SIZE: usize = SPATIAL_GRID_DIM * SPATIAL_GRID_DIM;
 #[derive(Clone)]
 pub struct SpatialGrid {
     pub cells: [[Vec<u64>; SPATIAL_GRID_DIM]; SPATIAL_GRID_DIM],
-    pub dirty: bool,
-}
-
-impl SpatialGrid {
-    pub fn new() -> Self {
-        let cells: [[Vec<u64>; SPATIAL_GRID_DIM]; SPATIAL_GRID_DIM] = 
+✅ **B2 fixed.** Ahora **B3**: `SpatialGrid::rebuild` con `bits = 0`:
             std::array::from_fn(|_| std::array::from_fn(|_| Vec::with_capacity(64)));
         SpatialGrid { cells, dirty: true }
     }

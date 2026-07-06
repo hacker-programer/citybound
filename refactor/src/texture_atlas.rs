@@ -235,13 +235,8 @@ impl TextureAtlas {
         let stride = tile_w + margin;
         let tiles_per_row = (img_w + margin) / stride;
         let tiles_per_col = (img_h + margin) / stride;
-        let stride = tile_w + margin;
-        let tiles_per_row = (img_w + margin) / stride;
-        let tiles_per_col = (img_h + margin) / stride;
 
         let start_idx = self.tiles.len();
-        let mut count = 0usize;
-
         for row in 0..tiles_per_col {
             for col in 0..tiles_per_row {
                 let src_x = col * stride;

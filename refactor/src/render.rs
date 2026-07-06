@@ -912,10 +912,10 @@ fn fill_circle(fb: &mut [u32], fb_w: usize, fb_h: usize,
                cx: i32, cy: i32, radius: i32, color: u32) {
     let r2 = radius * radius;
     let x0 = (cx - radius).max(0);
+    let x0 = (cx - radius).max(0);
     let y0 = (cy - radius).max(0);
+    let x1 = (cx + radius).min(fb_w as i32);
     let y1 = (cy + radius).min(fb_h as i32);
-    for py in y0..y1 {
-        let dy = py - cy;
         let row_start = (py as usize) * fb_w;
         for px in x0..x1 {
             let dx = px - cx;

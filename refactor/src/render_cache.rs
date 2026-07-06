@@ -10,14 +10,15 @@
 // - vehicle_sprite: sprite de coche aleatorio del atlas
 
 use crate::ecs::{BuildingType, ZoneType, Position, Renderable, ZoneComponent, ConstructionState, TrafficCar};
-use crate::texture_atlas::{TextureAtlas, TileCategory, BuildingTileStyle, TerrainTileType};
-
-pub const LAYER_TERRAIN: u8 = 0;
-pub const LAYER_ZONES: u8 = 1;
-pub const LAYER_BUILDINGS: u8 = 2;
-pub const LAYER_CONSTRUCTION: u8 = 3;
-pub const LAYER_TRAFFIC: u8 = 4;
-pub const LAYER_UI: u8 = 5;
+use crate::ecs::{BuildingType, ZoneType, Position, Renderable, ZoneComponent, ConstructionState, TrafficCar};
+use crate::texture_atlas::{TextureAtlas, BuildingTileStyle};
+use crate::render::{
+    COLOR_ZONE_RESIDENTIAL, COLOR_ZONE_COMMERCIAL, COLOR_ZONE_INDUSTRIAL,
+    COLOR_ZONE_AGRICULTURAL, COLOR_ZONE_ROAD, COLOR_ZONE_PARK,
+    COLOR_BUILDING_HOUSE, COLOR_BUILDING_APARTMENT, COLOR_BUILDING_SHOP,
+    COLOR_BUILDING_OFFICE, COLOR_BUILDING_FACTORY, COLOR_BUILDING_FARM,
+    COLOR_BUILDING_HOSPITAL, COLOR_BUILDING_SCHOOL, COLOR_BUILDING_POLICE,
+};
 pub const NUM_RENDER_LAYERS: usize = 6;
 
 #[derive(Copy, Clone, Debug)]

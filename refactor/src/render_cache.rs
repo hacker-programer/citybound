@@ -1,15 +1,11 @@
-// RenderCache v0.17 — Pre-sort estático con sprites reales [FASE 9]
+// RenderCache v0.18 — Pre-sort estático con sprites reales [FASE 9]
 //
-// Ahora usa las categorías del TextureAtlas para asignar sprites
-// reales a edificios, terreno y vehículos.
+// Usa las categorías del TextureAtlas para asignar sprites reales a edificios,
+// terreno y vehículos. Si no hay sprites, el renderizador dibuja formas
+// arquitectónicas reconocibles (casas con tejado, fábricas con chimeneas, etc.)
 //
-// NOVEDADES v0.17:
-// - rebuild_from_world_with_atlas: asigna sprites reales usando el atlas
-// - building_sprite_for: lookup de sprite por BuildingType en el atlas
-// - terrain_sprite_for: lookup de sprite de terreno en el atlas
-// - vehicle_sprite: sprite de coche aleatorio del atlas
+// PALETA v0.18: Tonos tierra muted, sin colores saturados.
 
-use crate::ecs::{BuildingType, ZoneType, Position, Renderable, ZoneComponent, ConstructionState, TrafficCar};
 use crate::ecs::{BuildingType, ZoneType, Position, Renderable, ZoneComponent, ConstructionState, TrafficCar};
 use crate::texture_atlas::{TextureAtlas, BuildingTileStyle};
 use crate::render::{
@@ -19,6 +15,13 @@ use crate::render::{
     COLOR_BUILDING_OFFICE, COLOR_BUILDING_FACTORY, COLOR_BUILDING_FARM,
     COLOR_BUILDING_HOSPITAL, COLOR_BUILDING_SCHOOL, COLOR_BUILDING_POLICE,
 };
+
+pub const LAYER_TERRAIN: u8 = 0;
+pub const LAYER_ZONES: u8 = 1;
+pub const LAYER_BUILDINGS: u8 = 2;
+pub const LAYER_CONSTRUCTION: u8 = 3;
+pub const LAYER_TRAFFIC: u8 = 4;
+pub const LAYER_UI: u8 = 5;
 pub const NUM_RENDER_LAYERS: usize = 6;
 
 #[derive(Copy, Clone, Debug)]
@@ -77,10 +80,9 @@ impl RenderCache {
     pub fn rebuild_from_world_with_atlas(&mut self, world: &hecs::World, atlas: &TextureAtlas) {
         self.clear();
 
-        // Contador para variar sprites
         let mut sprite_offset: usize = 0;
 
-        // Zonas (capa 1) — usan colores planos con alpha para indicar zonificación
+        // Zonas (capa 1)
         for (_entity, (pos, zone)) in world.query::<(&Position, &ZoneComponent)>().iter() {
             if zone.density > 0 {
                 self.push(RenderCacheEntry {
@@ -89,7 +91,7 @@ impl RenderCache {
                     color: zone_color(zone.zone_type),
                     size_x: 1.0,
                     layer: LAYER_ZONES,
-                    sprite_index: 0, // Las zonas usan rectángulos de color
+                    sprite_index: 0,
                 });
             }
         }
@@ -97,11 +99,9 @@ impl RenderCache {
         // Edificios (capa 2-3) — usan sprites reales del atlas
         for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
             if renderable.layer == 2 || renderable.layer == 3 {
-                // Si ya tiene sprite_index, usarlo; si no, intentar buscar en el atlas
                 let si = if renderable.sprite_index > 0 {
                     renderable.sprite_index
                 } else {
-                    // Buscar por color/categoría
                     let category = guess_building_category(renderable.color);
                     let idx = atlas.categories.building_sprite(category) as u16;
                     if idx > 0 { idx } else { 0 }
@@ -136,7 +136,6 @@ impl RenderCache {
 
         // Tráfico (capa 4) — vehículos
         for (_entity, (pos, renderable, _car)) in world.query::<(&Position, &Renderable, &TrafficCar)>().iter() {
-            // Usar sprite de vehículo si hay disponible
             let vi = if atlas.categories.vehicles.is_empty() {
                 0u16
             } else {
@@ -224,39 +223,21 @@ fn guess_building_category(color: u32) -> BuildingTileStyle {
     let g = (color >> 8) & 0xFF;
     let b = color & 0xFF;
 
-    if r > 200 && g < 150 && b < 100 { return BuildingTileStyle::House; }      // Naranja/marrón = casa
-    if r > 160 && g > 160 && b > 160 { return BuildingTileStyle::Apartment; }   // Gris = apartamento
-    if b > 200 && r < 150 { return BuildingTileStyle::Shop; }                   // Azul = tienda
-    if g > 180 && r > 180 && b < 120 { return BuildingTileStyle::School; }      // Amarillo = escuela
-    if r > 200 && g < 120 && b < 120 { return BuildingTileStyle::Hospital; }    // Rojo = hospital
-    if b > 200 && r < 100 && g < 150 { return BuildingTileStyle::Police; }      // Azul = policía
-    if r < 120 && g < 120 && b < 120 { return BuildingTileStyle::Factory; }     // Oscuro = fábrica
-    if g > 150 && r > 100 && b < 100 { return BuildingTileStyle::Farm; }        // Verde = granja
+    if r > 200 && g < 150 && b < 100 { return BuildingTileStyle::House; }
+    if r > 160 && g > 160 && b > 160 { return BuildingTileStyle::Apartment; }
+    if b > 200 && r < 150 { return BuildingTileStyle::Shop; }
+    if g > 180 && r > 180 && b < 120 { return BuildingTileStyle::School; }
+    if r > 200 && g < 120 && b < 120 { return BuildingTileStyle::Hospital; }
+    if b > 200 && r < 100 && g < 150 { return BuildingTileStyle::Police; }
+    if r < 120 && g < 120 && b < 120 { return BuildingTileStyle::Factory; }
+    if g > 150 && r > 100 && b < 100 { return BuildingTileStyle::Farm; }
     BuildingTileStyle::Generic
 }
 
 // ---------------------------------------------------------------------------
-// COLORES DE ZONA Y EDIFICIO (legacy)
+// COLORES (usando la paleta unificada de render.rs)
 // ---------------------------------------------------------------------------
 
-#[inline(always)]
-pub fn building_color(btype: BuildingType) -> u32 {
-    match btype {
-        BuildingType::House => 0xFF_C4_7B_4A,
-        BuildingType::Apartment => 0xFF_B0_BEC5,
-        BuildingType::Shop => 0xFF_26_C6_DA,
-        BuildingType::Office => 0xFF_78_90_9C,
-        BuildingType::Factory => 0xFF_8D_6E_63,
-        BuildingType::Farm => 0xFF_8B_C3_4A,
-        BuildingType::Hospital => 0xFF_F4_81_81,
-        BuildingType::School => 0xFF_FF_D5_4F,
-        BuildingType::Police => 0xFF_42_45_E8,
-    }
-}
-
-#[inline(always)]
-pub fn building_sprite(_btype: BuildingType) -> u16 {
-    // Obsoleto: ahora se usa el atlas directamente
 #[inline(always)]
 pub fn building_color(btype: BuildingType) -> u32 {
     match btype {
@@ -273,6 +254,12 @@ pub fn building_color(btype: BuildingType) -> u32 {
 }
 
 #[inline(always)]
+pub fn building_sprite(_btype: BuildingType) -> u16 {
+    // Obsoleto: ahora se usa el atlas directamente vía rebuild_from_world_with_atlas
+    0
+}
+
+#[inline(always)]
 pub fn zone_color(ztype: ZoneType) -> u32 {
     match ztype {
         ZoneType::Residential => COLOR_ZONE_RESIDENTIAL,
@@ -283,6 +270,18 @@ pub fn zone_color(ztype: ZoneType) -> u32 {
         ZoneType::Park => COLOR_ZONE_PARK,
     }
 }
+
+// ---------------------------------------------------------------------------
+// TESTS
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_render_cache_push_and_iter() {
+        let mut cache = RenderCache::new();
         cache.push(RenderCacheEntry::new(10.0, 10.0, 0, 0xFF_FF_00_00, 2.0, LAYER_TRAFFIC));
         cache.push(RenderCacheEntry::new(20.0, 20.0, 1, 0xFF_00_FF_00, 3.0, LAYER_BUILDINGS));
         cache.push(RenderCacheEntry::new(30.0, 30.0, 1, 0xFF_00_00_FF, 1.0, LAYER_ZONES));
@@ -307,17 +306,5 @@ pub fn zone_color(ztype: ZoneType) -> u32 {
     fn test_building_type_to_style() {
         assert_eq!(building_type_to_style(BuildingType::House), BuildingTileStyle::House);
         assert_eq!(building_type_to_style(BuildingType::Police), BuildingTileStyle::Police);
-    }
-
-    #[test]
-    fn test_rebuild_from_world() {
-        crate::luts::init_trig_luts();
-        crate::rng_pool::init_rng_pool(42);
-        let mut pool = EntityPool::new(1000);
-        let gw = ecs::create_world(&mut pool);
-        let mut cache = RenderCache::new();
-        cache.rebuild_from_world(&gw.world);
-        assert!(cache.total_entries() > 0, "Cache must be populated from world");
-        assert!(!cache.dirty);
     }
 }

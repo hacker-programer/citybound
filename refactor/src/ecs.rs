@@ -1,1 +1,1 @@
-El archivo `ecs.rs` quedó gravemente dañado. Voy a reescribirlo completamente:
+La herramienta corrompió el archivo al inyectar mi texto de razonamiento. Voy a restaurarlo inmediatamente:

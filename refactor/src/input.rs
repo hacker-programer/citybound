@@ -101,11 +101,26 @@ pub enum GameKey {
 // ---------------------------------------------------------------------------
 
 impl InputState {
-    /// Procesa un evento de plataforma unificado (PlatformEvent → InputState)
-    /// Permite que el sistema de input funcione con cualquier backend de plataforma
-    pub fn process_platform_event(&mut self, event: &crate::platform::PlatformEvent) {
-        use crate::platform::{PlatformEvent, MouseButton as PMb};
+    /// Crea un nuevo estado de input con todos los campos inicializados a cero
+    pub fn new() -> Self {
+        Self {
+            keys_down: 0,
+            keys_pressed: 0,
+            keys_released: 0,
+            mouse_x: 0.0,
+            mouse_y: 0.0,
+            mouse_left: false,
+            mouse_right: false,
+            mouse_middle: false,
+            prev_mouse_left: false,
+            prev_mouse_right: false,
+            prev_mouse_middle: false,
+            scroll_delta: 0.0,
+            mouse_inside: false,
+        }
+    }
 
+    /// Procesa un evento de plataforma unificado (PlatformEvent → InputState)
         match *event {
             PlatformEvent::KeyPressed(key) => {
                 if let Some(gk) = map_platform_key_internal(key) {

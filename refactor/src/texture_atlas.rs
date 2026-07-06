@@ -465,11 +465,12 @@ pub fn generate_water_tile(frame: u32) -> SpriteTile {
 }
 
 /// Genera un tile de carretera procedural
+/// Genera un tile de carretera procedural
 pub fn generate_road_tile() -> SpriteTile {
-    let size = 16;
+    let size = 16u32;
+    let mut pixels = vec![0u32; (size * size) as usize];
     for y in 0u32..size {
         for x in 0u32..size {
-            let v = 80 + ((x.wrapping_mul(3) ^ y.wrapping_mul(7)) % 10) as u32;
             let v = 80 + ((x.wrapping_mul(3) ^ y.wrapping_mul(7)) % 10) as u32;
             pixels[(y * size + x) as usize] =
                 0xFF_00_00_00 | (v << 16) | (v << 8) | v;
@@ -477,7 +478,6 @@ pub fn generate_road_tile() -> SpriteTile {
     }
     SpriteTile { pixels, width: size, height: size }
 }
-
 /// Genera tile de edificio procedural según tipo
 pub fn generate_building_tile(color: u32, height_px: u32) -> SpriteTile {
     let size = 16;

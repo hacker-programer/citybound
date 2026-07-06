@@ -335,9 +335,8 @@ fn render_entities_architectural(
 // ═══════════════════════════════════════════════════════════════════════════
 
 fn draw_building(fb: &mut [u32], fb_w: usize, fb_h: usize,
-                 cx: i32, cy: i32, size: i32, btype: BuildingType, progress: f32) {
-    let s = (size as f32 * progress) as i32;
-    if s < 2 { return; }
+fn draw_car(fb: &mut [u32], fb_w: usize, fb_h: usize,
+            cx: i32, cy: i32, size: i32, _angle: f32) {
 
     match btype {
         BuildingType::House    => draw_house(fb, fb_w, fb_h, cx, cy, s),

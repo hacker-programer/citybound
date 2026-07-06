@@ -221,14 +221,21 @@ impl InputState {
     }
 
     /// Botón del mouse presionado (mantenido)
+    /// Botón del mouse presionado (mantenido)
     #[inline(always)]
     pub fn is_mouse_down(&self, button: MouseButton) -> bool {
         match button {
+            MouseButton::Left => self.mouse_left,
+            MouseButton::Right => self.mouse_right,
+            MouseButton::Middle => self.mouse_middle,
+        }
     }
 
     /// Botón del mouse recién presionado en este frame (flanco positivo)
     #[inline(always)]
     pub fn is_mouse_pressed(&self, button: MouseButton) -> bool {
+        match button {
+            MouseButton::Left => self.mouse_left && !self.prev_mouse_left,
             MouseButton::Right => self.mouse_right && !self.prev_mouse_right,
             MouseButton::Middle => self.mouse_middle && !self.prev_mouse_middle,
         }
@@ -244,8 +251,6 @@ impl InputState {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
 // MAPEO DE TECLAS PLATFORM → GAMEKEY
 // ---------------------------------------------------------------------------
 

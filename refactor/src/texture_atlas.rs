@@ -445,8 +445,8 @@ pub fn generate_grass_tile(variant: u32) -> SpriteTile {
     }
     SpriteTile { pixels, width: size, height: size }
 }
-}
 
+/// Genera un tile de agua procedural
 /// Genera un tile de agua procedural
 pub fn generate_water_tile(frame: u32) -> SpriteTile {
     let size = 16;

@@ -379,7 +379,7 @@ mod tests {
     use crate::ecs;
     use crate::object_pool::EntityPool;
 
-    fn setup_world() -> GameWorld {
+    fn setup_world() -> Box<GameWorld> {
         let mut pool = EntityPool::new(1000);
         let mut gw = ecs::create_world(&mut pool);
 

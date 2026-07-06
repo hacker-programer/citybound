@@ -237,7 +237,7 @@ mod tests {
     use crate::ecs;
     use crate::object_pool::EntityPool;
 
-    fn setup_world_with_labor() -> GameWorld {
+    fn setup_world_with_labor() -> Box<GameWorld> {
         crate::luts::init_trig_luts();
         crate::rng_pool::init_rng_pool(42);
         let mut pool = EntityPool::new(1000);

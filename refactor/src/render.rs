@@ -292,26 +292,28 @@ fn render_entities_architectural(
         // Orientación basada en speed/lane_id (simplificado)
         let angle = (car.lane_id as f32 * 1.7).sin(); // pseudo-dirección
         draw_car(fb, w, h, cx, cy, car_size.max(2), angle);
-    }
-}
-    }
+    // Entidades sin ConstructionState (fallback: usar color para adivinar tipo)
+    // Usamos una query separada excluyendo ConstructionState
+    {
+        let mut fallback_buildings: Vec<(i32, i32, i32, u32)> = Vec::new();
+        for (_entity, (pos, renderable)) in gw.world.query::<(&Position, &Renderable)>().iter() {
+            // Intentar obtener ConstructionState — si existe, ya fue dibujado
+            let has_cs = gw.world.get::<&ConstructionState>(_entity).is_ok();
+            if has_cs { continue; }
+            if renderable.layer != 2 && renderable.layer != 3 { continue; }
 
-    // Entidades sin ConstructionState (fallback: usar color)
-    for (_entity, (pos, renderable)) in gw.world.query::<(&Position, &Renderable)>().iter() {
-        let has_cs = gw.world.query_one::<&ConstructionState>(_entity).is_ok();
-        if has_cs { continue; } // Ya dibujado arriba
+            let cx = (pos.x * scale + ox) as i32;
+            let cy = (pos.y * scale + oy) as i32;
+            let size = (renderable.size_x * scale) as i32;
+            if size < 2 { continue; }
 
-        let cx = (pos.x * scale + ox) as i32;
-        let cy = (pos.y * scale + oy) as i32;
-        let size = (renderable.size_x * scale) as i32;
-
-        if cx + size < 0 || cx - size > w as i32 || cy + size < 0 || cy - size > h as i32 {
-            continue;
+            fallback_buildings.push((cx, cy, size, renderable.color));
         }
 
-        // Fallback: dibujar según color
-        let btype = guess_building_type_from_color(renderable.color);
-        draw_building(fb, w, h, cx, cy, size, btype, 1.0);
+        for (cx, cy, size, color) in fallback_buildings {
+            let btype = guess_building_type_from_color(color);
+            draw_building(fb, w, h, cx, cy, size, btype, 1.0);
+        }
     }
 
     // Vehículos

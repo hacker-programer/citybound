@@ -257,16 +257,20 @@ fn guess_building_category(color: u32) -> BuildingTileStyle {
     if r < 120 && g < 120 && b < 120 { return BuildingTileStyle::Factory; }
     if g > 150 && r > 100 && b < 100 { return BuildingTileStyle::Farm; }
     BuildingTileStyle::Generic
-}
-
-// ---------------------------------------------------------------------------
-// COLORES DE ZONA Y EDIFICIO (legacy)
-// ---------------------------------------------------------------------------
-
 #[inline(always)]
 pub fn building_color(btype: BuildingType) -> u32 {
     match btype {
-        BuildingType::House => 0xFF_C4_7B_4A,
+        BuildingType::House => 0xFF_C4_8E_6A,     // terracota suave
+        BuildingType::Apartment => 0xFF_A8_A8_B0,  // gris medio
+        BuildingType::Shop => 0xFF_5C_A0_B8,       // azul comercio
+        BuildingType::Office => 0xFF_8A_9B_A8,     // gris azulado
+        BuildingType::Factory => 0xFF_8A_7A_6E,    // marrón industrial
+        BuildingType::Farm => 0xFF_8C_A8_6A,       // verde rural
+        BuildingType::Hospital => 0xFF_E8_E8_F0,   // blanco hospital
+        BuildingType::School => 0xFF_E8_D8_8C,     // amarillo educativo
+        BuildingType::Police => 0xFF_5C_70_C4,     // azul policial
+    }
+}
         BuildingType::Apartment => 0xFF_B0_BEC5,
         BuildingType::Shop => 0xFF_26_C6_DA,
         BuildingType::Office => 0xFF_78_90_9C,

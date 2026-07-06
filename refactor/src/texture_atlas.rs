@@ -363,8 +363,6 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
         png::ColorType::Indexed => 4,
         _ => 4, // Fallback: asumir RGBA
     };
-        }
-    };
 
     // La salida del decoder ya está expandida a RGBA si usamos las transformaciones adecuadas
     // pero para simplificar, leemos los bytes manualmente

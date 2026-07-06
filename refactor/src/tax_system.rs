@@ -180,26 +180,7 @@ impl MunicipalFinance {
 // SISTEMA DE RECAUDACIÓN
 // ---------------------------------------------------------------------------
 pub fn collect_taxes(
-    gw: &mut GameWorld,
-    land_values: &[f32; 128 * 128],
-) {
-    let mut land_value_revenue: f32 = 0.0;
-    let mut corporate_revenue: f32 = 0.0;
-    let mut sales_revenue: f32 = 0.0;
 
-    // Recolectar datos primero
-    let taxpayers: Vec<(f32, f32, BuildingType, f32)> = gw.world
-        .query::<(&Position, &ConstructionState, &ResourceStorage)>()
-        .iter()
-        .map(|(_entity, (pos, construction, _resources))| {
-
-            let lv_idx = (pos.y as usize % 128) * 128 + (pos.x as usize % 128);
-            let lv = land_values.get(lv_idx).copied().unwrap_or(1000.0);
-            (pos.x, pos.y, construction.building_type, lv)
-        })
-        .collect();
-
-    for (_x, _y, btype, land_value) in taxpayers {
         // Land value tax
         let lvt = gw.finance.calculate_land_value_tax(land_value, btype);
         land_value_revenue += lvt;

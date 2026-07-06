@@ -1,14 +1,10 @@
-// Citybound Native v0.16.0 — Punto de entrada principal
+// Citybound Native v0.17.0 — Punto de entrada principal
 //
 // Game loop cross-platform con minifb (desktop) + platform.rs (Android)
 // Simulación a 10 ticks/s, renderizado a 30 FPS objetivo
-// FASE 8: Integración de TextureAtlas con spritesheets
+// FASE 9: Terreno con tiles, edificios con sprites reales, vehículos texturizados
 //
 // PLATAFORMAS: Windows, Android, macOS, Linux
-//
-// [FIX STACK OVERFLOW]: GameWorld se almacena como Box para evitar
-// que los arrays masivos de sub-sistemas (TerrainMap 144KB, FlowField 128KB×8,
-// UtilityGrids, etc.) desborden el stack de 1MB de Windows.
 
 #![allow(unsafe_code)]
 
@@ -33,18 +29,16 @@ fn main() {
     let gpu_api = gpu_backend::GpuApi::detect();
 
     println!("══════════════════════════════════════════════════");
-    println!("  Citybound Native v0.16.0 — City Builder Realista");
+    println!("  Citybound Native v0.17.0 — City Builder Realista");
+    println!("  FASE 9: Texturas reales, terreno tileado, sprites");
     println!("  Plataforma: {} | {}", platform::platform_name(), platform::arch_name());
     println!("  GPU API: {} | Tier: {:?} (nivel {})",
         gpu_api.name(), hw_tier, hw_tier as u8);
-    println!("  Compute Shaders: {} | Max Textures: {}",
-        if hw_tier.supports_compute_shaders() { "SI" } else { "NO" },
-        hw_tier.max_texture_units());
     println!("══════════════════════════════════════════════════");
 
     // ===== VENTANA NATIVA =====
     let mut window = match minifb::Window::new(
-        "Citybound Native v0.16.0",
+        "Citybound Native v0.17.0 — Fase 9: Texturas",
         WINDOW_WIDTH,
         WINDOW_HEIGHT,
         minifb::WindowOptions {
@@ -72,52 +66,51 @@ fn main() {
     luts::init_trig_luts();
     rng_pool::init_rng_pool(42);
 
-    // ===== TEXTURE ATLAS (spritesheets) =====
+    // ===== TEXTURE ATLAS (spritesheets con categorización) =====
     let mut atlas = texture_atlas::TextureAtlas::new();
 
-    // Cargar Roguelike Modern City (edificios, carreteras)
+    // Cargar Roguelike Modern City (edificios, terreno, carreteras, vehículos)
     let city_path = std::path::Path::new("assets/textures/kenney/roguelike_modern_city/Spritesheet/roguelikeCity_transparent.png");
     match atlas.load_spritesheet(city_path, "roguelike_modern_city", 16, 16, 1) {
-        Ok((start, count)) => println!("[OK] Roguelike Modern City: {} sprites (idx {}-{})", count, start, start + count - 1),
+        Ok((start, count)) => println!("[OK] Roguelike Modern City: {} sprites (idx {}-{})",
+            count, start, start + count - 1),
         Err(e) => println!("[WARN] No se pudo cargar Roguelike Modern City: {}", e),
     }
 
-    // Cargar Roguelike Modern City (edificios, carreteras)
-    let city_path = std::path::Path::new("assets/textures/kenney/roguelike_modern_city/Spritesheet/roguelikeCity_transparent.png");
-    match atlas.load_spritesheet(city_path, "roguelike_modern_city", 16, 16, 1) {
-        Ok((start, count)) => println!("[OK] Roguelike Modern City: {} sprites (idx {}-{})", count, start, start + count - 1),
-        Err(e) => println!("[WARN] No se pudo cargar Roguelike Modern City: {}", e),
-    }
-
-    // Cargar Tiny Town (edificios adicionales)
+    // Cargar Tiny Town (más edificios)
     let tiny_path = std::path::Path::new("assets/textures/kenney/tiny_town/Tilemap/tilemap_packed.png");
     match atlas.load_spritesheet(tiny_path, "tiny_town", 16, 16, 1) {
-        Ok((start, count)) => println!("[OK] Tiny Town: {} sprites (idx {}-{})", count, start, start + count - 1),
+        Ok((start, count)) => println!("[OK] Tiny Town: {} sprites (idx {}-{})",
+            count, start, start + count - 1),
         Err(e) => println!("[WARN] No se pudo cargar Tiny Town: {}", e),
     }
 
-    // Cargar Pico-8 City (decoraciones)
+    // Cargar Pico-8 City (decoraciones, mini-edificios)
     let pico_path = std::path::Path::new("assets/textures/kenney/pico8_city/Tilemap/tilemap_packed.png");
     match atlas.load_spritesheet(pico_path, "pico8_city", 8, 8, 1) {
-        Ok((start, count)) => println!("[OK] Pico-8 City: {} sprites (idx {}-{})", count, start, start + count - 1),
+        Ok((start, count)) => println!("[OK] Pico-8 City: {} sprites (idx {}-{})",
+            count, start, start + count - 1),
         Err(e) => println!("[WARN] No se pudo cargar Pico-8 City: {}", e),
     }
 
     // Cargar LPC Terrain
     let lpc_path = std::path::Path::new("assets/textures/terrain/lpc/terrain.png");
     match atlas.load_spritesheet(lpc_path, "lpc_terrain", 32, 32, 0) {
-        Ok((start, count)) => println!("[OK] LPC Terrain: {} sprites (idx {}-{})", count, start, start + count - 1),
+        Ok((start, count)) => println!("[OK] LPC Terrain: {} sprites (idx {}-{})",
+            count, start, start + count - 1),
         Err(e) => println!("[WARN] No se pudo cargar LPC Terrain: {}", e),
     }
 
     // Si no se cargaron assets, generar tiles procedurales como fallback
     if atlas.len() <= 1 {
         println!("[INFO] Sin assets externos. Generando texturas procedurales...");
-        let start = atlas.len();
         for i in 0..8 {
             atlas.tiles.push(texture_atlas::generate_grass_tile(i));
+            atlas.categories.grass.push(atlas.tiles.len() - 1);
         }
         atlas.tiles.push(texture_atlas::generate_road_tile());
+        atlas.categories.road.push(atlas.tiles.len() - 1);
+
         let building_colors = [
             0xFF_C4_7B_4A, 0xFF_B0_BEC5, 0xFF_26_C6_DA,
             0xFF_78_90_9C, 0xFF_8D_6E_63, 0xFF_8B_C3_4A,
@@ -125,17 +118,30 @@ fn main() {
         ];
         for &color in &building_colors {
             atlas.tiles.push(texture_atlas::generate_building_tile(color, 10));
+            atlas.categories.buildings
+                .entry(texture_atlas::BuildingTileStyle::Generic)
+                .or_insert_with(Vec::new)
+                .push(atlas.tiles.len() - 1);
         }
-        println!("[OK] Generados {} tiles procedurales", atlas.len() - start);
+
+        // Agua procedural
+        for i in 0..3 {
+            atlas.tiles.push(texture_atlas::generate_water_tile(i));
+            atlas.categories.water.push(atlas.tiles.len() - 1);
+        }
+
+        println!("[OK] Generados {} tiles procedurales", atlas.len() - 1);
     }
+
+    atlas.print_stats();
     println!("[OK] Atlas: {} tiles en {} banks", atlas.len(), atlas.banks.len());
 
     // ===== MUNDO (Box — en heap, NO en stack) =====
     let mut pool = object_pool::EntityPool::new(10000);
     let mut world = ecs::create_world(&mut pool);
 
-    // Warm render cache
-    world.render_cache.rebuild_from_world(&world.world);
+    // Warm render cache con atlas
+    world.render_cache.rebuild_from_world_with_atlas(&world.world, &atlas);
 
     println!("[OK] Mundo creado: {} entidades", ecs::entity_count(&world));
     println!("[OK] GPU Backend: CPU SIMD (Tier {})", hw_tier as u8);
@@ -147,6 +153,7 @@ fn main() {
     let mut sim_accumulator: u64 = 0;
     let mut fps_timer = Instant::now();
     let mut frame_count: u64 = 0;
+    let mut frame_idx: u64 = 0;
 
     while window.is_open() && !window.is_key_down(minifb::Key::Escape) {
         let now = Instant::now();
@@ -166,10 +173,12 @@ fn main() {
             sim::tick(&mut world, 1.0 / SIM_TICKS_PER_SECOND as f32);
         }
 
-        // Reconstruir cache de render
-        world.render_cache.rebuild_from_world(&world.world);
+        // Reconstruir cache de render cada 3 frames (ahorra CPU)
+        if frame_idx % 3 == 0 {
+            world.render_cache.rebuild_from_world_with_atlas(&world.world, &atlas);
+        }
 
-        // Render con texturas
+        // Render con texturas reales
         render::render_world_cached(&world, &atlas, &mut framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
 
         // Stats panel
@@ -187,6 +196,7 @@ fn main() {
         window.update_with_buffer(&framebuffer, WINDOW_WIDTH, WINDOW_HEIGHT).ok();
 
         frame_count += 1;
+        frame_idx += 1;
     }
 
     println!("[OK] Saliendo limpiamente.");

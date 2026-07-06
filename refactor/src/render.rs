@@ -23,7 +23,6 @@ use crate::simd_render;
 // PALETA DE COLORES (ARGB) — fallback
 // ---------------------------------------------------------------------------
 
-pub const COLOR_GRASS: u32 = 0xFF_2D_5A_27;
 pub const COLOR_GRASS: u32 = 0xFF_4A_7C_3F;
 pub const COLOR_DIRT: u32 = 0xFF_9B_8C_70;
 pub const COLOR_ROAD: u32 = 0xFF_6B_6B_6B;
@@ -51,9 +50,8 @@ pub const COLOR_LANE_LINE: u32 = 0x33_AA_AA_AA;
 pub const COLOR_CONGESTION_LOW: u32 = 0x44_4C_AF_50;
 pub const COLOR_CONGESTION_MED: u32 = 0x44_FF_C1_07;
 pub const COLOR_CONGESTION_HIGH: u32 = 0x44_EF_53_50;
-// ---------------------------------------------------------------------------
-// RENDER PRINCIPAL (con TextureAtlas)
-// ---------------------------------------------------------------------------
+
+const CELL_SIZE: f32 = 4.0;
 
 pub fn render_world_cached(
     game_world: &GameWorld,

@@ -56,7 +56,6 @@ impl Velocity {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Camera { pub offset_x: f32, pub offset_y: f32, pub zoom: f32 }
-pub struct Camera { pub offset_x: f32, pub offset_y: f32, pub zoom: f32 }
 #[derive(Copy, Clone, Debug)]
 pub struct Renderable {
     pub color: u32,

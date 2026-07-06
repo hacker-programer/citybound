@@ -462,7 +462,7 @@ fn draw_house(fb: &mut [u32], fb_w: usize, fb_h: usize,
     // Tejado triangular
     let apex_y = cy - hw;
     let base_y = cy - hw + roof_h;
-    for row in 0..roof_h {
+    let _base_y = cy - hw + roof_h;
         let y = apex_y + row;
         let row_width = (row * size / roof_h.max(1)) as i32;
         let x0 = cx - row_width / 2;

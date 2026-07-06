@@ -109,6 +109,13 @@ fn main() {
         Ok((start, count)) => println!("[OK] LPC Terrain: {} sprites (idx {}-{})", count, start, start + count - 1),
         Err(e) => println!("[WARN] No se pudo cargar LPC Terrain: {}", e),
     }
+
+    // Si no se cargaron assets, generar tiles procedurales como fallback
+    if atlas.len() <= 1 {
+        println!("[INFO] Sin assets externos. Generando texturas procedurales...");
+        let start = atlas.len();
+        for i in 0..8 {
+            atlas.tiles.push(texture_atlas::generate_grass_tile(i));
         }
         atlas.tiles.push(texture_atlas::generate_road_tile());
         let building_colors = [
@@ -121,7 +128,6 @@ fn main() {
         }
         println!("[OK] Generados {} tiles procedurales", atlas.len() - start);
     }
-
     println!("[OK] Atlas: {} tiles en {} banks", atlas.len(), atlas.banks.len());
 
     // ===== MUNDO (Box — en heap, NO en stack) =====

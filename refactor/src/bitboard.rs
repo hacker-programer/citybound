@@ -280,8 +280,8 @@ impl BitGrid {
 }
 
 #[cfg(test)]
-    use super::*;
 mod tests {
+    use super::*;
 
     #[test]
     fn test_bitboard_set_clear_test() {

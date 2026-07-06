@@ -86,34 +86,61 @@ impl RenderCache {
                     world_x: pos.x, world_y: pos.y,
                     shape_type: 0,
                     color: zone_color(zone.zone_type),
-                    size_x: 1.0,
-                    layer: LAYER_ZONES,
-                    sprite_index: 0, // Las zonas usan rectángulos de color
+// Sección modificada del rebuild_from_world_with_atlas
+// Reemplazar el query de edificios para usar ConstructionState.building_type
+
+        // Edificios completos (capa 2-3) — usan sprites reales del atlas
+        // Unimos Position + Renderable + ConstructionState para obtener el building_type exacto
+        {
+            let mut building_sprites: Vec<(f32, f32, u32, f32, u8, u8, u16)> = Vec::with_capacity(256);
+
+            // Query principal: edificios con los 3 componentes
+            for (_entity, (pos, renderable, cs)) in world.query::<(&Position, &Renderable, &ConstructionState)>().iter() {
+                if renderable.layer == 2 || renderable.layer == 3 {
+                    let style = building_type_to_style(cs.building_type);
+                    let si = atlas.categories.building_sprite(style) as u16;
+                    building_sprites.push((
+                        pos.x, pos.y,
+                        renderable.color,
+                        renderable.size_x,
+                        renderable.layer as u8,
+                        renderable.shape_type,
+                        si,
+                    ));
+                }
+            }
+
+            // Fallback: edificios sin ConstructionState (poco probable pero seguro)
+            for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
+                // Saltar si ya fue procesado (tiene ConstructionState)
+                if world.query_one::<&ConstructionState>(_entity).is_ok() {
+                    continue;
+                }
+                if renderable.layer == 2 || renderable.layer == 3 {
+                    let category = guess_building_category(renderable.color);
+                    let si = atlas.categories.building_sprite(category) as u16;
+                    building_sprites.push((
+                        pos.x, pos.y,
+                        renderable.color,
+                        renderable.size_x,
+                        renderable.layer as u8,
+                        renderable.shape_type,
+                        si,
+                    ));
+                }
+            }
+
+            for (wx, wy, color, sx, layer, shape, si) in building_sprites {
+                self.push(RenderCacheEntry {
+                    world_x: wx, world_y: wy,
+                    shape_type: shape,
+                    color,
+                    size_x: sx,
+                    layer,
+                    sprite_index: si,
                 });
             }
         }
-
-        // Edificios (capa 2-3) — usan sprites reales del atlas
-        for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
-            if renderable.layer == 2 || renderable.layer == 3 {
-                // Si ya tiene sprite_index, usarlo; si no, intentar buscar en el atlas
-                let si = if renderable.sprite_index > 0 {
-                    renderable.sprite_index
-                } else {
-                    // Buscar por color/categoría
-                    let category = guess_building_category(renderable.color);
-                    let idx = atlas.categories.building_sprite(category) as u16;
-                    if idx > 0 { idx } else { 0 }
-                };
-
-                self.push(RenderCacheEntry {
-                    world_x: pos.x, world_y: pos.y,
-                    shape_type: renderable.shape_type,
-                    color: renderable.color,
-                    size_x: renderable.size_x,
-                    layer: renderable.layer as u8,
-                    sprite_index: si,
-                });
             }
         }
 

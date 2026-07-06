@@ -207,7 +207,6 @@ impl TextureAtlas {
             for i in 0..256 {
                 let x = i % 16;
                 let y = i / 16;
-                // Gris neutro suave con patrón sutil (no magenta)
                 pixels[i] = if (x + y) % 2 == 0 { 0xFF_4A_4A_4A } else { 0xFF_3A_3A_3A };
             }
             SpriteTile { pixels, width: 16, height: 16, category: TileCategory::Unknown }
@@ -240,6 +239,7 @@ impl TextureAtlas {
         let mut count = 0usize;
 
         for row in 0..tiles_per_col {
+            for col in 0..tiles_per_row {
                 let src_x = col * stride;
                 let src_y = row * stride;
 
@@ -272,8 +272,10 @@ impl TextureAtlas {
                             sum_b += b;
                             pixel_count += 1;
 
+                            // Detectar bordes (píxeles en el perímetro)
                             if px == 0 || px == tile_w - 1 || py == 0 || py == tile_h - 1 {
                                 edge_pixels += 1;
+                                // Bordes oscuros sugieren edificio
                                 if (r + g + b) < 120 {
                                     corner_dark += 1;
                                 }
@@ -292,6 +294,7 @@ impl TextureAtlas {
                 let avg_b = (sum_b / pixel_count.max(1)) as f32;
                 let avg_brightness = (avg_r + avg_g + avg_b) / 3.0;
 
+                // Determinar categoría
                 let category = categorize_tile(
                     avg_r, avg_g, avg_b,
                     avg_brightness,
@@ -310,6 +313,7 @@ impl TextureAtlas {
                     category,
                 });
 
+                // Registrar en el mapa de categorías
                 let tile_idx = self.tiles.len() - 1;
                 match category {
                     TileCategory::Grass => self.categories.grass.push(tile_idx),
@@ -344,6 +348,8 @@ impl TextureAtlas {
 
         Ok((start_idx, count))
     }
+
+    // -----------------------------------------------------------------------
     // Blit de sprites
     // -----------------------------------------------------------------------
 

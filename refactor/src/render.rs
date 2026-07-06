@@ -188,11 +188,14 @@ fn render_zones_subtle(
     scale: f32,
 ) {
     if scale < 1.2 {
+    if scale < 1.2 {
         return;
     }
+
+    for (_entity, (pos, zone)) in gw.world.query::<(&crate::ecs::Position, &crate::ecs::ZoneComponent)>().iter() {
+        if zone.density <= 0 {
             continue;
         }
-
         let sx = (pos.x * scale + ox) as i32;
         let sy = (pos.y * scale + oy) as i32;
         let size = (4.0 * scale) as i32;

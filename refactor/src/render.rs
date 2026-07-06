@@ -188,10 +188,9 @@ fn render_zones_subtle(
     scale: f32,
 ) {
     let w_i32 = w as i32;
-    let h_i32 = h as i32;
-    let grid_size = gw.grid_size as f32;
-
-    // Solo mostrar bordes de zona si el zoom es suficiente
+    let _w_i32 = w as i32;
+    let _h_i32 = h as i32;
+    let _grid_size = gw.grid_size as f32;
     if scale < 1.2 {
         return;
     }

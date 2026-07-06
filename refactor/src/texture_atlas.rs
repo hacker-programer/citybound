@@ -431,9 +431,9 @@ pub fn generate_grass_tile(variant: u32) -> SpriteTile {
     let size = 16;
     let mut pixels = vec![0u32; (size * size) as usize];
     let base_r = 45 + (variant % 15) as u32;
-    let base_g = 90 + (variant % 20) as u32;
-    let base_b = 40 + (variant % 10) as u32;
-
+    for y in 0u32..size {
+        for x in 0u32..size {
+            let noise = ((x.wrapping_mul(7) ^ y.wrapping_mul(13)) % 20) as u32;
     for y in 0..size {
         for x in 0..size {
             let noise = ((x.wrapping_mul(7) ^ y.wrapping_mul(13)) % 20) as u32;

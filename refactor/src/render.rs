@@ -15,8 +15,9 @@
 // [TC#23] Pre-orden Z-Index (capas vía RenderCache)
 // [TI#28] Texturas pre-extraídas en atlas indexado
 
-use crate::ecs::{GameWorld, Renderable, Camera, ConstructionState, BuildingType, TrafficCar};
+use crate::ecs::{GameWorld, Camera, ConstructionState, TrafficCar};
 use crate::texture_atlas::{TextureAtlas, TerrainTileType};
+use crate::simd_render;
 use crate::simd_render;
 
 // ---------------------------------------------------------------------------

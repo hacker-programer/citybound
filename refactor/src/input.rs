@@ -121,11 +121,12 @@ impl InputState {
     }
 
     /// Procesa un evento de plataforma unificado (PlatformEvent → InputState)
+    /// Procesa un evento de plataforma unificado (PlatformEvent → InputState)
+    /// Permite que el sistema de input funcione con cualquier backend de plataforma
+    pub fn process_platform_event(&mut self, event: &crate::platform::PlatformEvent) {
+        use crate::platform::{PlatformEvent, MouseButton as PMb};
+
         match *event {
-            PlatformEvent::KeyPressed(key) => {
-                if let Some(gk) = map_platform_key_internal(key) {
-                    self.keys_pressed |= 1u128 << (gk as u8);
-                    self.keys_down |= 1u128 << (gk as u8);
                 }
             }
             PlatformEvent::KeyReleased(key) => {

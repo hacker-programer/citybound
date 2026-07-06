@@ -599,7 +599,7 @@ fn categorize_tile(
     corner_dark: u32,
     tile_size: u32,
     grid_row: u32,
-    grid_col: u32,
+    _grid_col: u32,
 ) -> TileCategory {
     let fill_ratio = pixel_count as f32 / (tile_size * tile_size) as f32;
 

@@ -220,6 +220,12 @@ impl InputState {
         (self.keys_pressed & (1u128 << (key as u8))) != 0
     }
 
+    /// Tecla recien soltada en este frame (flanco negativo)
+    #[inline(always)]
+    pub fn is_key_released(&self, key: GameKey) -> bool {
+        (self.keys_released & (1u128 << (key as u8))) != 0
+    }
+
     /// Botón del mouse presionado (mantenido)
     /// Botón del mouse presionado (mantenido)
     #[inline(always)]

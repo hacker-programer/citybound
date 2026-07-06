@@ -280,6 +280,7 @@ impl BitGrid {
 }
 
 #[cfg(test)]
+    use super::*;
 mod tests {
 
     #[test]

@@ -1312,6 +1312,7 @@ pub fn init_render_backend(width: u32, height: u32) -> ActiveBackend {
 
 #[cfg(test)]
 mod tests {
+    #[test]
     use super::*;
     fn test_hardware_tier_ordering() {
         assert!(HardwareTier::CpuOnly < HardwareTier::IntegratedGpu);

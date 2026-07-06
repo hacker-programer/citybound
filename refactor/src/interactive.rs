@@ -910,7 +910,7 @@ mod tests {
         let tool = DesignTool::new();
         let mut pool = EntityPool::new(1000);
         let gw = ecs::create_world(&mut pool);
-        (tool, gw)
+        (tool, *gw)
     }
 
     #[test]

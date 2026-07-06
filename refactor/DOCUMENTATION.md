@@ -1,63 +1,40 @@
-# Citybound Native v0.15.0 — Documentación Técnica Exhaustiva
+# Citybound Native v0.16.0 — Documentación Técnica Exhaustiva
 
 > **"Un simulador de ciudades ultra-realista donde cada detalle importa."**
 >
 > Citybound Native es un simulador de construcción de ciudades realista escrito en Rust puro,
-> con renderizado por software (framebuffer), GPU backend adaptativo, arquitectura ECS,
-> 150+ tipos de edificios distópicos, y 35+ sistemas de simulación avanzada con
-> fundamento matemático documentado.
+> con renderizado por software (framebuffer), GPU backend adaptativo, sistema de texturas
+> con spritesheets PNG, arquitectura ECS, 150+ tipos de edificios distópicos,
+> y 35+ sistemas de simulación avanzada con fundamento matemático documentado.
 >
-> **Última compilación limpia:** ✅ 0 errores, 0 warnings (cargo check 2025-06-25)
-> **Versión:** 0.15.0 | **Rust:** 1.96.0 stable | **Edición:** 2021
+> **Última compilación limpia:** ✅ 0 errores, 2 warnings (cargo check 2025-07-04)
+> **Versión:** 0.16.0 | **Rust:** 1.96.0 stable | **Edición:** 2021
 > **Plataformas:** Windows, Android, macOS, Linux
 
 ---
 
-## 🔥 FIX CRÍTICO: Stack Overflow (RESUELTO v0.15.0)
+## 🎨 FASE 8: SISTEMA DE TEXTURAS Y SPRITES (NUEVO v0.16.0)
 
-El binario de v0.14.x crasheaba inmediatamente con `STATUS_STACK_OVERFLOW (0xc00000fd)`.
-La causa raíz era que `GameWorld` contenía múltiples structs con arrays masivos **inline**
-(asignados en el stack). El stack por defecto de Windows es 1 MB, y el mundo ocupaba ~1.5 MB.
+Se implementó un sistema completo de renderizado con sprites:
 
-### Estructuras migradas del stack al heap:
+### Módulos nuevos/modificados:
+- **`texture_atlas.rs`** — Atlas de texturas con carga PNG, extracción de tiles, alpha blending
+- **`render.rs`** — `render_world_cached` ahora acepta `&TextureAtlas` y blitea sprites
+- **`render_cache.rs`** — `RenderCacheEntry` incluye `sprite_index` para mapeo de sprites
+- **`ecs.rs`** — `Renderable` incluye `sprite_index: u16`
+- **`input.rs`** — Se agregó `InputState::new()`
+- **`Cargo.toml`** — Nueva dependencia: `png = "0.17"`
 
-| Estructura | Array antiguo (stack) | Nuevo (heap) | Ahorro stack |
-|-----------|----------------------|--------------|-------------|
-| `TerrainMap` | `[f32; 16384] + [u8; 16384] + [u32; 16384]` | `Vec<f32> + Vec<u8> + Vec<u32>` | **144 KB** |
-| `FlowField` | `[FlowCell; 16384]` (128KB × 2) | `Vec<FlowCell>` | **256 KB** |
-| `GameWorld` | Retornado por valor en `create_world()` | `Box<GameWorld>` | **Todo el mundo** |
+### Assets incluidos (CC0):
+| Spritesheet | Tiles | Tamaño | Ruta |
+|-------------|-------|--------|------|
+| Roguelike Modern City | ~1036 | 16×16 | `assets/textures/kenney/roguelike_modern_city/Spritesheet/roguelikeCity_transparent.png` |
+| Tiny Town | 132 | 16×16 | `assets/textures/kenney/tiny_town/Tilemap/tilemap_packed.png` |
+| Pico-8 City | 360 | 8×8 | `assets/textures/kenney/pico8_city/Tilemap/tilemap_packed.png` |
+| LPC Terrain | variable | 32×32 | `assets/textures/terrain/lpc/terrain.png` |
 
-### Cambios realizados:
-- `ecs.rs:create_world()` → retorna `Box<GameWorld>` (todo en heap)
-- `main.rs` → almacena `Box<GameWorld>`, acceso por `&world` / `&mut world`
-- `terrain.rs` → `Vec<T>` en vez de `[T; 16384]`
-- `flow_field.rs` → `Vec<FlowCell>` en vez de `[FlowCell; 16384]`
-
----
-
-## 📁 ESTRUCTURA DEL PROYECTO
-
-```
-refactor/
-├── Cargo.toml                     # v0.15.0 — wgpu opcional, LTO fat, panic=abort
-├── DOCUMENTATION.md               # Este archivo
-├── src/
-│   ├── main.rs                    # Punto de entrada — game loop, minifb, Box<GameWorld>
-│   ├── lib.rs                     # Re-exporta todos los módulos públicos
-│   ├── ecs.rs                     # GameWorld, SpatialGrid, componentes, create_world()
-│   ├── buildings.rs               # Catálogo 150+ edificios distópicos con BuildingEffects
-│   ├── gpu_backend.rs             # GPU adaptativa Tier 0-3, CPU SIMD + wgpu
-│   ├── sim.rs                     # Tick de simulación (paso fijo)
-│   ├── render.rs                  # Renderizado software con culling
-│   ├── render_cache.rs            # Pre-sort estático por capa Z
-│   ├── simd_render.rs             # Auto-vectorización SIMD para fill
-│   ├── luts.rs                    # LUTs trigonométricas (3600 entradas)
-│   ├── object_pool.rs             # Pool de entidades preasignadas (10000)
-│   ├── bump_alloc.rs              # Bump allocator por frame
-│   ├── rng_pool.rs                # RNG pre-generado (4096 valores) + splitmix64
-│   ├── flow_fields.rs             # Flow fields O(1) para pathfinding
-│   ├── bitboard.rs                # Bitboard para ocupación de grilla
-│   ├── quadtree.rs                # Quadtree espacial para colisiones
+### Fallback procedural:
+Si no se encuentran assets, se generan texturas procedurales (pasto, agua, carreteras, edificios).
 │   ├── terrain.rs                 # TerrainMap con ruido Perlin pre-generado (heap)
 │   ├── traffic_lanes.rs           # Tráfico con carriles IDM+MOBIL
 │   ├── pedestrian.rs              # Modelo de fuerzas sociales para peatones

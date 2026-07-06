@@ -463,8 +463,8 @@ fn draw_house(fb: &mut [u32], fb_w: usize, fb_h: usize,
     let apex_y = cy - hw;
     let base_y = cy - hw + roof_h;
     let _base_y = cy - hw + roof_h;
+    for row in 0..roof_h {
         let y = apex_y + row;
-        let row_width = (row * size / roof_h.max(1)) as i32;
         let x0 = cx - row_width / 2;
         if row_width > 0 {
             fill_rect_clipped(fb, fb_w, fb_h, x0, y, row_width, 1, roof);

@@ -7,8 +7,9 @@ edition = "2021"
 description = "Citybound native refactor - Realistic city builder with adaptive GPU acceleration, sprite-based rendering, supply chains, and 150+ building types"
 
 
+[workspace]
+
 [profile.release]
-lto = "fat"
 codegen-units = 1
 panic = "abort"
 opt-level = 3

@@ -144,7 +144,7 @@ fn render_terrain_tiled(
     // Variantes para evitar repetición (mosaico)
     // Variantes para evitar repetición (mosaico)
     let grass2 = if atlas.categories.grass.len() > 1 { atlas.categories.grass[1] } else { grass_tile };
-    let dirt2 = if atlas.categories.dirt.len() > 1 { atlas.categories.dirt[1] } else { dirt_tile };
+    let _dirt2 = if atlas.categories.dirt.len() > 1 { atlas.categories.dirt[1] } else { dirt_tile };
     let dirt2 = if atlas.categories.dirt.len() > 1 { atlas.categories.dirt[1] } else { dirt_tile };
 
     for py in 0..h_i32 {

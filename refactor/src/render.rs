@@ -371,10 +371,9 @@ fn draw_building_shape(
     color: u32,
     layer: u8,
 ) {
-    let half = size / 2;
-    let third = size / 3;
-    let quarter = size / 4;
-
+    let _half = size / 2;
+    let _third = size / 3;
+    let _quarter = size / 4;
     // Determinar tipo de edificio por color
     let r = (color >> 16) & 0xFF;
     let g = (color >> 8) & 0xFF;

@@ -205,12 +205,9 @@ impl InputState {
 
         // Detectar flancos
         self.keys_pressed = self.keys_down & !prev_keys;
-        // Detectar flancos
-        self.keys_pressed = self.keys_down & !prev_keys;
         self.keys_released = !self.keys_down & prev_keys;
     }
 
-    /// Tecla presionada (mantenida)
     /// Tecla presionada (mantenida)
     #[inline(always)]
     pub fn is_key_down(&self, key: GameKey) -> bool {
@@ -222,14 +219,16 @@ impl InputState {
     pub fn is_key_pressed(&self, key: GameKey) -> bool {
         (self.keys_pressed & (1u128 << (key as u8))) != 0
     }
+
+    /// Botón del mouse presionado (mantenido)
+    #[inline(always)]
+    pub fn is_mouse_down(&self, button: MouseButton) -> bool {
+        match button {
             MouseButton::Left => self.mouse_left,
             MouseButton::Right => self.mouse_right,
             MouseButton::Middle => self.mouse_middle,
         }
     }
-
-    /// Botón del mouse recién presionado en este frame (flanco positivo)
-    #[inline(always)]
     pub fn is_mouse_pressed(&self, button: MouseButton) -> bool {
         match button {
             MouseButton::Left => self.mouse_left && !self.prev_mouse_left,

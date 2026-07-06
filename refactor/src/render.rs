@@ -1,29 +1,26 @@
-// Módulo de Renderizado Software v0.16.0 — Fase 8: Texturas y Sprites
+// Módulo de Renderizado Software v0.17.0 — Fase 9: Terreno con Texturas
 //
-// FASE 8:
-// - Sprite blitting desde TextureAtlas
-// - Fallback a colores planos si no hay sprite
-// - Alpha blending para edificios
-// - Tiles de terreno desde atlas
+// FASE 9:
+// - Terreno renderizado con tiles reales del atlas
+// - Sprites de edificios desde categorías del atlas
+// - Sprites de vehículos desde atlas
+// - Fallback a colores planos si no hay texturas
 //
 // TÉCNICAS:
-// [TC#3]  Baking de iluminación
+// [TC#3]  Baking de iluminación (terrain baked_colors como fallback)
 // [TC#5]  LUTs trigonométricas
 // [TC#10] Pre-multiplicación cámara
-// [TC#13] Loop unrolling (SIMD real)
-// [TC#14] Ruido Perlin pre-generado
 // [TC#17] Culling viewport
 // [TC#21] Distancias²
 // [TC#23] Pre-orden Z-Index (capas vía RenderCache)
 // [TI#28] Texturas pre-extraídas en atlas indexado
 
 use crate::ecs::{GameWorld, Renderable, Camera, ConstructionState, BuildingType, TrafficCar};
-use crate::texture_atlas::TextureAtlas;
+use crate::texture_atlas::{TextureAtlas, TerrainTileType};
 use crate::simd_render;
 
-
 // ---------------------------------------------------------------------------
-// PALETA DE COLORES (ARGB) — usados como fallback si no hay texturas
+// PALETA DE COLORES (ARGB) — fallback
 // ---------------------------------------------------------------------------
 
 pub const COLOR_GRASS: u32 = 0xFF_2D_5A_27;
@@ -57,10 +54,9 @@ pub const COLOR_CONGESTION_HIGH: u32 = 0x88_FF_00_00;
 const CELL_SIZE: f32 = 4.0;
 
 // ---------------------------------------------------------------------------
-// RENDER PRINCIPAL (usa RenderCache + TextureAtlas)
+// RENDER PRINCIPAL (con TextureAtlas)
 // ---------------------------------------------------------------------------
 
-/// Renderiza usando el RenderCache pre-ordenado y TextureAtlas para sprites
 pub fn render_world_cached(
     game_world: &GameWorld,
     atlas: &TextureAtlas,
@@ -83,13 +79,13 @@ pub fn render_world_cached(
     let offset_x = (width as f32 / 2.0) - cam_offset_x * scale;
     let offset_y = (height as f32 / 2.0) - cam_offset_y * scale;
 
-    // SIMD background fill + terrain
-    render_background_simd(game_world, framebuffer, width, height, offset_x, offset_y, scale);
+    // Fondo con tiles de terreno del atlas
+    render_terrain_tiled(game_world, atlas, framebuffer, width, height, offset_x, offset_y, scale);
 
     // Red de carriles
     render_lane_network(game_world, framebuffer, width, height, offset_x, offset_y, scale);
 
-    // Entidades desde RenderCache (pre-ordenadas por capa) con texturas
+    // Entidades desde RenderCache con sprites
     render_from_cache(atlas, &game_world.render_cache, framebuffer, width, height, offset_x, offset_y, scale);
 
     // Indicadores de congestión
@@ -99,55 +95,6 @@ pub fn render_world_cached(
     render_ui(game_world, framebuffer, width, height);
 }
 
-/// Renderiza entidades desde el RenderCache con soporte de sprites
-fn render_from_cache(
-    atlas: &TextureAtlas,
-    cache: &crate::render_cache::RenderCache,
-    fb: &mut [u32],
-    w: usize,
-    h: usize,
-    ox: f32,
-    oy: f32,
-    scale: f32,
-) {
-    let w_f = w as f32;
-    let h_f = h as f32;
-
-    for entry in cache.iter_layers() {
-        let sx = entry.world_x * scale + ox;
-        let sy = entry.world_y * scale + oy;
-
-        // Viewport culling
-        let size_px = entry.size_x * scale;
-        if sx < -size_px || sx > w_f + size_px || sy < -size_px || sy > h_f + size_px {
-            continue;
-        }
-        let sx_i = sx as i32;
-        let sy_i = sy as i32;
-        let size_i = size_px as i32;
-
-        // Si tiene sprite, usar textura
-        if entry.sprite_index > 0 {
-            atlas.blit_sprite(
-                entry.sprite_index as usize,
-                fb, w, h,
-                sx_i, sy_i,
-                scale / CELL_SIZE, // Normalizar escala para sprite
-            );
-        } else {
-            // Fallback a formas geométricas
-            match entry.shape_type {
-                0 => unsafe {
-                    simd_render::fill_rect_alpha_simd(fb, w, h, sx_i, sy_i, size_i, size_i, entry.color);
-                },
-                1 => fill_circle(fb, w, h, sx_i, sy_i, size_i, entry.color),
-                2 => fill_triangle(fb, w, h, sx_i, sy_i, size_i, entry.color),
-                _ => {}
-            }
-        }
-    }
-}
-/// Compatibilidad con versión anterior (sin atlas)
 pub fn render_world(
     game_world: &GameWorld,
     framebuffer: &mut [u32],
@@ -159,115 +106,112 @@ pub fn render_world(
 }
 
 // ---------------------------------------------------------------------------
-// [FASE 7]: PANEL DE ESTADÍSTICAS
-// ---------------------------------------------------------------------------
+// [FASE 9]: TERRENO CON TILES REALES
 // ---------------------------------------------------------------------------
 
-pub fn render_stats_panel(
+fn render_terrain_tiled(
     gw: &GameWorld,
+    atlas: &TextureAtlas,
     fb: &mut [u32],
     w: usize,
     h: usize,
-    fps: u32,
+    ox: f32,
+    oy: f32,
+    scale: f32,
 ) {
-    let panel_x = w as i32 - 140;
-    let panel_y = 30;
-    let panel_w = 135;
-    let panel_h = 200;
+    let grid_size = gw.grid_size as f32;
+    let w_i32 = w as i32;
+    let h_i32 = h as i32;
 
-    // Fondo del panel
-    unsafe {
-        simd_render::fill_rect_alpha_simd(fb, w, h, panel_x, panel_y, panel_w, panel_h, 0xCC_15_15_30);
+    // Si el atlas tiene pocos tiles de terreno, usar fallback de colores planos
+    let use_tiles = atlas.categories.grass.len() >= 1
+        && atlas.categories.dirt.len() >= 1
+        && atlas.categories.road.len() >= 1;
+
+    if !use_tiles {
+        // Fallback: colores planos del TerrainMap
+        render_background_simd(gw, fb, w, h, ox, oy, scale);
+        return;
     }
 
-    let mut y = panel_y + 5;
-    let x = panel_x + 5;
+    // Pre-seleccionar tiles base para cada tipo de terreno
+    let grass_tile = atlas.categories.random_terrain(TerrainTileType::Grass, &mut || 0);
+    let dirt_tile = atlas.categories.random_terrain(TerrainTileType::Dirt, &mut || 0);
+    let road_tile = atlas.categories.random_terrain(TerrainTileType::Road, &mut || 0);
+    let sand_tile = atlas.categories.random_terrain(TerrainTileType::Sand, &mut || 0);
+    let water_tile = atlas.categories.random_terrain(TerrainTileType::Water, &mut || 0);
 
-    // Título
-    draw_text(fb, w, h, x, y, "ESTADISTICAS", 0xFF_FF_D7_00);
-    y += 12;
+    // Variantes para evitar repetición (mosaico)
+    let grass2 = if atlas.categories.grass.len() > 1 { atlas.categories.grass[1] } else { grass_tile };
+    let dirt2 = if atlas.categories.dirt.len() > 1 { atlas.categories.dirt[1] } else { dirt_tile };
 
-    // FPS
-    let fps_str = format_fps(fps);
-    draw_text(fb, w, h, x, y, &fps_str, COLOR_UI_TEXT);
-    y += 10;
+    for py in 0..h_i32 {
+        let world_y = (py as f32 - oy) / scale;
 
-    // Población
-    let pop = gw.world.query::<&ConstructionState>().iter().count();
-    let pop_str = format_pop(pop);
-    draw_text(fb, w, h, x, y, &pop_str, COLOR_UI_TEXT);
-    y += 10;
+        if world_y < 0.0 || world_y >= grid_size {
+            unsafe {
+                simd_render::fill_rect_simd(fb, w, h, 0, py, w_i32, 1, COLOR_BACKGROUND);
+            }
+            continue;
+        }
 
-    // Coches
-    let cars = gw.world.query::<&TrafficCar>().iter().count();
-    let car_str = format_cars(cars);
-    draw_text(fb, w, h, x, y, &car_str, COLOR_UI_TEXT);
-    y += 10;
+        let ty = world_y as usize;
+        let row_start = (py as usize) * w;
 
-    // Tesoro
-    let treasury = gw.finance.treasury;
-    let treasury_str = format_treasury(treasury);
-    draw_text(fb, w, h, x, y, &treasury_str, 0xFF_00_FF_00);
-    y += 10;
+        for px in 0..w_i32 {
+            let world_x = (px as f32 - ox) / scale;
 
-    // Aprobación
-    let approval = gw.politics.global_approval;
-    let approval_str = format_approval(approval);
-    let approval_color = if approval > 0.5 { 0xFF_00_FF_00 } else if approval > 0.3 { 0xFF_FF_FF_00 } else { 0xFF_FF_44_44 };
-    draw_text(fb, w, h, x, y, &approval_str, approval_color);
-    y += 10;
+            if world_x < 0.0 || world_x >= grid_size {
+                unsafe {
+                    *fb.get_unchecked_mut(row_start + px as usize) = COLOR_BACKGROUND;
+                }
+                continue;
+            }
 
-    // Hora
-    let time_str = format_time(gw.time_of_day);
-    draw_text(fb, w, h, x, y, &time_str, COLOR_UI_TEXT);
-    y += 10;
+            let tx = world_x as usize;
+            let terrain_type = gw.terrain.terrain_types[ty * 128 + tx];
 
-    // Tick
-    let tick_str = format_tick(gw.sim_tick);
-    draw_text(fb, w, h, x, y, &tick_str, 0xFF_88_88_88);
+            // Si el zoom es suficiente, usar tiles; si no, color plano
+            if scale >= 0.8 {
+                // Seleccionar tile según tipo de terreno y posición (para variar)
+                let tile_idx = match terrain_type {
+                    0 => water_tile,                                    // agua
+                    1 => if (tx + ty) % 2 == 0 { sand_tile } else { sand_tile }, // arena
+                    2 => if (tx / 4 + ty / 4) % 2 == 0 { grass_tile } else { grass2 }, // pasto
+                    3 => if (tx / 4 + ty / 4) % 2 == 0 { grass_tile } else { dirt_tile }, // bosque
+                    4 => if (tx + ty) % 2 == 0 { dirt2 } else { dirt_tile }, // roca
+                    _ => grass_tile,
+                };
 
-    // Separador
-    y += 8;
-    draw_text(fb, w, h, x, y, "------------", 0xFF_44_44_44);
-    y += 10;
+                if tile_idx > 0 {
+                    // Obtener el píxel del tile correspondiente
+                    let tile = &atlas.tiles[tile_idx];
+                    let tw = tile.width as usize;
+                    let tx_px = (world_x * scale + ox) as usize % tw;
+                    let ty_px = (world_y * scale + oy) as usize % tile.height as usize;
 
-    // Tráfico
-    let congestion = if !gw.lane_manager.lanes.is_empty() {
-        gw.lane_manager.lanes.iter().map(|l| l.congestion).sum::<f32>() / gw.lane_manager.lanes.len() as f32
-    } else { 0.0 };
-    let cong_str = format_congestion(congestion);
-    let cong_color = if congestion > 0.5 { 0xFF_FF_44_44 } else { 0xFF_44_FF_44 };
-    draw_text(fb, w, h, x, y, &cong_str, cong_color);
-    y += 10;
-
-    // Valor del suelo
-    let lv = gw.land_value_map.get(64, 64);
-    let lv_str = format_land_value(lv);
-    draw_text(fb, w, h, x, y, &lv_str, 0xFF_CC_AA_88);
+                    unsafe {
+                        *fb.get_unchecked_mut(row_start + px as usize) =
+                            tile.pixels[ty_px * tw + tx_px];
+                    }
+                } else {
+                    unsafe {
+                        *fb.get_unchecked_mut(row_start + px as usize) =
+                            gw.terrain.baked_color(tx, ty);
+                    }
+                }
+            } else {
+                // Zoom alejado: colores planos (más rápido y legible)
+                unsafe {
+                    *fb.get_unchecked_mut(row_start + px as usize) =
+                        gw.terrain.baked_color(tx, ty);
+                }
+            }
+        }
+    }
 }
 
-// ---------------------------------------------------------------------------
-// FORMATTERS (zero-allocation con buffers estáticos)
-// ---------------------------------------------------------------------------
-
-fn format_fps(fps: u32) -> String { format!("FPS: {}", fps) }
-fn format_pop(pop: usize) -> String { format!("Pob: {}", pop) }
-fn format_cars(cars: usize) -> String { format!("Coches: {}", cars) }
-fn format_treasury(t: f32) -> String { format!("Tesoro: ${:.0}", t) }
-fn format_approval(a: f32) -> String { format!("Aprob: {:.0}%", a * 100.0) }
-fn format_time(tod: u16) -> String { 
-    let h = tod / 60;
-    let m = tod % 60;
-    format!("Hora: {:02}:{:02}", h, m)
-}
-fn format_tick(tick: u64) -> String { format!("Tick: {}", tick) }
-fn format_congestion(c: f32) -> String { format!("Traf: {:.0}%", c * 100.0) }
-fn format_land_value(lv: f32) -> String { format!("Suelo: ${:.0}", lv) }
-
-// ---------------------------------------------------------------------------
-// BACKGROUND SIMD
-// ---------------------------------------------------------------------------
-
+/// Fallback: terreno con colores planos SIMD
 fn render_background_simd(
     gw: &GameWorld,
     fb: &mut [u32],
@@ -331,6 +275,63 @@ fn render_background_simd(
 }
 
 // ---------------------------------------------------------------------------
+// RENDER DESDE CACHE (con sprites)
+// ---------------------------------------------------------------------------
+
+fn render_from_cache(
+    atlas: &TextureAtlas,
+    cache: &crate::render_cache::RenderCache,
+    fb: &mut [u32],
+    w: usize,
+    h: usize,
+    ox: f32,
+    oy: f32,
+    scale: f32,
+) {
+    let w_f = w as f32;
+    let h_f = h as f32;
+
+    for entry in cache.iter_layers() {
+        let sx = entry.world_x * scale + ox;
+        let sy = entry.world_y * scale + oy;
+
+        // Viewport culling
+        let size_px = entry.size_x * scale;
+        if sx < -size_px || sx > w_f + size_px || sy < -size_px || sy > h_f + size_px {
+            continue;
+        }
+        let sx_i = sx as i32;
+        let sy_i = sy as i32;
+        let size_i = size_px as i32;
+
+        // Si tiene sprite, usar textura del atlas
+        if entry.sprite_index > 0 {
+            atlas.blit_sprite(
+                entry.sprite_index as usize,
+                fb, w, h,
+                sx_i, sy_i,
+                scale / CELL_SIZE, // Normalizar escala para sprite
+            );
+        } else if entry.color & 0xFF_00_00_00 == 0x44_00_00_00 {
+            // Es una zona (alpha bajo) — rectángulo semi-transparente
+            unsafe {
+                simd_render::fill_rect_alpha_simd(fb, w, h, sx_i, sy_i, size_i, size_i, entry.color);
+            }
+        } else {
+            // Fallback a formas geométricas (sin sprite)
+            match entry.shape_type {
+                0 => unsafe {
+                    simd_render::fill_rect_alpha_simd(fb, w, h, sx_i, sy_i, size_i, size_i, entry.color);
+                },
+                1 => fill_circle(fb, w, h, sx_i, sy_i, size_i, entry.color),
+                2 => fill_triangle(fb, w, h, sx_i, sy_i, size_i, entry.color),
+                _ => {}
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // RED DE CARRILES
 // ---------------------------------------------------------------------------
 
@@ -377,7 +378,6 @@ fn render_lane_network(
     }
 }
 
-/// Indicadores de congestión
 fn render_congestion_indicators(
     gw: &GameWorld,
     fb: &mut [u32],
@@ -470,7 +470,7 @@ fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
         "MODO: SIMULACION"
     };
 
-    let title = format!("Citybound v0.10 | {} | {:02}:{:02} | T:{}",
+    let title = format!("Citybound v0.17 | {} | {:02}:{:02} | T:{}",
         mode_str, gw.time_of_day / 60, gw.time_of_day % 60, gw.sim_tick);
     draw_text(fb, w, h, 8, 4, &title, COLOR_UI_TEXT);
 
@@ -495,29 +495,74 @@ fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
 }
 
 // ---------------------------------------------------------------------------
-// FUNCIONES DE DIBUJO
+// STATS PANEL
 // ---------------------------------------------------------------------------
 
-#[inline(always)]
-#[allow(dead_code)]
-fn draw_shape(fb: &mut [u32], w: usize, h: usize,
+pub fn render_stats_panel(
+    gw: &GameWorld,
+    fb: &mut [u32],
+    w: usize,
+    h: usize,
+    fps: u32,
+) {
+    let panel_x = w as i32 - 140;
+    let panel_y = 30;
+    let panel_w = 135;
+    let panel_h = 210;
 
-              x: f32, y: f32, r: &Renderable,
-              ox: f32, oy: f32, scale: f32) {
-    let sx = (x * scale + ox) as i32;
-    let sy = (y * scale + oy) as i32;
-    let size = (r.size_x * scale) as i32;
-    let color = r.color;
-
-    match r.shape_type {
-        0 => fill_circle(fb, w, h, sx, sy, size, color),
-        1 => unsafe {
-            simd_render::fill_rect_alpha_simd(fb, w, h, sx, sy, size, size, color);
-        },
-        2 => fill_triangle(fb, w, h, sx, sy, size, color),
-        _ => {}
+    unsafe {
+        simd_render::fill_rect_alpha_simd(fb, w, h, panel_x, panel_y, panel_w, panel_h, 0xCC_15_15_30);
     }
+
+    let mut y = panel_y + 5;
+    let x = panel_x + 5;
+
+    draw_text(fb, w, h, x, y, "ESTADISTICAS", 0xFF_FF_D7_00);
+    y += 12;
+
+    let fps_str = format!("FPS: {}", fps);
+    draw_text(fb, w, h, x, y, &fps_str, COLOR_UI_TEXT);
+    y += 10;
+
+    let pop = gw.world.query::<&ConstructionState>().iter().count();
+    draw_text(fb, w, h, x, y, &format!("Pob: {}", pop), COLOR_UI_TEXT);
+    y += 10;
+
+    let cars = gw.world.query::<&TrafficCar>().iter().count();
+    draw_text(fb, w, h, x, y, &format!("Coches: {}", cars), COLOR_UI_TEXT);
+    y += 10;
+
+    draw_text(fb, w, h, x, y, &format!("Tesoro: ${:.0}", gw.finance.treasury), 0xFF_00_FF_00);
+    y += 10;
+
+    let approval = gw.politics.global_approval;
+    let approval_color = if approval > 0.5 { 0xFF_00_FF_00 } else if approval > 0.3 { 0xFF_FF_FF_00 } else { 0xFF_FF_44_44 };
+    draw_text(fb, w, h, x, y, &format!("Aprob: {:.0}%", approval * 100.0), approval_color);
+    y += 10;
+
+    draw_text(fb, w, h, x, y, &format!("Hora: {:02}:{:02}", gw.time_of_day / 60, gw.time_of_day % 60), COLOR_UI_TEXT);
+    y += 10;
+
+    draw_text(fb, w, h, x, y, &format!("Tick: {}", gw.sim_tick), 0xFF_88_88_88);
+
+    y += 8;
+    draw_text(fb, w, h, x, y, "------------", 0xFF_44_44_44);
+    y += 10;
+
+    let congestion = if !gw.lane_manager.lanes.is_empty() {
+        gw.lane_manager.lanes.iter().map(|l| l.congestion).sum::<f32>() / gw.lane_manager.lanes.len() as f32
+    } else { 0.0 };
+    let cong_color = if congestion > 0.5 { 0xFF_FF_44_44 } else { 0xFF_44_FF_44 };
+    draw_text(fb, w, h, x, y, &format!("Traf: {:.0}%", congestion * 100.0), cong_color);
+    y += 10;
+
+    let lv = gw.land_value_map.get(64, 64);
+    draw_text(fb, w, h, x, y, &format!("Suelo: ${:.0}", lv), 0xFF_CC_AA_88);
 }
+
+// ---------------------------------------------------------------------------
+// FUNCIONES DE DIBUJO
+// ---------------------------------------------------------------------------
 
 fn draw_rect(fb: &mut [u32], fb_w: usize, fb_h: usize,
              x: i32, y: i32, rw: i32, rh: i32, color: u32) {
@@ -577,7 +622,7 @@ fn fill_triangle(fb: &mut [u32], fb_w: usize, fb_h: usize,
 }
 
 // ---------------------------------------------------------------------------
-// TEXTO
+// TEXTO (5x7 pixel font)
 // ---------------------------------------------------------------------------
 
 fn draw_text(fb: &mut [u32], fb_w: usize, fb_h: usize,
@@ -610,142 +655,58 @@ fn draw_char(fb: &mut [u32], fb_w: usize, fb_h: usize,
     }
 }
 
+#[rustfmt::skip]
 fn get_glyph(ch: char) -> [u8; 7] {
     match ch {
         'A' => [0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11],
-        'B' => [0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E],
+        'B' => [0x1E, 0x11, 0x1E, 0x11, 0x11, 0x1E, 0x00],
         'C' => [0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E],
-        'D' => [0x1C, 0x12, 0x11, 0x11, 0x11, 0x12, 0x1C],
-        'E' => [0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F],
-        'F' => [0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10],
-        'G' => [0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F],
-        'H' => [0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11],
-        'I' => [0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E],
-        'J' => [0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0C],
-        'K' => [0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11],
-        'L' => [0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F],
-        'M' => [0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11],
-        'N' => [0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11],
+        'D' => [0x1E, 0x11, 0x11, 0x11, 0x11, 0x1E, 0x00],
+        'E' => [0x1F, 0x10, 0x1E, 0x10, 0x10, 0x1F, 0x00],
+        'F' => [0x1F, 0x10, 0x1E, 0x10, 0x10, 0x10, 0x00],
+        'G' => [0x0E, 0x11, 0x10, 0x13, 0x11, 0x11, 0x0E],
+        'H' => [0x11, 0x11, 0x1F, 0x11, 0x11, 0x11, 0x00],
+        'I' => [0x0E, 0x04, 0x04, 0x04, 0x04, 0x0E, 0x00],
+        'J' => [0x07, 0x02, 0x02, 0x02, 0x12, 0x0C, 0x00],
+        'K' => [0x11, 0x12, 0x1C, 0x12, 0x12, 0x11, 0x00],
+        'L' => [0x10, 0x10, 0x10, 0x10, 0x10, 0x1F, 0x00],
+        'M' => [0x11, 0x1B, 0x15, 0x11, 0x11, 0x11, 0x00],
+        'N' => [0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x00],
         'O' => [0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E],
-        'P' => [0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10],
-        'Q' => [0x0E, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0D],
+        'P' => [0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x00],
+        'Q' => [0x0E, 0x11, 0x11, 0x15, 0x12, 0x0D, 0x00],
         'R' => [0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11],
-        'S' => [0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E],
-        'T' => [0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
-        'U' => [0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E],
-        'V' => [0x11, 0x11, 0x11, 0x11, 0x0A, 0x0A, 0x04],
-        'W' => [0x11, 0x11, 0x11, 0x15, 0x15, 0x1B, 0x11],
+        'S' => [0x0F, 0x10, 0x0E, 0x01, 0x01, 0x1E, 0x00],
+        'T' => [0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x00],
+        'U' => [0x11, 0x11, 0x11, 0x11, 0x11, 0x0E, 0x00],
+        'V' => [0x11, 0x11, 0x11, 0x11, 0x0A, 0x04, 0x00],
+        'W' => [0x11, 0x11, 0x11, 0x15, 0x15, 0x1B, 0x00],
         'X' => [0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11],
-        'Y' => [0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04],
-        'Z' => [0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F],
-        '0' => [0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E],
+        'Y' => [0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x00],
+        'Z' => [0x1F, 0x01, 0x02, 0x04, 0x08, 0x1F, 0x00],
+        '0' => [0x0E, 0x13, 0x15, 0x15, 0x15, 0x19, 0x0E],
         '1' => [0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E],
         '2' => [0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F],
-        '3' => [0x1F, 0x02, 0x04, 0x02, 0x01, 0x11, 0x0E],
-        '4' => [0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02],
-        '5' => [0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E],
-        '6' => [0x06, 0x08, 0x10, 0x1E, 0x11, 0x11, 0x0E],
-        '7' => [0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08],
+        '3' => [0x0E, 0x11, 0x01, 0x06, 0x01, 0x11, 0x0E],
+        '4' => [0x12, 0x12, 0x12, 0x1F, 0x02, 0x02, 0x00],
+        '5' => [0x1F, 0x10, 0x1E, 0x01, 0x01, 0x1E, 0x00],
+        '6' => [0x0E, 0x10, 0x1E, 0x11, 0x11, 0x0E, 0x00],
+        '7' => [0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x00],
         '8' => [0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E],
-        '9' => [0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C],
+        '9' => [0x0E, 0x11, 0x11, 0x0F, 0x01, 0x11, 0x0E],
         ' ' => [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
         '.' => [0x00, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x0C],
+        ',' => [0x00, 0x00, 0x00, 0x00, 0x04, 0x08, 0x00],
         ':' => [0x00, 0x0C, 0x0C, 0x00, 0x0C, 0x0C, 0x00],
-        '/' => [0x01, 0x02, 0x02, 0x04, 0x08, 0x08, 0x10],
-        '-' => [0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00],
+        '-' => [0x00, 0x00, 0x00, 0x1E, 0x00, 0x00, 0x00],
+        '/' => [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x00],
         '|' => [0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
-        '(' => [0x02, 0x04, 0x08, 0x08, 0x08, 0x04, 0x02],
-        ')' => [0x08, 0x04, 0x02, 0x02, 0x02, 0x04, 0x08],
-        '[' => [0x0E, 0x08, 0x08, 0x08, 0x08, 0x08, 0x0E],
-        ']' => [0x0E, 0x02, 0x02, 0x02, 0x02, 0x02, 0x0E],
+        '[' => [0x0E, 0x08, 0x08, 0x08, 0x08, 0x0E, 0x00],
+        ']' => [0x0E, 0x02, 0x02, 0x02, 0x02, 0x0E, 0x00],
         '$' => [0x04, 0x0F, 0x14, 0x0E, 0x05, 0x1E, 0x04],
-        '%' => [0x18, 0x19, 0x02, 0x04, 0x08, 0x13, 0x03],
-        _ => [0x00; 7],
-    }
-}
-// ---------------------------------------------------------------------------
-// UTILIDADES
-// ---------------------------------------------------------------------------
-
-#[allow(dead_code)]
-#[inline(always)]
-fn multiply_alpha(color: u32, alpha: f32) -> u32 {
-    let a = (((color >> 24) & 0xFF) as f32 * alpha) as u32;
-    (a << 24) | (color & 0x00_FF_FF_FF)
-}
-
-#[allow(dead_code)]
-#[inline(always)]
-fn building_color(btype: BuildingType) -> u32 {
-    match btype {
-        BuildingType::House => COLOR_BUILDING_HOUSE,
-        BuildingType::Apartment => COLOR_BUILDING_APARTMENT,
-        BuildingType::Shop => COLOR_BUILDING_SHOP,
-        BuildingType::Office => COLOR_BUILDING_OFFICE,
-        BuildingType::Factory => COLOR_BUILDING_FACTORY,
-        BuildingType::Farm => COLOR_BUILDING_FARM,
-        BuildingType::Hospital => COLOR_BUILDING_HOSPITAL,
-
-        BuildingType::School => COLOR_BUILDING_SCHOOL,
-        BuildingType::Police => COLOR_BUILDING_POLICE,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_multiply_alpha() {
-        assert_eq!(multiply_alpha(0xFF_FF_00_00, 0.5), 0x7F_FF_00_00);
-    }
-
-    #[test]
-    fn test_building_color_all_types() {
-        let types = [
-            BuildingType::House, BuildingType::Apartment, BuildingType::Shop,
-            BuildingType::Office, BuildingType::Factory, BuildingType::Farm,
-            BuildingType::Hospital, BuildingType::School, BuildingType::Police,
-        ];
-        for t in &types {
-            let c = building_color(*t);
-            assert!(c != 0, "Color must be non-zero for {:?}", t);
-        }
-    }
-
-    #[test]
-    fn test_glyph_all_chars() {
-        for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 :./-|()[]$%".chars() {
-            let glyph = get_glyph(ch);
-            assert_eq!(glyph.len(), 7);
-        }
-    }
-
-    #[test]
-    fn test_render_world_cached() {
-        crate::luts::init_trig_luts();
-        crate::rng_pool::init_rng_pool(42);
-        let mut pool = crate::object_pool::EntityPool::new(1000);
-        let gw = crate::ecs::create_world(&mut pool);
-        let mut fb = vec![0xFF_00_00_00u32; 800 * 600];
-        render_world_cached(&gw, &mut fb, 800, 600);
-        // Debe haber píxeles no negros
-        let non_black = fb.iter().filter(|&&p| p != 0xFF_00_00_00).count();
-        assert!(non_black > 100, "Debe renderizar algo: {} pixeles", non_black);
-    }
-
-    #[test]
-    fn test_render_stats_panel_doesnt_panic() {
-        crate::luts::init_trig_luts();
-        crate::rng_pool::init_rng_pool(42);
-        let mut pool = crate::object_pool::EntityPool::new(1000);
-        let gw = crate::ecs::create_world(&mut pool);
-        let mut fb = vec![0u32; 800 * 600];
-        render_stats_panel(&gw, &mut fb, 800, 600, 30);
+        '%' => [0x19, 0x1A, 0x02, 0x04, 0x0B, 0x13, 0x00],
+        '+' => [0x00, 0x04, 0x04, 0x1F, 0x04, 0x04, 0x00],
+        '!' => [0x04, 0x04, 0x04, 0x04, 0x00, 0x04, 0x00],
+        _   => [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
     }
 }

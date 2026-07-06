@@ -104,40 +104,63 @@ fn main() {
     }
 
     // Si no se cargaron assets, generar tiles procedurales como fallback
+    // Si no se cargaron assets, generar tiles procedurales como fallback
     if atlas.len() <= 1 {
         println!("[INFO] Sin assets externos. Generando texturas procedurales...");
+
+        // Terreno: hierba (8 variantes)
         for i in 0..8 {
             atlas.tiles.push(texture_atlas::generate_grass_tile(i));
             atlas.categories.grass.push(atlas.tiles.len() - 1);
         }
+        // Tierra (4 variantes)
+        for i in 0..4 {
+            atlas.tiles.push(texture_atlas::generate_dirt_tile(i));
+            atlas.categories.dirt.push(atlas.tiles.len() - 1);
+        }
+        // Arena (2 variantes)
+        for i in 0..2 {
+            atlas.tiles.push(texture_atlas::generate_sand_tile(i));
+            atlas.categories.sand.push(atlas.tiles.len() - 1);
+        }
+        // Carretera
         atlas.tiles.push(texture_atlas::generate_road_tile());
         atlas.categories.road.push(atlas.tiles.len() - 1);
-
-        let building_colors = [
-            0xFF_C4_7B_4A, 0xFF_B0_BEC5, 0xFF_26_C6_DA,
-            0xFF_78_90_9C, 0xFF_8D_6E_63, 0xFF_8B_C3_4A,
-            0xFF_F4_81_81, 0xFF_FF_D5_4F, 0xFF_42_45_E8,
-        ];
-        for &color in &building_colors {
-            atlas.tiles.push(texture_atlas::generate_building_tile(color, 10));
-            atlas.categories.buildings
-                .entry(texture_atlas::BuildingTileStyle::Generic)
-                .or_insert_with(Vec::new)
-                .push(atlas.tiles.len() - 1);
-        }
-
-        // Agua procedural
+        // Agua (3 frames de animación)
         for i in 0..3 {
             atlas.tiles.push(texture_atlas::generate_water_tile(i));
             atlas.categories.water.push(atlas.tiles.len() - 1);
         }
 
-        println!("[OK] Generados {} tiles procedurales", atlas.len() - 1);
+        // Edificios: un tile por cada estilo
+        let building_styles = [
+            (texture_atlas::BuildingTileStyle::House,     0xFF_C4_8E_6A), // terracota
+            (texture_atlas::BuildingTileStyle::Apartment, 0xFF_A8_A8_B0), // gris
+            (texture_atlas::BuildingTileStyle::Shop,      0xFF_5C_A0_B8), // azul comercio
+            (texture_atlas::BuildingTileStyle::Office,    0xFF_8A_9B_A8), // gris azulado
+            (texture_atlas::BuildingTileStyle::Factory,   0xFF_8A_7A_6E), // marrón industrial
+            (texture_atlas::BuildingTileStyle::Farm,      0xFF_8C_A8_6A), // verde rural
+            (texture_atlas::BuildingTileStyle::Hospital,  0xFF_E8_E8_F0), // blanco
+            (texture_atlas::BuildingTileStyle::School,    0xFF_E8_D8_8C), // amarillo
+            (texture_atlas::BuildingTileStyle::Police,    0xFF_5C_70_C4), // azul policial
+        ];
+        for (style, color) in &building_styles {
+            atlas.tiles.push(texture_atlas::generate_building_tile(*color, 10));
+            atlas.categories.buildings
+                .entry(*style)
+                .or_insert_with(Vec::new)
+                .push(atlas.tiles.len() - 1);
+        }
+
+        // Vehículos (4 colores)
+        let vehicle_colors = [0xFF_E0_30_30, 0xFF_30_80_E0, 0xFF_F0_C0_30, 0xFF_30_C0_30];
+        for &color in &vehicle_colors {
+            atlas.tiles.push(texture_atlas::generate_vehicle_tile(color));
+            atlas.categories.vehicles.push(atlas.tiles.len() - 1);
+        }
+
+        println!("[OK] Generados {} tiles procedurales (terreno + edificios + vehículos)", atlas.len() - 1);
     }
-
-    atlas.print_stats();
-    println!("[OK] Atlas: {} tiles en {} banks", atlas.len(), atlas.banks.len());
-
     // ===== MUNDO (Box — en heap, NO en stack) =====
     let mut pool = object_pool::EntityPool::new(10000);
     let mut world = ecs::create_world(&mut pool);

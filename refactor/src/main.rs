@@ -65,37 +65,39 @@ fn main() {
     // ===== LUTS Y RNG =====
     luts::init_trig_luts();
     rng_pool::init_rng_pool(42);
-
     // ===== TEXTURE ATLAS (spritesheets con categorización) =====
     let mut atlas = texture_atlas::TextureAtlas::new();
 
+    // Directorio base de assets (absoluto, resuelto en compilación)
+    let asset_base = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+
     // Cargar Roguelike Modern City (edificios, terreno, carreteras, vehículos)
-    let city_path = std::path::Path::new("assets/textures/kenney/roguelike_modern_city/Spritesheet/roguelikeCity_transparent.png");
-    match atlas.load_spritesheet(city_path, "roguelike_modern_city", 16, 16, 1) {
+    let city_path = asset_base.join("assets/textures/kenney/roguelike_modern_city/Spritesheet/roguelikeCity_transparent.png");
+    match atlas.load_spritesheet(&city_path, "roguelike_modern_city", 16, 16, 1) {
         Ok((start, count)) => println!("[OK] Roguelike Modern City: {} sprites (idx {}-{})",
             count, start, start + count - 1),
         Err(e) => println!("[WARN] No se pudo cargar Roguelike Modern City: {}", e),
     }
 
     // Cargar Tiny Town (más edificios)
-    let tiny_path = std::path::Path::new("assets/textures/kenney/tiny_town/Tilemap/tilemap_packed.png");
-    match atlas.load_spritesheet(tiny_path, "tiny_town", 16, 16, 1) {
+    let tiny_path = asset_base.join("assets/textures/kenney/tiny_town/Tilemap/tilemap_packed.png");
+    match atlas.load_spritesheet(&tiny_path, "tiny_town", 16, 16, 1) {
         Ok((start, count)) => println!("[OK] Tiny Town: {} sprites (idx {}-{})",
             count, start, start + count - 1),
         Err(e) => println!("[WARN] No se pudo cargar Tiny Town: {}", e),
     }
 
     // Cargar Pico-8 City (decoraciones, mini-edificios)
-    let pico_path = std::path::Path::new("assets/textures/kenney/pico8_city/Tilemap/tilemap_packed.png");
-    match atlas.load_spritesheet(pico_path, "pico8_city", 8, 8, 1) {
+    let pico_path = asset_base.join("assets/textures/kenney/pico8_city/Tilemap/tilemap_packed.png");
+    match atlas.load_spritesheet(&pico_path, "pico8_city", 8, 8, 1) {
         Ok((start, count)) => println!("[OK] Pico-8 City: {} sprites (idx {}-{})",
             count, start, start + count - 1),
         Err(e) => println!("[WARN] No se pudo cargar Pico-8 City: {}", e),
     }
 
     // Cargar LPC Terrain
-    let lpc_path = std::path::Path::new("assets/textures/terrain/lpc/terrain.png");
-    match atlas.load_spritesheet(lpc_path, "lpc_terrain", 32, 32, 0) {
+    let lpc_path = asset_base.join("assets/textures/terrain/lpc/terrain.png");
+    match atlas.load_spritesheet(&lpc_path, "lpc_terrain", 32, 32, 0) {
         Ok((start, count)) => println!("[OK] LPC Terrain: {} sprites (idx {}-{})",
             count, start, start + count - 1),
         Err(e) => println!("[WARN] No se pudo cargar LPC Terrain: {}", e),

@@ -930,8 +930,8 @@ fn fill_circle(fb: &mut [u32], fb_w: usize, fb_h: usize,
 
 #[allow(dead_code)]
 fn fill_triangle(fb: &mut [u32], fb_w: usize, fb_h: usize,
+                 cx: i32, cy: i32, size: i32, color: u32) {
     let h = size;
-    let hw = size / 2;
     for row in 0..h {
         let row_w = (row * hw * 2 / h.max(1)) as i32;
         let y = cy - h / 2 + row;

@@ -182,18 +182,7 @@ fn tick_parallel_systems(gw: &mut GameWorld, dt: f32) {
         gw.land_value_map.diffuse();
         gw.pollution_map.diffuse_and_decay();
     }
-
-    crate::road_wear::tick_road_wear(gw);
-}
-
-// ---------------------------------------------------------------------------
-// ECONOMÍA Y USO DE SUELO
-// ---------------------------------------------------------------------------
-
-fn tick_economy(gw: &mut GameWorld, dt: f32) {
-    for (_entity, (storage,)) in gw.world.query::<(&mut ResourceStorage,)>().iter() {
-        storage.food = (storage.food - 0.001 * dt).max(0.0);
-        storage.money = (storage.money + 0.01 * dt).max(0.0);
+Ahora elimino la segunda llamada duplicada a `tick_road_wear`:
     }
 }
 

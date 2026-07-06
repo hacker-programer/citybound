@@ -356,12 +356,13 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
         .map_err(|e| format!("Error leyendo frame {}: {}", path.display(), e))?;
 
     let bytes_per_pixel = match color_type {
+        png::ColorType::Rgba => 4,
         png::ColorType::Rgb => 3,
         png::ColorType::GrayscaleAlpha => 2,
         png::ColorType::Grayscale => 1,
-        png::ColorType::Indexed => {
-            // Ya expandido por el decoder a RGBA
-            4
+        png::ColorType::Indexed => 4,
+        _ => 4, // Fallback: asumir RGBA
+    };
         }
     };
 

@@ -127,13 +127,13 @@ impl InputState {
         use crate::platform::{PlatformEvent, MouseButton as PMb};
 
         match *event {
+            PlatformEvent::KeyPressed(key) => {
+                if let Some(gk) = map_platform_key_internal(key) {
+                    self.keys_pressed |= 1u128 << (gk as u8);
+                    self.keys_down |= 1u128 << (gk as u8);
                 }
             }
             PlatformEvent::KeyReleased(key) => {
-                if let Some(gk) = map_platform_key_internal(key) {
-                    self.keys_released |= 1u128 << (gk as u8);
-                    self.keys_down &= !(1u128 << (gk as u8));
-                }
             }
             PlatformEvent::MouseMoved { x, y } => {
                 self.mouse_x = x;

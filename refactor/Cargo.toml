@@ -8,7 +8,6 @@ description = "Citybound native refactor - Realistic city builder with adaptive 
 
 
 [profile.release]
-[profile.release]
 lto = "fat"
 codegen-units = 1
 panic = "abort"

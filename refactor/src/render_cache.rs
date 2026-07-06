@@ -257,37 +257,32 @@ pub fn building_color(btype: BuildingType) -> u32 {
 #[inline(always)]
 pub fn building_sprite(_btype: BuildingType) -> u16 {
     // Obsoleto: ahora se usa el atlas directamente
-    0
+#[inline(always)]
+pub fn building_color(btype: BuildingType) -> u32 {
+    match btype {
+        BuildingType::House => COLOR_BUILDING_HOUSE,
+        BuildingType::Apartment => COLOR_BUILDING_APARTMENT,
+        BuildingType::Shop => COLOR_BUILDING_SHOP,
+        BuildingType::Office => COLOR_BUILDING_OFFICE,
+        BuildingType::Factory => COLOR_BUILDING_FACTORY,
+        BuildingType::Farm => COLOR_BUILDING_FARM,
+        BuildingType::Hospital => COLOR_BUILDING_HOSPITAL,
+        BuildingType::School => COLOR_BUILDING_SCHOOL,
+        BuildingType::Police => COLOR_BUILDING_POLICE,
+    }
 }
 
 #[inline(always)]
 pub fn zone_color(ztype: ZoneType) -> u32 {
     match ztype {
-        ZoneType::Residential => 0x44_66_BB_6A,
-        ZoneType::Commercial => 0x44_42_A5_F5,
-        ZoneType::Industrial => 0x44_EF_5350,
-        ZoneType::Agricultural => 0x44_9C_CC_65,
-        ZoneType::Road => 0x44_55_55_55,
-        ZoneType::Park => 0x44_4C_AF_50,
+        ZoneType::Residential => COLOR_ZONE_RESIDENTIAL,
+        ZoneType::Commercial => COLOR_ZONE_COMMERCIAL,
+        ZoneType::Industrial => COLOR_ZONE_INDUSTRIAL,
+        ZoneType::Agricultural => COLOR_ZONE_AGRICULTURAL,
+        ZoneType::Road => COLOR_ZONE_ROAD,
+        ZoneType::Park => COLOR_ZONE_PARK,
     }
 }
-
-#[inline(always)]
-pub fn zone_sprite(_ztype: ZoneType) -> u16 { 0 }
-
-// ---------------------------------------------------------------------------
-// TESTS
-// ---------------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ecs;
-    use crate::object_pool::EntityPool;
-
-    #[test]
-    fn test_render_cache_push_and_iter() {
-        let mut cache = RenderCache::new();
         cache.push(RenderCacheEntry::new(10.0, 10.0, 0, 0xFF_FF_00_00, 2.0, LAYER_TRAFFIC));
         cache.push(RenderCacheEntry::new(20.0, 20.0, 1, 0xFF_00_FF_00, 3.0, LAYER_BUILDINGS));
         cache.push(RenderCacheEntry::new(30.0, 30.0, 1, 0xFF_00_00_FF, 1.0, LAYER_ZONES));

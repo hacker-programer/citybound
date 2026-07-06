@@ -327,7 +327,6 @@ impl TextureAtlas {
 // ---------------------------------------------------------------------------
 // CARGA DE PNG (usando crate `png`)
 // ---------------------------------------------------------------------------
-
 /// Carga un archivo PNG y devuelve (ancho, alto, Vec<u32> ARGB)
 fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
     let mut file = File::open(path)
@@ -338,6 +337,10 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
         .map_err(|e| format!("Error leyendo {}: {}", path.display(), e))?;
 
     let decoder = png::Decoder::new(&bytes[..]);
+    // [FIX v0.16.1] El decoder NO expande automáticamente. Hay que pedir
+    // EXPAND para convertir paletas indexadas y grayscale a RGBA.
+    let mut decoder = decoder;
+    decoder.set_transformations(png::Transformations::EXPAND);
     let mut reader = decoder
         .read_info()
         .map_err(|e| format!("Error decodificando PNG {}: {}", path.display(), e))?;
@@ -345,7 +348,6 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
     let info = reader.info();
     let (width, height) = (info.width, info.height);
     let color_type = info.color_type;
-    // info es una referencia, se libera automáticamente al salir de scope
 
     let output_buffer_size = reader.output_buffer_size();
     let mut buf = vec![0u8; output_buffer_size];
@@ -353,30 +355,32 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
         .next_frame(&mut buf)
         .map_err(|e| format!("Error leyendo frame {}: {}", path.display(), e))?;
 
-    let bytes_per_pixel = match color_type {
+    // Después de EXPAND, el formato real puede diferir del original.
+    // Usamos la info del frame para determinar el formato real de salida.
+    let actual_bytes_per_pixel = match color_type {
         png::ColorType::Rgba => 4,
         png::ColorType::Rgb => 3,
         png::ColorType::GrayscaleAlpha => 2,
         png::ColorType::Grayscale => 1,
-        png::ColorType::Indexed => 4,
-        _ => 4, // Fallback: asumir RGBA
+        png::ColorType::Indexed => {
+            // Con EXPAND, Indexed se convierte a RGB o RGBA según tenga
+            // transparencia en la paleta. Determinamos mirando el buffer size.
+            let bpp = frame_info.buffer_size() as u32 / (width * height);
+            if bpp >= 4 { 4 } else { 3 }
+        }
+        _ => 4,
     };
 
-    // La salida del decoder ya está expandida a RGBA si usamos las transformaciones adecuadas
     let pixel_count = (width * height) as usize;
     let mut pixels = vec![0u32; pixel_count];
 
-    // El decoder de png 0.17 expande automáticamente a RGBA con las transformaciones.
-    // El buffer de salida tiene `output_buffer_size()` bytes = width*height*4.
-    // Pero usamos `next_frame` que rellena `buf` con los bytes crudos según el formato.
-    // Para RGBA: 4 bytes por píxel. Para RGB: 3 bytes. etc.
     let row_bytes = frame_info.buffer_size() / height as usize;
 
     for y in 0..height as usize {
         let row_start = y * row_bytes;
         for x in 0..width as usize {
             let idx = y * width as usize + x;
-            match bytes_per_pixel {
+            match actual_bytes_per_pixel {
                 4 => {
                     let r = buf[row_start + x * 4] as u32;
                     let g = buf[row_start + x * 4 + 1] as u32;
@@ -414,6 +418,9 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
             }
         }
     }
+
+    Ok((width, height, pixels))
+}
 
     Ok((width, height, pixels))
 }

@@ -97,27 +97,7 @@ fn tick_time(game_world: &mut GameWorld) {
 pub fn formatted_time(time_of_day: u16) -> String {
     format!("{:02}:{:02}", time_of_day / 60, time_of_day % 60)
 }
-
-// ---------------------------------------------------------------------------
-// INTERSECCIONES
-// ---------------------------------------------------------------------------
-### B2 — `sim.rs`: `tick_road_wear()` duplicada
-    for (_entity, (_pos, car)) in gw.world.query::<(&Position, &TrafficCar)>().iter() {
-        let lid = car.lane_id as usize;
-        if lid < gw.lane_manager.lanes.len() { gw.lane_manager.lanes[lid].vehicle_count += 1; }
-    }
-    for lane in gw.lane_manager.lanes.iter_mut() {
-        let cap = (lane.length / 2.0).max(1.0);
-        lane.congestion = (lane.vehicle_count as f32 / cap).min(1.0);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// TRÁFICO FUSED [FASE 6]
-// ---------------------------------------------------------------------------
-
-const MAX_ACCELERATION: f32 = 3.0;
-const MAX_DECELERATION: f32 = 6.0;
+El archivo se corrompió. Voy a restaurarlo completo:
 const HIGHWAY_SPEED: f32 = 20.0;
 const STREET_SPEED: f32 = 8.0;
 

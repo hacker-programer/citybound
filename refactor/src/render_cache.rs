@@ -79,78 +79,77 @@ impl RenderCache {
         // Contador para variar sprites
         let mut sprite_offset: usize = 0;
 
-        // Zonas (capa 1) — usan colores planos con alpha para indicar zonificación
+        // ---- Zonas (capa 1) — colores planos con alpha ----
         for (_entity, (pos, zone)) in world.query::<(&Position, &ZoneComponent)>().iter() {
             if zone.density > 0 {
                 self.push(RenderCacheEntry {
-                    world_x: pos.x, world_y: pos.y,
+                    world_x: pos.x,
+                    world_y: pos.y,
                     shape_type: 0,
                     color: zone_color(zone.zone_type),
-// Sección modificada del rebuild_from_world_with_atlas
-// Reemplazar el query de edificios para usar ConstructionState.building_type
-
-        // Edificios completos (capa 2-3) — usan sprites reales del atlas
-        // Unimos Position + Renderable + ConstructionState para obtener el building_type exacto
-        {
-            let mut building_sprites: Vec<(f32, f32, u32, f32, u8, u8, u16)> = Vec::with_capacity(256);
-
-            // Query principal: edificios con los 3 componentes
-            for (_entity, (pos, renderable, cs)) in world.query::<(&Position, &Renderable, &ConstructionState)>().iter() {
-                if renderable.layer == 2 || renderable.layer == 3 {
-                    let style = building_type_to_style(cs.building_type);
-                    let si = atlas.categories.building_sprite(style) as u16;
-                    building_sprites.push((
-                        pos.x, pos.y,
-                        renderable.color,
-                        renderable.size_x,
-                        renderable.layer as u8,
-                        renderable.shape_type,
-                        si,
-                    ));
-                }
-            }
-
-            // Fallback: edificios sin ConstructionState (poco probable pero seguro)
-            for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
-                // Saltar si ya fue procesado (tiene ConstructionState)
-                if world.query_one::<&ConstructionState>(_entity).is_ok() {
-                    continue;
-                }
-                if renderable.layer == 2 || renderable.layer == 3 {
-                    let category = guess_building_category(renderable.color);
-                    let si = atlas.categories.building_sprite(category) as u16;
-                    building_sprites.push((
-                        pos.x, pos.y,
-                        renderable.color,
-                        renderable.size_x,
-                        renderable.layer as u8,
-                        renderable.shape_type,
-                        si,
-                    ));
-                }
-            }
-
-            for (wx, wy, color, sx, layer, shape, si) in building_sprites {
-                self.push(RenderCacheEntry {
-                    world_x: wx, world_y: wy,
-                    shape_type: shape,
-                    color,
-                    size_x: sx,
-                    layer,
-                    sprite_index: si,
+                    size_x: 4.0,
+                    layer: LAYER_ZONES,
+                    sprite_index: 0,
                 });
             }
         }
+
+        // ---- Edificios completos (capa 2-3) — sprites del atlas ----
+        {
+            let mut building_entries: Vec<RenderCacheEntry> = Vec::with_capacity(512);
+
+            // Query principal: edificios con ConstructionState
+            for (_entity, (pos, cs)) in world.query::<(&Position, &ConstructionState)>().iter() {
+                if cs.progress >= 1.0 {
+                    let style = building_type_to_style(cs.building_type);
+                    let si = atlas.categories.building_sprite(style) as u16;
+                    let color = building_color(cs.building_type);
+                    building_entries.push(RenderCacheEntry {
+                        world_x: pos.x,
+                        world_y: pos.y,
+                        shape_type: 0,
+                        color,
+                        size_x: 4.0,
+                        layer: LAYER_BUILDINGS,
+                        sprite_index: si,
+                    });
+                }
+            }
+
+            // Fallback: edificios con Renderable pero sin ConstructionState
+            for (_entity, (pos, renderable)) in world.query::<(&Position, &Renderable)>().iter() {
+                if renderable.layer == 2 || renderable.layer == 3 {
+                    // Saltar si ya tiene ConstructionState (ya procesado)
+                    if world.query_one::<&ConstructionState>(_entity).is_ok() {
+                        continue;
+                    }
+                    let style = guess_building_category(renderable.color);
+                    let si = atlas.categories.building_sprite(style) as u16;
+                    building_entries.push(RenderCacheEntry {
+                        world_x: pos.x,
+                        world_y: pos.y,
+                        shape_type: renderable.shape_type,
+                        color: renderable.color,
+                        size_x: renderable.size_x,
+                        layer: renderable.layer as u8,
+                        sprite_index: si,
+                    });
+                }
+            }
+
+            for entry in building_entries {
+                self.push(entry);
             }
         }
 
-        // Construcciones en progreso (capa 3)
+        // ---- Construcciones en progreso (capa 3) ----
         for (_entity, (pos, cs)) in world.query::<(&Position, &ConstructionState)>().iter() {
             if cs.progress < 1.0 && cs.progress > 0.0 {
                 let style = building_type_to_style(cs.building_type);
                 let si = atlas.categories.building_sprite(style) as u16;
                 self.push(RenderCacheEntry {
-                    world_x: pos.x, world_y: pos.y,
+                    world_x: pos.x,
+                    world_y: pos.y,
                     shape_type: 0,
                     color: 0x88_FF_FF_00,
                     size_x: 3.0 * cs.progress,
@@ -160,9 +159,8 @@ impl RenderCache {
             }
         }
 
-        // Tráfico (capa 4) — vehículos
+        // ---- Tráfico (capa 4) — vehículos con sprites ----
         for (_entity, (pos, renderable, _car)) in world.query::<(&Position, &Renderable, &TrafficCar)>().iter() {
-            // Usar sprite de vehículo si hay disponible
             let vi = if atlas.categories.vehicles.is_empty() {
                 0u16
             } else {
@@ -171,7 +169,8 @@ impl RenderCache {
             };
 
             self.push(RenderCacheEntry {
-                world_x: pos.x, world_y: pos.y,
+                world_x: pos.x,
+                world_y: pos.y,
                 shape_type: renderable.shape_type,
                 color: renderable.color,
                 size_x: renderable.size_x,
@@ -250,14 +249,14 @@ fn guess_building_category(color: u32) -> BuildingTileStyle {
     let g = (color >> 8) & 0xFF;
     let b = color & 0xFF;
 
-    if r > 200 && g < 150 && b < 100 { return BuildingTileStyle::House; }      // Naranja/marrón = casa
-    if r > 160 && g > 160 && b > 160 { return BuildingTileStyle::Apartment; }   // Gris = apartamento
-    if b > 200 && r < 150 { return BuildingTileStyle::Shop; }                   // Azul = tienda
-    if g > 180 && r > 180 && b < 120 { return BuildingTileStyle::School; }      // Amarillo = escuela
-    if r > 200 && g < 120 && b < 120 { return BuildingTileStyle::Hospital; }    // Rojo = hospital
-    if b > 200 && r < 100 && g < 150 { return BuildingTileStyle::Police; }      // Azul = policía
-    if r < 120 && g < 120 && b < 120 { return BuildingTileStyle::Factory; }     // Oscuro = fábrica
-    if g > 150 && r > 100 && b < 100 { return BuildingTileStyle::Farm; }        // Verde = granja
+    if r > 200 && g < 150 && b < 100 { return BuildingTileStyle::House; }
+    if r > 160 && g > 160 && b > 160 { return BuildingTileStyle::Apartment; }
+    if b > 200 && r < 150 { return BuildingTileStyle::Shop; }
+    if g > 180 && r > 180 && b < 120 { return BuildingTileStyle::School; }
+    if r > 200 && g < 120 && b < 120 { return BuildingTileStyle::Hospital; }
+    if b > 200 && r < 100 && g < 150 { return BuildingTileStyle::Police; }
+    if r < 120 && g < 120 && b < 120 { return BuildingTileStyle::Factory; }
+    if g > 150 && r > 100 && b < 100 { return BuildingTileStyle::Farm; }
     BuildingTileStyle::Generic
 }
 
@@ -282,7 +281,6 @@ pub fn building_color(btype: BuildingType) -> u32 {
 
 #[inline(always)]
 pub fn building_sprite(_btype: BuildingType) -> u16 {
-    // Obsoleto: ahora se usa el atlas directamente
     0
 }
 

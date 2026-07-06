@@ -207,17 +207,17 @@ impl TextureAtlas {
             for i in 0..256 {
                 let x = i % 16;
                 let y = i / 16;
-                pixels[i] = if (x + y) % 2 == 0 { 0xFF_FF_00_FF } else { 0xFF_00_00_00 };
+    pub fn new() -> Self {
+        let fallback = {
+            let mut pixels = vec![0u32; 256];
+            for i in 0..256 {
+                let x = i % 16;
+                let y = i / 16;
+                // Gris neutro suave con patrón sutil (no magenta)
+                pixels[i] = if (x + y) % 2 == 0 { 0xFF_4A_4A_4A } else { 0xFF_3A_3A_3A };
             }
             SpriteTile { pixels, width: 16, height: 16, category: TileCategory::Unknown }
         };
-
-        Self {
-            tiles: vec![fallback],
-            banks: Vec::new(),
-            fallback_idx: 0,
-            categories: CategoryMap::new(),
-        }
     }
 
     /// Carga un spritesheet PNG, extrae tiles y los categoriza automáticamente.

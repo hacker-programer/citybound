@@ -761,8 +761,6 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
             let bpp = frame_info.buffer_size() as u32 / (width * height);
             if bpp >= 4 { 4 } else { 3 }
         }
-        _ => 4,
-    };
 
     let pixel_count = (width * height) as usize;
     let mut pixels = vec![0u32; pixel_count];

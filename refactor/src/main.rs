@@ -82,15 +82,13 @@ fn main() {
         Err(e) => println!("[WARN] No se pudo cargar Roguelike Modern City: {}", e),
     }
 
-    // Cargar Tiny Town (edificios adicionales)
-    let tiny_path = std::path::Path::new("assets/textures/kenney/tiny_town/tilemap_packed.png");
-    match atlas.load_spritesheet(tiny_path, "tiny_town", 16, 16, 1) {
-        Ok((start, count)) => println!("[OK] Tiny Town: {} sprites (idx {}-{})", count, start, start + count - 1),
-        Err(e) => println!("[WARN] No se pudo cargar Tiny Town: {}", e),
+    // Cargar Roguelike Modern City (edificios, carreteras)
+    let city_path = std::path::Path::new("assets/textures/kenney/roguelike_modern_city/Spritesheet/roguelikeCity_transparent.png");
+    match atlas.load_spritesheet(city_path, "roguelike_modern_city", 16, 16, 1) {
+        Ok((start, count)) => println!("[OK] Roguelike Modern City: {} sprites (idx {}-{})", count, start, start + count - 1),
+        Err(e) => println!("[WARN] No se pudo cargar Roguelike Modern City: {}", e),
     }
 
-    // Cargar Pico-8 City (decoraciones)
-    let pico_path = std::path::Path::new("assets/textures/kenney/pico8_city/tilemap_packed.png");
     // Cargar Tiny Town (edificios adicionales)
     let tiny_path = std::path::Path::new("assets/textures/kenney/tiny_town/Tilemap/tilemap_packed.png");
     match atlas.load_spritesheet(tiny_path, "tiny_town", 16, 16, 1) {
@@ -100,16 +98,17 @@ fn main() {
 
     // Cargar Pico-8 City (decoraciones)
     let pico_path = std::path::Path::new("assets/textures/kenney/pico8_city/Tilemap/tilemap_packed.png");
+    match atlas.load_spritesheet(pico_path, "pico8_city", 8, 8, 1) {
+        Ok((start, count)) => println!("[OK] Pico-8 City: {} sprites (idx {}-{})", count, start, start + count - 1),
+        Err(e) => println!("[WARN] No se pudo cargar Pico-8 City: {}", e),
+    }
+
+    // Cargar LPC Terrain
+    let lpc_path = std::path::Path::new("assets/textures/terrain/lpc/terrain.png");
+    match atlas.load_spritesheet(lpc_path, "lpc_terrain", 32, 32, 0) {
         Ok((start, count)) => println!("[OK] LPC Terrain: {} sprites (idx {}-{})", count, start, start + count - 1),
         Err(e) => println!("[WARN] No se pudo cargar LPC Terrain: {}", e),
     }
-
-    // Si no se cargaron assets, generar tiles procedurales como fallback
-    if atlas.len() <= 1 {
-        println!("[INFO] Sin assets externos. Generando texturas procedurales...");
-        let start = atlas.len();
-        for i in 0..8 {
-            atlas.tiles.push(texture_atlas::generate_grass_tile(i));
         }
         atlas.tiles.push(texture_atlas::generate_road_tile());
         let building_colors = [

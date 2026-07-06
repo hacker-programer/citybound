@@ -115,7 +115,7 @@ Ahora actualizo el test de integración que espera 8 edificios (ahora son 11):
     fn test_terrain_exists() {
         let mut pool = EntityPool::new(1000);
         let gw = ecs::create_world(&mut pool);
-        let h = gw.terrain.height(64, 64);
+        let h = gw.terrain.height_at(64.0, 64.0);
         assert!(h >= 0.0 && h <= 1.0);
         let color = gw.terrain.baked_color(64, 64);
         assert_eq!((color >> 24) & 0xFF, 0xFF);

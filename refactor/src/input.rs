@@ -211,11 +211,9 @@ impl InputState {
     }
 
     /// Tecla presionada (mantenida)
-    #[inline(always)]
-    pub fn is_key_down(&self, key: GameKey) -> bool {
-        (self.keys_down & (1u128 << (key as u8))) != 0
-    }
-
+        // Detectar flancos
+        self.keys_pressed = self.keys_down & !prev_keys;
+        self.keys_released = !self.keys_down & prev_keys;
     /// Tecla recién presionada en este frame (flanco)
     #[inline(always)]
     pub fn is_key_pressed(&self, key: GameKey) -> bool {

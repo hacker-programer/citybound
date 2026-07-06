@@ -900,3 +900,65 @@ pub fn generate_building_tile(color: u32, height_px: u32) -> SpriteTile {
     }
     SpriteTile { pixels, width: size, height: size, category: TileCategory::Building(BuildingTileStyle::Generic) }
 }
+
+pub fn generate_dirt_tile(variant: u32) -> SpriteTile {
+    let size = 16u32;
+    let mut pixels = vec![0u32; (size * size) as usize];
+    let base_r = 155 + (variant % 15) as u32;
+    let base_g = 130 + (variant % 12) as u32;
+    let base_b = 100 + (variant % 10) as u32;
+    for y in 0u32..size {
+        for x in 0u32..size {
+            let noise = ((x.wrapping_mul(11) ^ y.wrapping_mul(17)) % 18) as u32;
+            let r = base_r + noise / 2;
+            let g = base_g + noise / 2;
+            let b = base_b + noise / 3;
+            pixels[(y * size + x) as usize] =
+                0xFF_00_00_00 | (r << 16) | (g << 8) | b;
+        }
+    }
+    SpriteTile { pixels, width: size, height: size, category: TileCategory::Dirt }
+}
+
+pub fn generate_sand_tile(variant: u32) -> SpriteTile {
+    let size = 16u32;
+    let mut pixels = vec![0u32; (size * size) as usize];
+    let base_r = 210 + (variant % 12) as u32;
+    let base_g = 195 + (variant % 10) as u32;
+    let base_b = 150 + (variant % 8) as u32;
+    for y in 0u32..size {
+        for x in 0u32..size {
+            let noise = ((x.wrapping_mul(9) ^ y.wrapping_mul(15)) % 12) as u32;
+            let r = base_r + noise / 3;
+            let g = base_g + noise / 3;
+            let b = base_b + noise / 4;
+            pixels[(y * size + x) as usize] =
+                0xFF_00_00_00 | (r << 16) | (g << 8) | b;
+        }
+    }
+    SpriteTile { pixels, width: size, height: size, category: TileCategory::Sand }
+}
+
+pub fn generate_vehicle_tile(color: u32) -> SpriteTile {
+    let size: u32 = 16;
+    let mut pixels = vec![0u32; (size * size) as usize];
+    let r = (color >> 16) & 0xFF;
+    let g = (color >> 8) & 0xFF;
+    let b = color & 0xFF;
+
+    for y in 0u32..size {
+        for x in 0u32..size {
+            let pixel = if y >= 4 && y < 12 && x >= 2 && x < 14 {
+                let shade = if y < 5 || y > 10 || x < 3 || x > 12 { 70 } else { 100 };
+                let sr = (r * shade / 255).min(255);
+                let sg = (g * shade / 255).min(255);
+                let sb = (b * shade / 255).min(255);
+                0xFF_00_00_00 | (sr << 16) | (sg << 8) | sb
+            } else {
+                0x00_00_00_00
+            };
+            pixels[(y * size + x) as usize] = pixel;
+        }
+    }
+    SpriteTile { pixels, width: size, height: size, category: TileCategory::Vehicle }
+}

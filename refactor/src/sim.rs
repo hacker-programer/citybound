@@ -101,19 +101,7 @@ pub fn formatted_time(time_of_day: u16) -> String {
 // ---------------------------------------------------------------------------
 // INTERSECCIONES
 // ---------------------------------------------------------------------------
-
-fn tick_intersections(gw: &mut GameWorld, dt: f32) {
-    for intersection in gw.lane_manager.intersections.iter_mut() {
-        intersection.tick(dt);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// CONGESTIÓN DE CARRILES
-// ---------------------------------------------------------------------------
-
-fn tick_lane_congestion(gw: &mut GameWorld) {
-    for lane in gw.lane_manager.lanes.iter_mut() { lane.vehicle_count = 0; }
+### B2 — `sim.rs`: `tick_road_wear()` duplicada
     for (_entity, (_pos, car)) in gw.world.query::<(&Position, &TrafficCar)>().iter() {
         let lid = car.lane_id as usize;
         if lid < gw.lane_manager.lanes.len() { gw.lane_manager.lanes[lid].vehicle_count += 1; }

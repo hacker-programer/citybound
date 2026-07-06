@@ -217,41 +217,42 @@ impl<'a> Iterator for RenderCacheIter<'a> {
                 self.current_idx += 1;
                 return Some(entry);
             }
-            self.current_layer += 1;
-            self.current_idx = 0;
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// MAPEO DE BUILDINGTYPE → BUILDINGTILESTYLE
-// ---------------------------------------------------------------------------
-
-#[inline(always)]
-pub fn building_type_to_style(btype: BuildingType) -> BuildingTileStyle {
-    match btype {
-        BuildingType::House => BuildingTileStyle::House,
-        BuildingType::Apartment => BuildingTileStyle::Apartment,
-        BuildingType::Shop => BuildingTileStyle::Shop,
-        BuildingType::Office => BuildingTileStyle::Office,
-        BuildingType::Factory => BuildingTileStyle::Factory,
-        BuildingType::Farm => BuildingTileStyle::Farm,
-        BuildingType::Hospital => BuildingTileStyle::Hospital,
-        BuildingType::School => BuildingTileStyle::School,
-        BuildingType::Police => BuildingTileStyle::Police,
-    }
-}
-
 /// Adivina la categoría de edificio por su color legacy
 fn guess_building_category(color: u32) -> BuildingTileStyle {
     let r = (color >> 16) & 0xFF;
     let g = (color >> 8) & 0xFF;
     let b = color & 0xFF;
 
+    // Nueva paleta muted
+    if is_near(r, g, b, 0xC4, 0x8E, 0x6A, 30) { return BuildingTileStyle::House; }
+    if is_near(r, g, b, 0xA8, 0xA8, 0xB0, 25) { return BuildingTileStyle::Apartment; }
+    if is_near(r, g, b, 0x5C, 0xA0, 0xB8, 30) { return BuildingTileStyle::Shop; }
+    if is_near(r, g, b, 0x8A, 0x9B, 0xA8, 25) { return BuildingTileStyle::Office; }
+    if is_near(r, g, b, 0x8A, 0x7A, 0x6E, 25) { return BuildingTileStyle::Factory; }
+    if is_near(r, g, b, 0x8C, 0xA8, 0x6A, 30) { return BuildingTileStyle::Farm; }
+    if is_near(r, g, b, 0xE8, 0xE8, 0xF0, 30) { return BuildingTileStyle::Hospital; }
+    if is_near(r, g, b, 0xE8, 0xD8, 0x8C, 30) { return BuildingTileStyle::School; }
+    if is_near(r, g, b, 0x5C, 0x70, 0xC4, 30) { return BuildingTileStyle::Police; }
+
+    // Fallback a legacy colors
     if r > 200 && g < 150 && b < 100 { return BuildingTileStyle::House; }
     if r > 160 && g > 160 && b > 160 { return BuildingTileStyle::Apartment; }
     if b > 200 && r < 150 { return BuildingTileStyle::Shop; }
     if g > 180 && r > 180 && b < 120 { return BuildingTileStyle::School; }
+    if r > 200 && g < 120 && b < 120 { return BuildingTileStyle::Hospital; }
+    if b > 200 && r < 100 && g < 150 { return BuildingTileStyle::Police; }
+    if r < 120 && g < 120 && b < 120 { return BuildingTileStyle::Factory; }
+    if g > 150 && r > 100 && b < 100 { return BuildingTileStyle::Farm; }
+
+    BuildingTileStyle::Generic
+}
+
+#[inline(always)]
+fn is_near(r: u32, g: u32, b: u32, tr: u32, tg: u32, tb: u32, tol: u32) -> bool {
+    (r as i32 - tr as i32).abs() < tol as i32
+        && (g as i32 - tg as i32).abs() < tol as i32
+        && (b as i32 - tb as i32).abs() < tol as i32
+}
     if r > 200 && g < 120 && b < 120 { return BuildingTileStyle::Hospital; }
     if b > 200 && r < 100 && g < 150 { return BuildingTileStyle::Police; }
     if r < 120 && g < 120 && b < 120 { return BuildingTileStyle::Factory; }

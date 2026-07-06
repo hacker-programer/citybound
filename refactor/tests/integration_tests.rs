@@ -57,7 +57,13 @@ mod integration_tests {
     }
 
     #[test]
-Ahora actualizo el test de integración que espera 8 edificios (ahora son 11):
+    fn test_building_entities_exist() {
+        let mut pool = EntityPool::new(1000);
+        let gw = ecs::create_world(&mut pool);
+        assert_eq!(gw.world.query::<&ecs::ConstructionState>().iter().count(), 11);
+    }
+
+    #[test]
     fn test_camera_exists() {
         let mut pool = EntityPool::new(1000);
         let gw = ecs::create_world(&mut pool);
@@ -147,13 +153,14 @@ Ahora actualizo el test de integración que espera 8 edificios (ahora son 11):
         let mut gw = ecs::create_world(&mut pool);
         sim::init_simulation(&mut gw);
 
-✅ **Compila con 4 warnings.** Ahora comienzo a arreglar los bugs uno por uno.
+        for _ in 0..20 {
+            sim::tick(&mut gw, 0.1);
+        }
 
----
-
-## 🔧 FASE 1: Arreglando bugs críticos
-
-### B1 — `integration_tests.rs`: Método inexistente `height()`
+        for (w, h) in [(800, 600), (400, 300)] {
+            let mut fb = vec![0xFF_1A_1A_2Eu32; w * h];
+            citybound_native::render::render_world(&gw, &mut fb, w, h);
+        }
     }
 
     #[test]

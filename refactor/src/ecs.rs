@@ -164,7 +164,7 @@ impl SpatialGrid {
     pub fn rebuild(&mut self, world: &hecs::World) {
         self.clear();
         for (entity, pos) in world.query::<&Position>().iter() {
-            let bits = entity.to_bits().get()
+            let bits = entity.to_bits().get();
             self.insert(pos.x, pos.y, bits);
         }
         self.dirty = false;

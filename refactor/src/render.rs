@@ -18,7 +18,6 @@
 use crate::ecs::{GameWorld, Camera, ConstructionState, TrafficCar};
 use crate::texture_atlas::{TextureAtlas, TerrainTileType};
 use crate::simd_render;
-use crate::simd_render;
 
 // ---------------------------------------------------------------------------
 // PALETA DE COLORES (ARGB) — fallback

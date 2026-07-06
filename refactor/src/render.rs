@@ -50,10 +50,6 @@ pub const COLOR_LANE_LINE: u32 = 0x44_AA_AA_AA;
 pub const COLOR_CONGESTION_LOW: u32 = 0x44_4C_AF_50;
 pub const COLOR_CONGESTION_MED: u32 = 0x44_FF_C1_07;
 pub const COLOR_CONGESTION_HIGH: u32 = 0x44_EF_53_50;
-pub const COLOR_CONGESTION_MED: u32 = 0x88_FF_FF_00;
-pub const COLOR_CONGESTION_HIGH: u32 = 0x88_FF_00_00;
-
-const CELL_SIZE: f32 = 4.0;
 
 // ---------------------------------------------------------------------------
 // RENDER PRINCIPAL (con TextureAtlas)

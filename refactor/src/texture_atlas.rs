@@ -831,24 +831,6 @@ pub fn generate_grass_tile(variant: u32) -> SpriteTile {
             let b = base_b + noise / 3;
             pixels[(y * size + x) as usize] =
                 0xFF_00_00_00 | (r << 16) | (g << 8) | b;
-// ---------------------------------------------------------------------------
-// GENERACIÓN PROCEDURAL DE TEXTURAS (FALLBACK) - v0.18 MEJORADO
-// ---------------------------------------------------------------------------
-
-pub fn generate_grass_tile(variant: u32) -> SpriteTile {
-    let size = 16u32;
-    let mut pixels = vec![0u32; (size * size) as usize];
-    let base_r = 58 + (variant % 12) as u32;
-    let base_g = 115 + (variant % 18) as u32;
-    let base_b = 52 + (variant % 10) as u32;
-    for y in 0u32..size {
-        for x in 0u32..size {
-            let noise = ((x.wrapping_mul(7) ^ y.wrapping_mul(13)) % 15) as u32;
-            let r = base_r + noise / 2;
-            let g = base_g + noise;
-            let b = base_b + noise / 3;
-            pixels[(y * size + x) as usize] =
-                0xFF_00_00_00 | (r << 16) | (g << 8) | b;
         }
     }
     SpriteTile { pixels, width: size, height: size, category: TileCategory::Grass }
@@ -860,9 +842,9 @@ pub fn generate_water_tile(frame: u32) -> SpriteTile {
     for y in 0..size {
         for x in 0..size {
             let wave = ((x as u32).wrapping_mul(3 + frame) ^ (y as u32).wrapping_mul(5 + frame)) % 8;
-            let r = 30 + wave;
-            let g = 60 + wave * 3;
-            let b = 140 + wave * 5;
+            let r = 20 + wave;
+            let g = 40 + wave * 3;
+            let b = 100 + wave * 5;
             pixels[(y * size + x) as usize] =
                 0xFF_00_00_00 | (r << 16) | (g << 8) | b;
         }
@@ -875,7 +857,7 @@ pub fn generate_road_tile() -> SpriteTile {
     let mut pixels = vec![0u32; (size * size) as usize];
     for y in 0u32..size {
         for x in 0u32..size {
-            let v = 100 + ((x.wrapping_mul(3) ^ y.wrapping_mul(7)) % 8) as u32;
+            let v = 80 + ((x.wrapping_mul(3) ^ y.wrapping_mul(7)) % 10) as u32;
             pixels[(y * size + x) as usize] =
                 0xFF_00_00_00 | (v << 16) | (v << 8) | v;
         }
@@ -883,144 +865,38 @@ pub fn generate_road_tile() -> SpriteTile {
     SpriteTile { pixels, width: size, height: size, category: TileCategory::Road }
 }
 
-/// Genera un tile de edificio bonito: pared con ventanas, tejado triangular
-pub fn generate_building_tile(color: u32, _height_px: u32) -> SpriteTile {
+pub fn generate_building_tile(color: u32, height_px: u32) -> SpriteTile {
     let size = 16;
     let mut pixels = vec![0u32; (size * size) as usize];
-    let r = (color >> 16) & 0xFF;
-    let g = (color >> 8) & 0xFF;
-    let b = color & 0xFF;
-
-    // Tejado (rojo oscuro/terracota): filas 0-4 (triángulo)
-    let roof_r = (r as f32 * 0.65) as u32;
-    let roof_g = (g as f32 * 0.45) as u32;
-    let roof_b = (b as f32 * 0.40) as u32;
-pub fn generate_dirt_tile(variant: u32) -> SpriteTile {
-    let size = 16u32;
-    let mut pixels = vec![0u32; (size * size) as usize];
-    let base_r = 155 + (variant % 15) as u32;
-    let base_g = 130 + (variant % 12) as u32;
-    let base_b = 100 + (variant % 10) as u32;
-    for y in 0u32..size {
-        for x in 0u32..size {
-            let noise = ((x.wrapping_mul(11) ^ y.wrapping_mul(17)) % 18) as u32;
-            let r = base_r + noise / 2;
-            let g = base_g + noise / 2;
-            let b = base_b + noise / 3;
-            pixels[(y * size + x) as usize] =
-                0xFF_00_00_00 | (r << 16) | (g << 8) | b;
-        }
-    }
-    SpriteTile { pixels, width: size, height: size, category: TileCategory::Dirt }
-}
-
-pub fn generate_sand_tile(variant: u32) -> SpriteTile {
-    let size = 16u32;
-    let mut pixels = vec![0u32; (size * size) as usize];
-    let base_r = 210 + (variant % 12) as u32;
-    let base_g = 195 + (variant % 10) as u32;
-    let base_b = 150 + (variant % 8) as u32;
-    for y in 0u32..size {
-        for x in 0u32..size {
-            let noise = ((x.wrapping_mul(9) ^ y.wrapping_mul(15)) % 12) as u32;
-            let r = base_r + noise / 3;
-            let g = base_g + noise / 3;
-            let b = base_b + noise / 4;
-            pixels[(y * size + x) as usize] =
-                0xFF_00_00_00 | (r << 16) | (g << 8) | b;
-        }
-    }
-    SpriteTile { pixels, width: size, height: size, category: TileCategory::Sand }
-}
-
-    // Ventana (azul claro/amarillo cálido)
-    let win_r = 180u32;
-    let win_g = 210u32;
-    let win_b = 240u32;
-
-    // Puerta
-    let door_r = (r as f32 * 0.55) as u32;
-    let door_g = (g as f32 * 0.55) as u32;
-    let door_b = (b as f32 * 0.55) as u32;
-
-    for y in 0..size {
-        for x in 0..size {
-            let pixel = if y <= 4 {
-                // Tejado triangular: más estrecho arriba
-                let half_w = ((y as f32 / 4.0) * 7.0) as i32; // 0 en y=0, 7 en y=4
-                let cx = 7i32;
-                if x as i32 >= cx - half_w && x as i32 <= cx + half_w {
-                    // Tejado
-                    0xFF_00_00_00 | (roof_r << 16) | (roof_g << 8) | roof_b
-                } else if y == 4 {
-                    // Alero del tejado
-                    0xFF_00_00_00 | ((roof_r/2) << 16) | ((roof_g/2) << 8) | (roof_b/2)
-                } else {
-                    // Cielo/fondo transparente
-                    0x00_00_00_00
-                }
-            } else if y <= 14 {
-                // Paredes con ventanas
-                if x == 0 || x == 15 {
-                    // Borde oscuro (sombra)
-                    0xFF_00_00_00 | ((wall_r/2) << 16) | ((wall_g/2) << 8) | (wall_b/2)
-                } else if y >= 6 && y <= 9 && x >= 3 && x <= 5 {
-                    // Ventana izquierda
-                    0xFF_00_00_00 | (win_r << 16) | (win_g << 8) | win_b
-                } else if y >= 6 && y <= 9 && x >= 10 && x <= 12 {
-                    // Ventana derecha
-                    0xFF_00_00_00 | (win_r << 16) | (win_g << 8) | win_b
-                } else if y >= 11 && y <= 14 && x >= 6 && x <= 9 {
-                    // Puerta central
-                    0xFF_00_00_00 | (door_r << 16) | (door_g << 8) | door_b
-                } else {
-                    // Pared
-                    0xFF_00_00_00 | (wall_r << 16) | (wall_g << 8) | wall_b
-                }
-            } else {
-                // Base/suelo (gris)
-                let v = 60u32;
-                0xFF_00_00_00 | (v << 16) | (v << 8) | v
-            };
-            pixels[(y * size + x) as usize] = pixel;
-        }
-    }
-
-    SpriteTile { pixels, width: size as u32, height: size as u32, category: TileCategory::Building(BuildingTileStyle::Generic) }
-}
-
-/// Genera un tile de vehículo (coche pequeño visto desde arriba)
-pub fn generate_vehicle_tile(color: u32) -> SpriteTile {
-    let size = 16;
-    let mut pixels = vec![0u32; (size * size) as usize];
+    let roof_y = size - height_px;
     let r = (color >> 16) & 0xFF;
     let g = (color >> 8) & 0xFF;
     let b = color & 0xFF;
 
     for y in 0..size {
         for x in 0..size {
-            let pixel = if y >= 5 && y <= 11 && x >= 2 && x <= 13 {
-                // Cuerpo del coche
-                if x == 2 || x == 13 || y == 5 || y == 11 {
-                    // Borde más oscuro
-                    let dr = (r as f32 * 0.7) as u32;
-                    let dg = (g as f32 * 0.7) as u32;
-                    let db = (b as f32 * 0.7) as u32;
-                    0xFF_00_00_00 | (dr << 16) | (dg << 8) | db
-                } else if y >= 6 && y <= 8 && x >= 4 && x <= 6 {
-                    // Parabrisas delantero (azul claro)
-                    0xFF_00_00_00 | (180 << 16) | (210 << 8) | 240
-                } else if y >= 6 && y <= 8 && x >= 9 && x <= 11 {
-                    // Parabrisas trasero
-                    0xFF_00_00_00 | (150 << 16) | (180 << 8) | 210
+            let pixel = if y >= roof_y {
+                let shade = if x == 0 || x == size - 1 || y == roof_y {
+                    70
                 } else {
-                    0xFF_00_00_00 | (r << 16) | (g << 8) | b
-                }
+                    if (x / 4 + y / 4) % 2 == 0 && x > 1 && x < size - 2 && y > roof_y + 1 && y < size - 2 {
+                        255
+                    } else {
+                        100
+                    }
+                };
+                let sr = (r * shade / 255).min(255);
+                let sg = (g * shade / 255).min(255);
+                let sb = (b * shade / 255).min(255);
+                0xFF_00_00_00 | (sr << 16) | (sg << 8) | sb
             } else {
-                0x00_00_00_00
+                let sr = (r * 60 / 255).min(255);
+                let sg = (g * 60 / 255).min(255);
+                let sb = (b * 60 / 255).min(255);
+                0xFF_00_00_00 | (sr << 16) | (sg << 8) | sb
             };
             pixels[(y * size + x) as usize] = pixel;
         }
     }
-    SpriteTile { pixels, width: size as u32, height: size as u32, category: TileCategory::Vehicle }
+    SpriteTile { pixels, width: size, height: size, category: TileCategory::Building(BuildingTileStyle::Generic) }
 }

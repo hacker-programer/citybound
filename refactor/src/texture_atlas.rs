@@ -599,7 +599,7 @@ fn categorize_tile(
     corner_dark: u32,
     tile_size: u32,
     grid_row: u32,
-    _grid_col: u32,
+    grid_col: u32,
 ) -> TileCategory {
     let fill_ratio = pixel_count as f32 / (tile_size * tile_size) as f32;
 
@@ -761,11 +761,13 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
             let bpp = frame_info.buffer_size() as u32 / (width * height);
             if bpp >= 4 { 4 } else { 3 }
         }
+        _ => 4,
     };
 
     let pixel_count = (width * height) as usize;
     let mut pixels = vec![0u32; pixel_count];
     let row_bytes = frame_info.buffer_size() / height as usize;
+
     for y in 0..height as usize {
         let row_start = y * row_bytes;
         for x in 0..width as usize {

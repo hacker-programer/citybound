@@ -137,12 +137,14 @@ fn render_terrain_tiled(
 
     // Pre-seleccionar tiles base para cada tipo de terreno
     let grass_tile = atlas.categories.random_terrain(TerrainTileType::Grass, &mut || 0);
-    let dirt_tile = atlas.categories.random_terrain(TerrainTileType::Dirt, &mut || 0);
     let road_tile = atlas.categories.random_terrain(TerrainTileType::Road, &mut || 0);
     let sand_tile = atlas.categories.random_terrain(TerrainTileType::Sand, &mut || 0);
     let water_tile = atlas.categories.random_terrain(TerrainTileType::Water, &mut || 0);
 
     // Variantes para evitar repetición (mosaico)
+    let grass2 = if atlas.categories.grass.len() > 1 { atlas.categories.grass[1] } else { grass_tile };
+    let dirt2 = if atlas.categories.dirt.len() > 1 { atlas.categories.dirt[1] } else { dirt_tile };
+    let road2 = if atlas.categories.road.len() > 1 { atlas.categories.road[1] } else { road_tile };
     let grass2 = if atlas.categories.grass.len() > 1 { atlas.categories.grass[1] } else { grass_tile };
     let dirt2 = if atlas.categories.dirt.len() > 1 { atlas.categories.dirt[1] } else { dirt_tile };
 

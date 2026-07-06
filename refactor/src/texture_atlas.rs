@@ -341,14 +341,13 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
     let mut reader = decoder
         .read_info()
         .map_err(|e| format!("Error decodificando PNG {}: {}", path.display(), e))?;
-    let color_type = info.color_type;
-    // info se libera aquí automáticamente (es una referencia, no necesita drop explícito)
-    let output_buffer_size = reader.output_buffer_size();
-    // Drop the immutable borrow on reader before calling next_frame
-    let output_buffer_size = reader.output_buffer_size();
-    drop(info);
 
-    // Configurar transformaciones para obtener RGBA
+    let info = reader.info();
+    let (width, height) = (info.width, info.height);
+    let color_type = info.color_type;
+    // info es una referencia, se libera automáticamente al salir de scope
+
+    let output_buffer_size = reader.output_buffer_size();
     let mut buf = vec![0u8; output_buffer_size];
     let frame_info = reader
         .next_frame(&mut buf)
@@ -364,7 +363,6 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
     };
 
     // La salida del decoder ya está expandida a RGBA si usamos las transformaciones adecuadas
-    // pero para simplificar, leemos los bytes manualmente
     let pixel_count = (width * height) as usize;
     let mut pixels = vec![0u32; pixel_count];
 

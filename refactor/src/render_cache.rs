@@ -10,8 +10,8 @@
 // - vehicle_sprite: sprite de coche aleatorio del atlas
 
 use crate::ecs::{BuildingType, ZoneType, Position, Renderable, ZoneComponent, ConstructionState, TrafficCar};
-use crate::texture_atlas::{TextureAtlas, TileCategory, BuildingTileStyle, TerrainTileType};
-
+use crate::ecs::{BuildingType, ZoneType, Position, Renderable, ZoneComponent, ConstructionState, TrafficCar};
+use crate::texture_atlas::{TextureAtlas, BuildingTileStyle};
 pub const LAYER_TERRAIN: u8 = 0;
 pub const LAYER_ZONES: u8 = 1;
 pub const LAYER_BUILDINGS: u8 = 2;

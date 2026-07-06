@@ -935,8 +935,8 @@ fn fill_triangle(fb: &mut [u32], fb_w: usize, fb_h: usize,
     let h = size;
     let hw = size / 2;
     for row in 0..h {
+        let row_w = (row * hw * 2 / h.max(1)) as i32;
         let y = cy - h / 2 + row;
-        if y < 0 || y >= fb_h as i32 { continue; }
         let x0 = (cx - row_w / 2).max(0);
         let x1 = (cx + row_w / 2).min(fb_w as i32);
         if x0 < x1 {

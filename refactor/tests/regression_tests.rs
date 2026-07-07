@@ -16,13 +16,12 @@
 // B10: is_key_released inexistente
 // B11: GameWorld vs Box<GameWorld> mismatch
 
-use citybound_native::ecs;
-use citybound_native::sim;
-use citybound_native::luts;
-use citybound_native::rng_pool;
-use citybound_native::object_pool::EntityPool;
-use citybound_native::flow_field;
-use citybound_native::bitboard;
+use rycimmu::ecs;
+use rycimmu::sim;
+use rycimmu::luts;
+use rycimmu::rng_pool;
+use rycimmu::object_pool::EntityPool;
+use rycimmu::bitboard;
 
 fn init_all() {
     luts::init_trig_luts();
@@ -37,7 +36,7 @@ fn init_all() {
 fn reg_b1_terrain_height_at_exists() {
     init_all();
     let mut pool = EntityPool::new(100);
-    let gw = ecs::create_world(&mut pool);
+    let mut gw = ecs::create_world(&mut pool);
 
     // Verificar que height_at existe y retorna valores v�lidos
     let h = gw.terrain.height_at(64.0, 64.0);
@@ -71,7 +70,7 @@ fn reg_b2_single_road_wear_per_tick() {
 
     // Contar celdas que cambiaron
     let changed = initial_wear.iter().zip(after_one_tick.iter())
-        .filter(|(a, b)| (a - b).abs() > f32::EPSILON)
+        .filter(|(a, b)| (*a - *b).abs() > f32::EPSILON)
         .count();
 
     // El desgaste debe ser razonable (no el doble)
@@ -86,7 +85,7 @@ fn reg_b2_single_road_wear_per_tick() {
 #[test]
 fn reg_b3_spatial_grid_rebuild_uses_real_bits() {
     let mut pool = EntityPool::new(100);
-    let gw = ecs::create_world(&mut pool);
+    let mut gw = ecs::create_world(&mut pool);
 
     // Verificar que el grid no est� vac�o de entidades
     let total: usize = gw.spatial_grid.cells.iter()
@@ -119,7 +118,7 @@ fn reg_b4_blit_scaled_uses_step_x() {
     let src_h = 16;
     let src: Vec<u32> = (0..src_w * src_h).map(|i| {
         let x = i % src_w;
-        let y = i / src_w;
+        let _y = i / src_w;
         if x < 8 { 0xFF_FF_00_00 } else { 0xFF_00_00_FF }
     }).collect();
 
@@ -128,7 +127,7 @@ fn reg_b4_blit_scaled_uses_step_x() {
     let mut fb = vec![0u32; dst_w * dst_h];
 
     unsafe {
-        citybound_native::simd_render::blit_scaled(
+        rycimmu::simd_render::blit_scaled(
             &mut fb, dst_w, dst_h,
             0, 0, dst_w as i32, dst_h as i32,
             &src, src_w, src_h,
@@ -136,7 +135,7 @@ fn reg_b4_blit_scaled_uses_step_x() {
     }
 
     // Verificar que la mitad izquierda es roja y la derecha azul
-    let mid = dst_w / 2;
+    let _mid = dst_w / 2;
     let left_pixel = fb[0];
     let right_pixel = fb[dst_w - 1];
 
@@ -160,12 +159,12 @@ fn reg_b5_tax_collection_accepts_slice() {
 
     // Crear un slice de land values del tama�o correcto
     let land_values: Vec<f32> = vec![1000.0; 128 * 128];
-    let slice: &[f32] = &land_values;
+    let _slice: &[f32] = &land_values;
 
     // Si compila, el fix B5 funciona (acepta slice en vez de array fijo)
     // B5 bug: collect_taxes requires &[f32; 128*128], not &[f32]
     let arr: [f32; 16384] = land_values.try_into().unwrap();
-    citybound_native::tax_system::collect_taxes(&mut gw, &arr);
+    rycimmu::tax_system::collect_taxes(&mut gw, &arr);
 
     // Verificar que la recaudaci�n ocurri� (treasury o revenue cambiaron)
     assert!(gw.finance.treasury >= 0.0);
@@ -179,7 +178,7 @@ fn reg_b5_tax_collection_accepts_slice() {
 fn reg_b6_flow_field_negative_coordinates() {
     init_all();
     let mut pool = EntityPool::new(100);
-    let gw = ecs::create_world(&mut pool);
+    let mut gw = ecs::create_world(&mut pool);
 
     // Coordenadas negativas que antes causaban panic
     let test_coords = [
@@ -216,8 +215,8 @@ fn reg_b8_bitboard64_accessible_in_tests() {
 
 #[test]
 fn reg_b10_input_state_key_released() {
-    let mut state = citybound_native::input::InputState::default();
-    use citybound_native::input::GameKey;
+    let mut state = rycimmu::input::InputState::default();
+    use rycimmu::input::GameKey;
 
     // Simular tecla soltada
     state.keys_released = 1u128 << (GameKey::Escape as u8);
@@ -248,7 +247,7 @@ fn reg_persistence_no_double_tick_assignment() {
     let mut gw = ecs::create_world(&mut pool);
 
     // Guardar
-    let save = citybound_native::persistence::SaveData::from_world(&gw);
+    let save = rycimmu::persistence::SaveData::from_world(&gw);
 
     // Restaurar en nuevo mundo
     let mut pool2 = EntityPool::new(1000);

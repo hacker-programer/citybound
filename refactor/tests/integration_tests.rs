@@ -1,14 +1,14 @@
-// Tests de integración para Citybound Native v0.5.0
+﻿// Tests de integración para Rycimmu v0.5.0
 //
 // Verifica que los sistemas funcionan correctamente juntos.
 
 #[cfg(test)]
 mod integration_tests {
-    use citybound_native::ecs;
-    use citybound_native::object_pool::EntityPool;
-    use citybound_native::sim;
-    use citybound_native::luts;
-    use citybound_native::rng_pool;
+    use rycimmu::ecs;
+    use rycimmu::object_pool::EntityPool;
+    use rycimmu::sim;
+    use rycimmu::luts;
+    use rycimmu::rng_pool;
 
     fn init_all_systems() {
         luts::init_trig_luts();
@@ -95,7 +95,7 @@ mod integration_tests {
         }
 
         let mut fb = vec![0xFF_1A_1A_2Eu32; 800 * 600];
-        citybound_native::render::render_world(&gw, &mut fb, 800, 600);
+        rycimmu::render::render_world(&gw, &mut fb, 800, 600);
 
         let modified = fb.iter().any(|&p| p != 0xFF_1A_1A_2E);
         assert!(modified, "Framebuffer debe tener píxeles dibujados");
@@ -159,7 +159,7 @@ mod integration_tests {
 
         for (w, h) in [(800, 600), (400, 300)] {
             let mut fb = vec![0xFF_1A_1A_2Eu32; w * h];
-            citybound_native::render::render_world(&gw, &mut fb, w, h);
+            rycimmu::render::render_world(&gw, &mut fb, w, h);
         }
     }
 

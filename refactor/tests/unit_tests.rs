@@ -1,28 +1,28 @@
-// Tests unitarios para Citybound Native
+﻿// Tests unitarios para Rycimmu
 //
-// Cubre todos los módulos:
-// - luts (trigonometría)
+// Cubre todos los mÃ³dulos:
+// - luts (trigonometrÃ­a)
 // - object_pool
 // - bump_alloc
 // - ecs (componentes, world)
-// - sim (tiempo, tráfico, economía)
+// - sim (tiempo, trÃ¡fico, economÃ­a)
 // - render (dibujo, paleta)
 
 #[cfg(test)]
 mod tests {
-    // Los tests están en cada módulo respectivo con #[cfg(test)]
-    // Este archivo ejecuta tests de integración adicionales
+    // Los tests estÃ¡n en cada mÃ³dulo respectivo con #[cfg(test)]
+    // Este archivo ejecuta tests de integraciÃ³n adicionales
 
     #[test]
     fn test_full_pipeline() {
         // Verificar que todo el pipeline funciona junto
-        // (Este es un smoke test de integración)
+        // (Este es un smoke test de integraciÃ³n)
         let result = std::panic::catch_unwind(|| {
             // Inicializar LUTs
-            citybound_native::luts::init_trig_luts();
+            rycimmu::luts::init_trig_luts();
 
             // Crear object pool
-            let mut pool = citybound_native::object_pool::EntityPool::new(100);
+            let mut pool = rycimmu::object_pool::EntityPool::new(100);
 
             // Adquirir y liberar entidades
             let h = pool.acquire();
@@ -30,7 +30,7 @@ mod tests {
             pool.release(h);
 
             // Verificar bump allocator
-            let bump = citybound_native::bump_alloc::BumpAllocator::new();
+            let bump = rycimmu::bump_alloc::BumpAllocator::new();
             bump.reset();
         });
 
@@ -39,22 +39,22 @@ mod tests {
 
     #[test]
     fn test_luts_integration() {
-        citybound_native::luts::init_trig_luts();
+        rycimmu::luts::init_trig_luts();
 
-        // Verificar identidad fundamental en varios ángulos
+        // Verificar identidad fundamental en varios Ã¡ngulos
         for i in 0..36 {
             let angle = (i as f32) * std::f32::consts::PI / 18.0;
-            let sin_val = citybound_native::luts::sin_fast(angle);
-            let cos_val = citybound_native::luts::cos_fast(angle);
+            let sin_val = rycimmu::luts::sin_fast(angle);
+            let cos_val = rycimmu::luts::cos_fast(angle);
             let identity = sin_val * sin_val + cos_val * cos_val;
             assert!((identity - 1.0).abs() < 0.01,
-                "sin²+cos² debe ser 1, fue {} en ángulo {}", identity, angle);
+                "sinÂ²+cosÂ² debe ser 1, fue {} en Ã¡ngulo {}", identity, angle);
         }
     }
 
     #[test]
     fn test_object_pool_stress() {
-        let mut pool = citybound_native::object_pool::EntityPool::new(10000);
+        let mut pool = rycimmu::object_pool::EntityPool::new(10000);
 
         // Adquirir todas
         let mut handles = Vec::with_capacity(10000);
@@ -63,7 +63,7 @@ mod tests {
         }
 
         // Debe estar lleno
-        assert_eq!(pool.acquire(), citybound_native::object_pool::PoolHandle::INVALID);
+        assert_eq!(pool.acquire(), rycimmu::object_pool::PoolHandle::INVALID);
 
         // Liberar la mitad
         for i in 0..5000 {
@@ -76,12 +76,12 @@ mod tests {
         }
 
         // Lleno otra vez
-        assert_eq!(pool.acquire(), citybound_native::object_pool::PoolHandle::INVALID);
+        assert_eq!(pool.acquire(), rycimmu::object_pool::PoolHandle::INVALID);
     }
 
     #[test]
     fn test_sim_time_consistency() {
-        use citybound_native::sim;
+        use rycimmu::sim;
 
         assert_eq!(sim::formatted_time(0), "00:00");
         assert_eq!(sim::formatted_time(7 * 60), "07:00");
@@ -91,12 +91,12 @@ mod tests {
 
     #[test]
     fn test_render_colors() {
-        use citybound_native::render;
-        // Verificar que los colores son ARGB válidos
+        use rycimmu::render;
+        // Verificar que los colores son ARGB vÃ¡lidos
         let colors = [
             render::COLOR_GRASS,
             render::COLOR_DIRT,
-            render::COLOR_ROAD,
+            render::COLOR_CAR,
             render::COLOR_WATER,
         ];
         for color in &colors {

@@ -1,0 +1,75 @@
+﻿cargo :     Checking citybound_native v0.17.0 (C:\Users\Fa\Desktop\IAF\citybound\refactor)
+En línea: 1 Carácter: 51
++ ... :\Users\Fa\Desktop\IAF\citybound\refactor" ; cargo check 2>&1 | Out-F ...
++                                                  ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Checking ci...bound\refactor):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+error: expected one of `!` or `::`, found `archivo`
+   --> src\ecs.rs:131:4
+    |
+131 | El archivo se corrompi├│ otra vez. Necesito restaurar la secci├│n da├▒ada:
+    |    ^^^^^^^ expected one of `!` or `::`
+
+error: unknown start of token: `
+ --> src\sim.rs:1:52
+  |
+1 | El archivo se volvi├│ a corromper. Voy a reescribir `sim.rs` completo para restaurarlo:
+  |                                                    ^
+  |
+help: Unicode character '`' (Grave Accent) looks like ''' (Single Quote), but it is not
+  |
+1 - El archivo se volvi├│ a corromper. Voy a reescribir `sim.rs` completo para restaurarlo:
+1 + El archivo se volvi├│ a corromper. Voy a reescribir 'sim.rs` completo para restaurarlo:
+  |
+
+error: unknown start of token: `
+ --> src\sim.rs:1:59
+  |
+1 | El archivo se volvi├│ a corromper. Voy a reescribir `sim.rs` completo para restaurarlo:
+  |                                                           ^
+  |
+help: Unicode character '`' (Grave Accent) looks like ''' (Single Quote), but it is not
+  |
+1 - El archivo se volvi├│ a corromper. Voy a reescribir `sim.rs` completo para restaurarlo:
+1 + El archivo se volvi├│ a corromper. Voy a reescribir `sim.rs' completo para restaurarlo:
+  |
+
+error: expected one of `!` or `::`, found `archivo`
+ --> src\sim.rs:1:4
+  |
+1 | El archivo se volvi├│ a corromper. Voy a reescribir `sim.rs` completo para restaurarlo:
+  |    ^^^^^^^ expected one of `!` or `::`
+
+warning: unused variable: `grid_col`
+   --> src\texture_atlas.rs:602:5
+    |
+602 |     grid_col: u32,
+    |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_grid_col`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unreachable pattern
+   --> src\texture_atlas.rs:764:9
+    |
+764 |         _ => 4,
+    |         ^ no value can reach this
+    |
+note: multiple earlier patterns match some of the same values
+   --> src\texture_atlas.rs:764:9
+    |
+756 |         png::ColorType::Rgba => 4,
+    |         -------------------- matches some of the same values
+757 |         png::ColorType::Rgb => 3,
+    |         ------------------- matches some of the same values
+758 |         png::ColorType::GrayscaleAlpha => 2,
+    |         ------------------------------ matches some of the same values
+759 |         png::ColorType::Grayscale => 1,
+    |         ------------------------- matches some of the same values
+...
+764 |         _ => 4,
+    |         ^ ...and 1 other patterns collectively make this unreachable
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: `citybound_native` (lib) generated 2 warnings
+error: could not compile `citybound_native` (lib) due to 4 previous errors; 2 warnings emitted

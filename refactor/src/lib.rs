@@ -1,4 +1,4 @@
-// Citybound Native - Biblioteca central v0.16.0 [FASE 8: TEXTURAS Y SPRITES]
+// Citybound Native - Biblioteca central v0.17.0 [FASE 8: TEXTURAS Y SPRITES]
 //
 // Re-exporta todos los módulos públicos para uso en main.rs y tests.
 //

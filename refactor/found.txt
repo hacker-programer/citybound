@@ -1,0 +1,8 @@
+
+FullName                                                                                 Length
+--------                                                                                 ------
+C:\Users\Fa\Desktop\IAF\citybound\target\debug\.fingerprint\citybound-82542df84015c290         
+C:\Users\Fa\Desktop\IAF\citybound\target\debug\.fingerprint\citybound-c48fc0e2c6777a20         
+C:\Users\Fa\Desktop\IAF\citybound\target\release\.fingerprint\citybound-82542df84015c290       
+
+

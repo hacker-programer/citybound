@@ -1,0 +1,23 @@
+══════════════════════════════════════════════════
+  Citybound Native v0.15.0 — City Builder Realista
+  Plataforma: Windows | x86_64
+  GPU API: DirectX 12 | Tier: IntegratedGpu (nivel 1)
+  Compute Shaders: NO | Max Textures: 32
+══════════════════════════════════════════════════
+Red de carriles: 28 carriles, 6 intersecciones
+══════════════════════════════════════════════════
+  🖥️  Citybound Hardware Detectado:
+     GPU API:       DirectX 12
+     Tier:          IntegratedGpu (nivel 1)
+     CPU cores:     2
+     VRAM:          2048 MB
+     Resolución:    800x600 @ 75%
+     Compute:       NO
+     MSAA:          1x
+     Max Texturas:  1024x1024
+     LOD Distance:  400
+     SSAO:          NO
+     Sombras:       Estáticas
+══════════════════════════════════════════════════
+[OK] Mundo creado: 1942 entidades
+[OK] GPU Backend: CPU SIMD (Tier 1)

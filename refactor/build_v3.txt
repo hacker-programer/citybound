@@ -1,0 +1,87 @@
+    Checking citybound_native v0.16.0 (C:\Users\Fa\Desktop\IAF\citybound\refactor)
+warning: unused imports: `Position`, `ZoneComponent`, and `ZoneType`
+  --> src\render.rs:18:68
+   |
+18 | use crate::ecs::{GameWorld, Camera, ConstructionState, TrafficCar, Position, ZoneComponent, ZoneType};
+   |                                                                    ^^^^^^^^  ^^^^^^^^^^^^^  ^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `TerrainTileType`
+  --> src\render.rs:19:42
+   |
+19 | use crate::texture_atlas::{TextureAtlas, TerrainTileType};
+   |                                          ^^^^^^^^^^^^^^^
+
+warning: unused variable: `w_i32`
+   --> src\render.rs:192:9
+    |
+192 |     let w_i32 = w as i32;
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_w_i32`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `h_i32`
+   --> src\render.rs:193:9
+    |
+193 |     let h_i32 = h as i32;
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_h_i32`
+
+warning: unused variable: `grid_size`
+   --> src\render.rs:194:9
+    |
+194 |     let grid_size = gw.grid_size as f32;
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_grid_size`
+
+warning: unused variable: `half`
+   --> src\render.rs:375:9
+    |
+375 |     let half = size / 2;
+    |         ^^^^ help: if this is intentional, prefix it with an underscore: `_half`
+
+warning: unused variable: `third`
+   --> src\render.rs:376:9
+    |
+376 |     let third = size / 3;
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_third`
+
+warning: unused variable: `quarter`
+   --> src\render.rs:377:9
+    |
+377 |     let quarter = size / 4;
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_quarter`
+
+warning: unused variable: `base_y`
+   --> src\render.rs:466:9
+    |
+466 |     let base_y = cy - hw + roof_h;
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_base_y`
+
+warning: unused variable: `tiles_per_row`
+   --> src\texture_atlas.rs:236:13
+    |
+236 |         let tiles_per_row = (img_w + margin) / stride;
+    |             ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_tiles_per_row`
+
+warning: unused variable: `tiles_per_col`
+   --> src\texture_atlas.rs:237:13
+    |
+237 |         let tiles_per_col = (img_h + margin) / stride;
+    |             ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_tiles_per_col`
+
+warning: function `fill_circle` is never used
+   --> src\render.rs:914:4
+    |
+914 | fn fill_circle(fb: &mut [u32], fb_w: usize, fb_h: usize,
+    |    ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `fill_triangle` is never used
+   --> src\render.rs:935:4
+    |
+935 | fn fill_triangle(fb: &mut [u32], fb_w: usize, fb_h: usize,
+    |    ^^^^^^^^^^^^^
+
+warning: `citybound_native` (lib) generated 13 warnings (run `cargo fix --lib -p citybound_native` to apply 11 suggestions)
+    Finished `dev` profile [optimized + debuginfo] target(s) in 6.09s

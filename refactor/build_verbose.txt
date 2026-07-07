@@ -1,0 +1,102 @@
+       Fresh unicode-ident v1.0.24
+       Fresh proc-macro2 v1.0.106
+       Fresh find-msvc-tools v0.1.9
+       Fresh shlex v2.0.1
+       Fresh cc v1.2.65
+       Fresh quote v1.0.46
+       Fresh cfg-if v1.0.4
+       Fresh syn v2.0.118
+       Fresh windows_x86_64_msvc v0.52.6
+       Fresh version_check v0.9.5
+       Fresh crossbeam-utils v0.8.21
+       Fresh windows-targets v0.52.6
+       Fresh simd-adler32 v0.3.9
+       Fresh crossbeam-epoch v0.9.18
+       Fresh windows-result v0.1.2
+       Fresh zerocopy v0.8.52
+       Fresh adler2 v2.0.1
+       Fresh once_cell v1.21.4
+       Fresh ahash v0.8.12
+       Fresh miniz_oxide v0.8.9
+       Fresh windows-core v0.54.0
+       Fresh crossbeam-deque v0.8.6
+       Fresh serde_core v1.0.228
+       Fresh crc32fast v1.5.0
+       Fresh serde_derive v1.0.228
+       Fresh flate2 v1.1.9
+       Fresh serde v1.0.228
+       Fresh rayon-core v1.13.0
+       Fresh windows v0.54.0
+       Fresh winapi v0.3.9
+       Fresh hashbrown v0.14.5
+       Fresh libc v0.2.186
+       Fresh fdeflate v0.3.7
+       Fresh bytemuck_derive v1.10.2
+       Fresh rand_core v0.6.4
+       Fresh bitflags v1.3.2
+       Fresh raw-window-handle v0.6.2
+       Fresh dasp_sample v0.11.0
+       Fresh either v1.16.0
+       Fresh adler v1.0.2
+       Fresh spin v0.9.8
+       Fresh miniz_oxide v0.7.4
+       Fresh hecs v0.10.5
+       Fresh rayon v1.12.0
+       Fresh cpal v0.15.3
+       Fresh minifb v0.27.0
+       Fresh png v0.17.16
+       Fresh bytemuck v1.25.0
+       Fresh rand v0.8.6
+       Fresh sys-info v0.9.1
+       Fresh bincode v1.3.3
+       Fresh libm v0.2.16
+       Fresh num_cpus v1.17.0
+       Fresh arrayvec v0.7.7
+       Fresh smallvec v1.15.2
+warning: unused imports: `BuildingType` and `Renderable`
+  --> src\render.rs:18:29
+   |
+18 | use crate::ecs::{GameWorld, Renderable, Camera, ConstructionState, BuildingType, TrafficCar};
+   |                             ^^^^^^^^^^                             ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `road_tile`
+   --> src\render.rs:136:9
+    |
+136 |     let road_tile = atlas.categories.random_terrain(TerrainTileType::Road, &mut || 0);
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_road_tile`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `grid_col`
+   --> src\texture_atlas.rs:602:5
+    |
+602 |     grid_col: u32,
+    |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_grid_col`
+
+warning: unreachable pattern
+   --> src\texture_atlas.rs:764:9
+    |
+764 |         _ => 4,
+    |         ^ no value can reach this
+    |
+note: multiple earlier patterns match some of the same values
+   --> src\texture_atlas.rs:764:9
+    |
+756 |         png::ColorType::Rgba => 4,
+    |         -------------------- matches some of the same values
+757 |         png::ColorType::Rgb => 3,
+    |         ------------------- matches some of the same values
+758 |         png::ColorType::GrayscaleAlpha => 2,
+    |         ------------------------------ matches some of the same values
+759 |         png::ColorType::Grayscale => 1,
+    |         ------------------------- matches some of the same values
+...
+764 |         _ => 4,
+    |         ^ ...and 1 other patterns collectively make this unreachable
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: `citybound_native` (lib) generated 4 warnings (run `cargo fix --lib -p citybound_native` to apply 3 suggestions)
+       Fresh citybound_native v0.16.0 (C:\Users\Fa\Desktop\IAF\citybound\refactor)
+    Finished `dev` profile [optimized + debuginfo] target(s) in 1.09s

@@ -1,0 +1,88 @@
+﻿// Rycimmu - Biblioteca central v0.18.0 [FASE 8: TEXTURAS Y SPRITES]
+//
+// Inspirado por Citybound de Anselm Eickhoff — implementación 100% independiente.
+//
+// Re-exporta todos los módulos públicos para uso en main.rs y tests.
+//
+// Arquitectura:
+// - ecs: Entity Component System (hecs)
+// - sim: Sistemas de simulación (tiempo, tráfico, economía, suelo)
+// - render: Renderizado software al framebuffer (con SIMD) + RenderCache
+// - texture_atlas: Atlas de texturas con sprites PNG pre-extraídos [v0.16]
+// - gpu_backend: Aceleración GPU adaptativa [FASE 8]
+//   * Detecta hardware: Tier 0(CPU) a Tier 3(High-end GPU)
+//   * Atlas de texturas combinado
+//   * Pool de comandos de render preasignados
+//   * Alpha blending rápido sin branch
+// - render_cache: Pre-sort estático de entidades por capa
+// - luts: Look-up tables trigonométricas precalculadas
+// - object_pool: Pool de entidades preasignadas
+// - bump_alloc: Bump allocator por frame
+// - input: Manejo de input con debounce
+// - terrain: Mapa de terreno con ruido Perlin pre-generado
+// - quadtree: Quadtree espacial
+// - simd_render: Framebuffer SIMD autovectorizado [SSE2]
+// - rng_pool: RNG pre-generado [TC#22]
+// - flow_field: Flow fields para pathfinding O(1) [TA#7]
+// - bitboard: Bitboards para colisiones en grilla [TI#6]
+// - audio: Audio procedural con cpal [FASE 7]
+// - traffic_lanes: Tráfico con carriles A/B Street [#361]
+// - interactive: Herramienta de diseño urbano [#392]
+// - supply_chain: Cadena de suministro física [M#1]
+// - land_value: Valor del suelo y gentrificación [M#2]
+// - utilities: Propagación de agua/electricidad [M#3]
+// - road_wear: Desgaste de infraestructura [M#4]
+// - labor_market: Mercado laboral [M#5]
+// - tax_system: Impuestos milimétricos y bonos [M#6]
+// - parking: Estacionamiento físico y HOA [M#7]
+// - waste_mgmt: Clasificación de basura [M#8]
+// - customization: Personalización visual de edificios [M#9]
+// - politics: NIMBY, sindicatos, elecciones [M#10]
+// - climate: Ciclo día/noche con color grading [FASE 7]
+// - persistence: Save/Load con bincode [FASE 7]
+// - financial_market: Mercado financiero [v0.12]
+// - buildings: Catálogo de edificios distópicos [v0.12]
+// - pedestrian: Modelo de fuerzas sociales para peatones [v0.12]
+// - judicial: Sistema judicial [v0.12]
+
+pub mod ecs;
+pub mod sim;
+pub mod render;
+pub mod render_cache;
+pub mod texture_atlas;
+pub mod luts;
+pub mod object_pool;
+pub mod bump_alloc;
+pub mod input;
+pub mod terrain;
+pub mod quadtree;
+pub mod simd_render;
+pub mod rng_pool;
+pub mod flow_field;
+pub mod bitboard;
+pub mod audio;
+pub mod traffic_lanes;
+pub mod interactive;
+pub mod supply_chain;
+pub mod land_value;
+pub mod utilities;
+pub mod road_wear;
+pub mod labor_market;
+pub mod tax_system;
+pub mod platform;
+pub mod parking;
+pub mod waste_mgmt;
+pub mod customization;
+pub mod politics;
+pub mod financial_market;
+pub mod buildings;
+pub mod pedestrian;
+pub mod judicial;
+pub mod climate;
+pub mod persistence;
+
+// [FASE 8] GPU Backend Adaptativo
+pub mod gpu_backend;
+
+// [FASE 8] Shaders pre-compilados WGSL
+pub mod shaders;

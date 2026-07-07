@@ -1,4 +1,4 @@
-// Sistema de Clasificación de Basura Brutal
+﻿// Sistema de Clasificación de Basura Brutal
 //
 // Implementa:
 // - Residuos orgánicos (generan gas metano si no se ventilan)
@@ -408,7 +408,7 @@ mod tests {
         let mut plant = RecyclingPlant::new(0.0, 0.0, 100.0);
         plant.processed_this_tick = 100.0;
         plant.total_revenue += 100.0 * plant.revenue_per_kg;
-        assert_eq!(plant.total_revenue, 15.0);
+        assert!((plant.total_revenue - 15.0).abs() < 0.001, "revenue_per_kg=0.15, got={}", plant.total_revenue);
     }
 
     #[test]

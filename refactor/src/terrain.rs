@@ -1,4 +1,4 @@
-// Módulo de Terreno con Ruido Perlin Pre-generado
+﻿// Módulo de Terreno con Ruido Perlin Pre-generado
 //
 // TÉCNICA COMÚN #14: Pre-generación de Ruido Perlin (Texture Baking)
 // Generamos el mapa de altura del terreno durante la carga y lo almacenamos
@@ -221,8 +221,7 @@ mod tests {
         let h1 = terrain.height_at(64.0, 64.0);
         let h2 = terrain.height_at(64.5, 64.5);
         assert!((h1 - h2).abs() < 0.1, "Interpolación debe ser suave");
-Ahora aplico todas las correcciones usando `write_file_with_commit` con rangos de línea precisos:
-
+    }
     #[test]
     fn test_terrain_types_variety() {
         let terrain = TerrainMap::generate(42);

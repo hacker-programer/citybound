@@ -1,4 +1,4 @@
-// Climate & Day/Night System v0.10 [FASE 7]
+﻿// Climate & Day/Night System v0.10 [FASE 7]
 //
 // Ciclo día/noche visual con color grading sobre el framebuffer.
 // 
@@ -55,9 +55,9 @@ fn get_day_night_params(time_fraction: f32) -> (f32, f32, f32, f32) {
     // Noche: 20:00-5:00
     else {
         let t = if time_fraction >= 20.0 {
-            (time_fraction - 20.0) / 9.0 // 0→1 (20h→5h = 9h)
+            (time_fraction - 20.0) / 8.0 // 0→0.5 (20h→24h = 4h)
         } else {
-            (time_fraction + 4.0) / 9.0 // 0→1 (0h→5h)
+            0.5 + time_fraction / 10.0 // 0.5→1.0 (0h→5h = 5h)
         };
         let darkness = 0.5 + 0.3 * (1.0 - (t - 0.5).abs() * 2.0); // más oscuro en medianoche
         (0.15, 0.18, 0.35 + 0.15 * (1.0 - darkness), darkness)
@@ -87,8 +87,6 @@ unsafe fn apply_color_grading(fb: &mut [u32], width: usize, height: usize,
     }
 }
 
-
-#[cfg(not(target_arch = "x86_64"))]
 
 #[cfg(not(target_arch = "x86_64"))]
 unsafe fn apply_color_grading(fb: &mut [u32], _width: usize, _height: usize, 

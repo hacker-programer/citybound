@@ -1,4 +1,4 @@
-// Sistema de Mercado Financiero v0.12.0
+﻿// Sistema de Mercado Financiero v0.12.0
 //
 // Implementa el mercado financiero completo:
 // - Bolsa de valores (acciones de corporaciones locales)
@@ -93,9 +93,9 @@ impl CreditAgency {
     pub fn evaluate(
         &mut self,
         current_tick: u32,
-        treasury: f64,
-        total_debt: f64,
-        annual_revenue: f64,
+        treasury: f32,
+        total_debt: f32,
+        annual_revenue: f32,
         social_spending_ratio: f32,
         debt_service_ratio: f32,
         corporate_tax_rate: f32,
@@ -494,7 +494,7 @@ pub struct FinancialReport {
     pub credit_rating: CreditRating,
     pub water_spot_price: f32,
     pub stock_index: f32,
-    pub total_debt: f64,
+        total_debt: f32,
     pub lending_rate: f32,
     pub inflation: f32,
 }

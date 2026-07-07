@@ -1,4 +1,4 @@
-// Cadenas de Suministro Físicas
+﻿// Cadenas de Suministro Físicas
 //
 // MECÁNICA #1: Física del Capitalismo
 //

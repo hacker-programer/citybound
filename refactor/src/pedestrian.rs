@@ -1,4 +1,4 @@
-// Módulo de Simulación Peatonal v0.11.0
+﻿// Módulo de Simulación Peatonal v0.11.0
 //
 // Basado en el Social Force Model de Helbing & Molnár (1995).
 // Modela peatones como agentes con fuerzas de destino, repulsión
@@ -535,14 +535,22 @@ mod tests {
         assert!(hour_factor(18.0) > 0.9); // hora pico PM
     }
 
-Ahora tengo el diagnóstico completo de los 5 tests fallidos. Procedo a corregirlos de raíz:
-
-**Diagnóstico de fallos:**
-1. **pedestrian** — `should_cross` es correcto, el test usa valores irreales (`required_gap = 28 > 20`)
-2. **supply_chain** — `find()` puede devolver entidades distintas en cada query (orden no determinista en hecs)
-3. **terrain** — El test asume suavidad 0.1 entre puntos a 0.5 de distancia con ruido Perlin
-4. **utilities** — La propagación solo itera 8 veces, no alcanza el centro (distancia Manhattan = 32)
-5. **waste_mgmt** — Error de precisión flotante (`15.000001 ≠ 15.0`)
+    #[test]
+    fn test_should_cross_with_light() {
+        // Caso 1: gap suficiente con luz verde — DEBE cruzar
+        // time_to_cross=6/1.34=4.48s, required=4.48*8*1.5=53.7m, 55>53.7
+        assert!(should_cross(0.0, 0.0, 55.0, 8.0, true, true, 6.0),
+            "Con gap 55m y luz verde debe cruzar");
+        // Caso 2: gap insuficiente con luz verde — NO debe cruzar
+        // time_to_cross=15/1.34=11.19s, required=11.19*8*1.5=134.3m, 3<134.3
+        assert!(!should_cross(0.0, 0.0, 3.0, 8.0, true, true, 15.0),
+            "Con gap 3m no debe cruzar aunque esté verde");
+        // Caso 3: semáforo rojo con gap enorme — cruza por jaywalking
+        // required_gap con rojo = normal*3. Con 200m y calle 6m:
+        // time=6/1.34=4.48, required=4.48*8*1.5*3=161.3m, 200>161.3
+        assert!(should_cross(0.0, 0.0, 200.0, 8.0, true, false, 6.0),
+            "Con semáforo rojo y gap 200m debe cruzar");
+    }
 
     #[test]
     fn test_tick_moves_toward_destination() {

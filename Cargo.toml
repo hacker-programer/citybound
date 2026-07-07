@@ -1,4 +1,4 @@
-[package]
+﻿[package]
 name = "citybound"
 version = "0.3.0"
 authors = ["Anselm Eickhoff <anselm.eickhoff@gmail.com>"]
@@ -16,9 +16,6 @@ exclude = [
 ]
 
 [[bin]]
-name = "citybound"
-path = "./cb_server/main.rs"
-
 [dependencies]
 rouille = {version = "2.1.0", default-features = false}
 clap = "2.32.0"
@@ -39,3 +36,50 @@ codegen-units = 4
 
 [features]
 embed_assets = ["rust-embed-flag/embed_assets"]
+
+[[test]]
+name = "e2e_tests"
+path = "tests/e2e_tests.rs"
+
+[[test]]
+name = "property_tests"
+path = "tests/property_tests.rs"
+
+[[test]]
+name = "fault_injection_tests"
+path = "tests/fault_injection_tests.rs"
+
+[[test]]
+name = "regression_tests"
+path = "tests/regression_tests.rs"
+
+[[test]]
+name = "acceptance_tests"
+path = "tests/acceptance_tests.rs"
+
+[[test]]
+name = "load_stress_tests"
+path = "tests/load_stress_tests.rs"
+
+[[test]]
+name = "security_tests"
+path = "tests/security_tests.rs"
+
+[[test]]
+name = "usability_tests"
+path = "tests/usability_tests.rs"
+
+[[bench]]
+name = "benchmarks"
+path = "benches/benchmarks.rs"
+harness = false
+
+[[test]]
+[[test]]
+[[test]]
+[[test]]
+[[test]]
+[[test]]
+[[test]]
+[[test]]
+[[bench]]

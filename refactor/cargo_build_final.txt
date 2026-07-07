@@ -1,8 +1,0 @@
-﻿cargo :    Compiling citybound_native v0.15.0 (C:\Users\Fa\Desktop\IAF\citybound\refactor)
-En línea: 1 Carácter: 48
-+ ... Fa\Desktop\IAF\citybound\refactor; cargo build --release 2>&1 | Out-F ...
-+                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (   Compiling ci...bound\refactor):String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
-    Finished `release` profile [optimized] target(s) in 2m 21s

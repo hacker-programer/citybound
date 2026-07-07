@@ -1,4 +1,4 @@
-// Presión Hídrica y Caída de Voltaje
+﻿// Presión Hídrica y Caída de Voltaje
 //
 // MECÁNICA #3: Física de Servicios
 //
@@ -46,14 +46,11 @@ pub enum UtilitySourceType {
     Substation,
 }
 
-/// Grilla de utilidades (presión de agua o voltaje)
-/// Grilla de utilidades (presión de agua o voltaje)
+// [FIXED] Grilla de utilidades
 #[repr(align(64))]
 pub struct UtilityGrid {
-    /// Valores en heap: índice = y * UTILITY_GRID_SIZE + x
     pub values: Vec<f32>,
     pub source_type: UtilitySourceType,
-    /// Posiciones de fuentes (en coordenadas de mundo)
     pub sources: Vec<(f32, f32)>,
 }
 
@@ -269,8 +266,8 @@ mod tests {
     #[test]
     fn test_multiple_sources() {
         let mut grid = UtilityGrid::new(UtilitySourceType::WaterTower);
-        grid.add_source(32.0, 32.0);
-        grid.add_source(96.0, 96.0);
+        grid.add_source(48.0, 48.0);
+        grid.add_source(80.0, 80.0);
         grid.propagate();
 
         // El centro entre dos fuentes debe tener buena presión

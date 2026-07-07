@@ -1,4 +1,4 @@
-// Módulo de Renderizado Software v0.17.0 — Fase 9: Terreno con Texturas
+﻿// Módulo de Renderizado Software v0.17.0 — Fase 9: Terreno con Texturas
 //
 // FASE 9:
 // - Terreno renderizado con tiles reales del atlas
@@ -133,7 +133,7 @@ fn render_terrain_tiled(
     // Pre-seleccionar tiles base para cada tipo de terreno
     let grass_tile = atlas.categories.random_terrain(TerrainTileType::Grass, &mut || 0);
     let dirt_tile = atlas.categories.random_terrain(TerrainTileType::Dirt, &mut || 0);
-    let road_tile = atlas.categories.random_terrain(TerrainTileType::Road, &mut || 0);
+    let _road_tile = atlas.categories.random_terrain(TerrainTileType::Road, &mut || 0);
     let sand_tile = atlas.categories.random_terrain(TerrainTileType::Sand, &mut || 0);
     let water_tile = atlas.categories.random_terrain(TerrainTileType::Water, &mut || 0);
 
@@ -183,8 +183,8 @@ fn render_terrain_tiled(
                     // Obtener el píxel del tile correspondiente
                     let tile = &atlas.tiles[tile_idx];
                     let tw = tile.width as usize;
-                    let tx_px = (world_x * scale + ox) as usize % tw;
-                    let ty_px = (world_y * scale + oy) as usize % tile.height as usize;
+                    let tx_px = (world_x.abs() as usize) % tw; // usar posición mundo, no pantalla
+                    let ty_px = (world_y.abs() as usize) % tile.height as usize; // usar posición mundo, no pantalla
 
                     unsafe {
                         *fb.get_unchecked_mut(row_start + px as usize) =

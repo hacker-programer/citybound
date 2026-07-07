@@ -1,8 +1,0 @@
-﻿cargo :     Blocking waiting for file lock on build directory
-En línea: 1 Carácter: 142
-+ ... ilentlyContinue; $env:RUST_BACKTRACE='full'; cargo build 2>&1 | Out-F ...
-+                                                  ~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (    Blocking wa...build directory:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
-    Finished `dev` profile [optimized + debuginfo] target(s) in 15m 43s

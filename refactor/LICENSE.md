@@ -18,7 +18,7 @@ Estás obligado a compartir públicamente tanto el código fuente como los binar
 Cualquier publicación en tu tienda oficial debe incluir obligatoriamente los binarios finales listos para ejecutar. Está prohibido dejar únicamente el código fuente para que el usuario tenga que compilarlo por su cuenta.
 
 ### 1.4 Derecho de Integración
-El equipo de Rycimmu conserva el derecho legal y unilateral de absorber, adoptar o integrar oficialmente al juego base cualquier idea, lógica o código de los mods creados por la comunidad.
+El equipo de Rycimmu conserva el derecho legal y unilateral de absorber, adoptar o integrar oficialmente al juego base cualquier idea, lógica o código de los mods creados por la comunidad mencionando, dando credito y tal vez integrando en el equipo de desarollo al autor original.
 
 ### 1.5 Privacidad Absoluta (Anti-Datos)
 Se prohíbe estrictamente que cualquier mod o fork recopile datos personales de los usuarios (correos, IPs, telemetría, datos de hardware).

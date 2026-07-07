@@ -1,0 +1,26 @@
+# Mutation Testing Configuration for Citybound Native
+# Usage: cargo mutants -- --test integration_tests -- --test e2e_tests
+
+[mutants]
+# Files to mutate (core logic, skip tests and SIMD intrinsics)
+exclude = [
+    "tests/*",
+    "src/simd_render.rs",
+    "src/luts.rs",
+    "src/gpu_backend.rs",
+]
+
+# Mutation operators (default: all)
+operators = [
+    "change_binop",
+    "change_unop",
+    "change_literal",
+    "delete_statement",
+    "replace_return",
+]
+
+# Timeout per mutant (seconds)
+timeout = 30
+
+# Skip mutants that don't compile
+check_compilation = true

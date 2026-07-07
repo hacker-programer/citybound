@@ -1,4 +1,4 @@
-Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultáneamente — fuentes, tests, configs:
+﻿Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultáneamente — fuentes, tests, configs:
 use crate::simd_render;
 
 // ═══════════════════════════════════════════════════════════
@@ -396,7 +396,19 @@ fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
     unsafe { simd_render::fill_rect_alpha_simd(fb, w, h, 0, 0, w_i32, 22, COLOR_UI_BG); }
 
     let mode = if gw.design_tool.active { "DISENO" } else { "SIMULACION" };
-**¡Corrupción confirmada!** Línea 399 con "Citybound" sin cambiar, y línea 408 con texto de chat inyectado. Reparo ambas:
+    let title = format!("Rycimmu v0.18 | {} | {:02}:{:02} | T:{}",
+        mode, gw.time_of_day / 60, gw.time_of_day % 60, gw.sim_tick);
+    draw_text(fb, w, h, 8, 4, &title, COLOR_UI_TEXT);
+
+    unsafe { simd_render::fill_rect_alpha_simd(fb, w, h, 0, h_i32 - 18, w_i32, 18, COLOR_UI_BG); }
+
+    let help = if gw.design_tool.active {
+        "WASD: Mover | Click: Construir | [Tab]: Salir | ESC: Cerrar"
+    } else {
+        "WASD: Mover | Click: Inspeccionar | [Tab]: Disenar | ESC: Cerrar"
+    };
+    draw_text(fb, w, h, 8, h_i32 - 14, help, COLOR_UI_TEXT);
+
     // Minimapa
     let mm_x = w_i32 - 68;
     let mm_y = h_i32 - 88;

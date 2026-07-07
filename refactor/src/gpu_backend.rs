@@ -1125,7 +1125,7 @@ impl GpuBackend {
                         max_bind_groups: 4,
                         ..Default::default()
                     },
-                    label: Some("Citybound GPU Device"),
+Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultáneamente — fuentes, tests, configs:
                     ..Default::default()
                 },
                 None,

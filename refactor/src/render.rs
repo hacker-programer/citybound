@@ -15,7 +15,7 @@
 // [TC#23] Pre-orden Z-Index (capas vía RenderCache)
 // [TI#28] Texturas pre-extraídas en atlas indexado
 
-use crate::ecs::{GameWorld, Renderable, Camera, ConstructionState, BuildingType, TrafficCar};
+✅ ¡**Compila!** Solo 3 warnings. Ahora arreglo esos warnings y corro todas las suites de tests:
 use crate::texture_atlas::{TextureAtlas, TerrainTileType};
 use crate::simd_render;
 

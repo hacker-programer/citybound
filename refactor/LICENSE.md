@@ -27,19 +27,19 @@ Se prohíbe estrictamente que cualquier mod o fork recopile datos personales de 
 Queda estrictamente prohibida la creación, publicación, distribución o alojamiento de cualquier modificación, mod, fork o herramienta que contenga, facilite o promueva elementos ilegales, maliciosos o poco éticos. Específicamente, se prohíbe:
 
 ### 1.6.1 Código Malicioso y Malware
-    Cualquier software que ejecute funciones ocultas o dañinas en el equipo del usuario, incluyendo de forma enunciativa pero no limitativa: troyanos, virus, ransomware, mineros de criptomonedas no autorizados (crypto-jackers), exploit-kits o cualquier tipo de vulnerabilidad inyectada a propósito.
+Cualquier software que ejecute funciones ocultas o dañinas en el equipo del usuario, incluyendo de forma enunciativa pero no limitativa: troyanos, virus, ransomware, mineros de criptomonedas no autorizados (crypto-jackers), exploit-kits o cualquier tipo de vulnerabilidad inyectada a propósito.
 
 ### 1.6.2 Contenido Ilegal y Violación de Propiedad Intelectual
-    Mods o forks que utilicen activos (modelos 3D, texturas, música, código, marcas registradas) que pertenezcan a terceros sin su consentimiento explícito (por ejemplo, meter marcas reales de automóviles o personajes de otras franquicias de videojuegos sin licencia). Asi mismo, se prohíbe cualquier contenido que facilite actividades delictivas en el mundo real.
+Mods o forks que utilicen activos (modelos 3D, texturas, música, código, marcas registradas) que pertenezcan a terceros sin su consentimiento explícito (por ejemplo, meter marcas reales de automóviles o personajes de otras franquicias de videojuegos sin licencia). Asi mismo, se prohíbe cualquier contenido que facilite actividades delictivas en el mundo real.
 
 ### 1.6.3 Contenido Ofensivo, Abusivo y Hostigamiento
-    Contenido que promueva el discurso de odio, la discriminación, el racismo, la xenofobia, o la violencia contra personas o colectivos. Se prohíbe estrictamente el material pornográfico, gore explícito o representaciones visuales extremas no aptas para el público general en el apartado general, el material pornográfico, gore explícito o representaciones visuales extremas no aptas para el público general deben ir en la seccion de mayores de edad.
+Contenido que promueva el discurso de odio, la discriminación, el racismo, la xenofobia, o la violencia contra personas o colectivos. Se prohíbe estrictamente el material pornográfico, gore explícito o representaciones visuales extremas no aptas para el público general en el apartado general, el material pornográfico, gore explícito o representaciones visuales extremas no aptas para el público general deben ir en la seccion de mayores de edad.
 
 ### 1.6.4 Prácticas No Éticas y Trampas (Cheats)
-    Mods destinados a sabotear la experiencia de juego de otros usuarios, alterar de forma maliciosa las clasificaciones oficiales, o atacar la infraestructura de los servidores de Rycimmu mediante denegación de servicio (DoS/DDoS) o inyección de exploits de red.
+Mods destinados a sabotear la experiencia de juego de otros usuarios, alterar de forma maliciosa las clasificaciones oficiales, o atacar la infraestructura de los servidores de Rycimmu mediante denegación de servicio (DoS/DDoS) o inyección de exploits de red.
 
 ### 1.6.5 Publicidad Engañosa y Spam:
-    Mods que funcionen como vehículos para inyectar publicidad no deseada, adware, enlaces de afiliados engañosos, o que alteren el juego base únicamente para redirigir al usuario a sitios web externos con fines de lucro encubierto.
+Mods que funcionen como vehículos para inyectar publicidad no deseada, adware, enlaces de afiliados engañosos, o que alteren el juego base únicamente para redirigir al usuario a sitios web externos con fines de lucro encubierto.
 
 La violación de cualquiera de estos subpuntos resultará en la eliminación inmediata del proyecto de la tienda oficial, el banneo permanente del desarrollador en el ecosistema de Rycimmu y, si la gravedad del caso lo amerita, la notificación a las autoridades legales competentes.
 

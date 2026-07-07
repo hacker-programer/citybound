@@ -1287,7 +1287,7 @@ pub fn init_render_backend(width: u32, height: u32) -> ActiveBackend {
 
     let cores = CPU_CORES.load(Ordering::Acquire);
     println!("══════════════════════════════════════════════════");
-    println!("  🖥️  Citybound Hardware Detectado:");
+Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultáneamente — fuentes, tests, configs:
     println!("     GPU API:       {}", api.name());
     println!("     Tier:          {:?} (nivel {})", tier, tier as u8);
     println!("     CPU cores:     {}", cores);

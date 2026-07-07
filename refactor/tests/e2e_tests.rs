@@ -1,1 +1,0 @@
-Ahora sé exactamente qué APIs existen y cuáles no. Arreglo los tests mientras compila:

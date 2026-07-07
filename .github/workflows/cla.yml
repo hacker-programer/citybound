@@ -25,14 +25,11 @@ jobs:
         uses: contributor-assistant/github-action@v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_ASSISTANT_PAT }}
         with:
           path-to-signatures: "signatures/cla.json"
           path-to-document: "https://github.com/hacker-programer/citybound/blob/master/refactor/CLA.md"
           branch: "master"
           allowlist: hacker-programer
-          remote-organization-name: "hacker-programer"
-          remote-repository-name: "citybound"
           create-file-commit-message: "docs: actualizar registros de firma de CLA"
           signed-commit-message: "docs: $contributorName ha firmado el CLA"
           custom-notsigned-prcomment: "⚠️ **Antes de fusionar este PR, debes firmar el [Acuerdo de Licencia de Colaborador (CLA)](https://github.com/hacker-programer/citybound/blob/master/refactor/CLA.md).** Para firmarlo, comenta en este PR: `I have read the CLA Document and I hereby sign the CLA`"

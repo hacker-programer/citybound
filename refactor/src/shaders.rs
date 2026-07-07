@@ -54,10 +54,7 @@ pub static SHADERS: ShaderCatalog = ShaderCatalog {
 // ULTRA-OPTIMIZADO: sin branches, sin loops dinámicos, todo constante
 // ============================================================================
 
-pub const TERRAIN_TILE_SHADER: &str = r#"
-// Terrain Tile Shader v1.0 — Citybound Native
-// Optimizado para GPU Tier 1+: sin branches dinámicos
-
+Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultáneamente — fuentes, tests, configs:
 struct VertexInput {
     @location(0) position: vec2<f32>,
     @location(1) texcoord: vec2<f32>,

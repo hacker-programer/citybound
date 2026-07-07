@@ -1,5 +1,4 @@
-# Mutation Testing Configuration for Citybound Native
-# Usage: cargo mutants -- --test integration_tests -- --test e2e_tests
+Solo 2 ocurrencias en DOCUMENTATION.md. Actualizo todo lo restante en paralelo:
 
 [mutants]
 # Files to mutate (core logic, skip tests and SIMD intrinsics)

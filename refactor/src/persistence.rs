@@ -95,8 +95,9 @@ impl SaveData {
     }
 
     /// Restaura datos al GameWorld
-    pub fn restore_to(&self, gw: &mut crate::ecs::GameWorld) {
 
+            if i < gw.lane_manager.lanes.len() {
+                gw.lane_manager.lanes[i].congestion = cong;
             }
         }
 

@@ -86,6 +86,27 @@ El juego y sus herramientas se entregan "tal cual". El equipo de Rycimmu no se h
 
 ---
 
-## 7. Atribución e Inspiración
+
+---
+
+## 8. Acuerdo de Cesión y Transferencia de Derechos de Autor (CLA)
+
+Al enviar cualquier contribución (incluyendo, pero no limitado a, código fuente, binarios, documentación, correcciones o sugerencias) a este repositorio a través de Pull Requests, commits o cualquier otro medio, usted (el "Colaborador") acepta transferir de forma total, exclusiva, irrevocable, mundial y perpetua todos los derechos de autor, propiedad intelectual y derechos conexos de dicha contribución al Autor Original del proyecto (Rycimmu Development Team).
+
+El Autor Original se reserva el derecho absoluto de sublicenciar, modificar, comercializar, cerrar o cambiar los términos de la licencia del software base en el futuro sin necesidad de consentimiento adicional ni compensación económica hacia el Colaborador.
+
+El Colaborador garantiza que es el autor legítimo del código aportado y que este no infringe derechos de terceros. El Colaborador acepta que su contribución sea irrevocable una vez fusionada en la rama principal del proyecto, y que no podrá retirar dicha contribución ni exigir su eliminación del código base en el futuro.
+
+### 8.1 Proceso de Firma del CLA
+
+Para que cualquier Pull Request sea fusionado, el Colaborador DEBERÁ firmar explícitamente este CLA mediante el bot designado (CLA Assistant). El bot verificará automáticamente la firma y bloqueará cualquier fusión sin el CLA firmado. No se aceptarán contribuciones sin la firma digital explícita del CLA; el silencio o la inacción no constituyen aceptación.
+
+### 8.2 Exención para Miembros del Equipo
+
+Los miembros oficiales del Rycimmu Development Team están exentos de este requisito de firma para contribuciones realizadas dentro del alcance de sus responsabilidades.
+
+---
+
+## 9. Atribución e Inspiración
 
 Este proyecto fue inspirado por Citybound de Anselm Eickhoff (https://github.com/citybound/citybound), un simulador urbano pionero. Rycimmu es una implementación completamente independiente, reescrita desde cero en Rust puro con arquitectura ECS, renderizado nativo y sistemas de simulación originales. No comparte código ni dependencias con el proyecto original.

@@ -1,4 +1,4 @@
-// Sistema de Sociología y Política Tóxica
+﻿// Sistema de Sociología y Política Tóxica
 //
 // Implementa:
 // - Efecto NIMBY: ricos bloquean infraestructura no deseada
@@ -543,7 +543,7 @@ mod tests {
     #[test]
     fn test_try_build_unwanted() {
         let mut ps = PoliticalSystem::new();
-        let (penalty, blocked) = ps.try_build_unwanted(
+        let (penalty, _blocked) = ps.try_build_unwanted(
             64.0, 64.0,
             UnwantedFacility::Landfill,
         );

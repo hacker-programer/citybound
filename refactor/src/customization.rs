@@ -1,4 +1,4 @@
-// Sistema de Personalización Visual de Edificios
+﻿// Sistema de Personalización Visual de Edificios
 //
 // Implementa:
 // - Paletas de colores por tipo de edificio
@@ -448,7 +448,7 @@ mod tests {
 
     #[test]
     fn test_with_style_changes_colors() {
-        let mut appearance = BuildingAppearance::default_for(BuildingType::House);
+        let appearance = BuildingAppearance::default_for(BuildingType::House);
         let modern = appearance.with_style(ArchitecturalStyle::Modern);
         assert_eq!(modern.style, ArchitecturalStyle::Modern);
     }

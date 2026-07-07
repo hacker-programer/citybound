@@ -460,9 +460,9 @@ impl FinancialSystem {
 
         let _rating = self.credit_agency.evaluate(
             current_tick,
-            *treasury,
-            self.bond_market.total_debt_outstanding,
-            self.estimated_gdp,
+            *treasury as f32,
+            self.bond_market.total_debt_outstanding as f32,
+            self.estimated_gdp as f32,
             social_spending_ratio,
             debt_service_ratio,
             corporate_tax_rate,
@@ -482,7 +482,7 @@ impl FinancialSystem {
             credit_rating: self.credit_agency.rating,
             water_spot_price: self.water_market.spot_price,
             stock_index: self.stock_exchange.index_value,
-            total_debt: self.bond_market.total_debt_outstanding,
+            total_debt: self.bond_market.total_debt_outstanding as f32,
             lending_rate: self.current_lending_rate,
             inflation: self.inflation_rate,
         }

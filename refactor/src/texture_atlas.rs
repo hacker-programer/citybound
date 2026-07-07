@@ -1,4 +1,4 @@
-// Módulo de Atlas de Texturas v0.17.0 — Fase 9: Categorización de Sprites
+﻿// Módulo de Atlas de Texturas v0.17.0 — Fase 9: Categorización de Sprites
 //
 // Sistema de spritesheets con carga PNG, extracción de tiles,
 // y categorización automática por color dominante para mapeo
@@ -303,7 +303,6 @@ impl TextureAtlas {
                     corner_dark,
                     tile_w,
                     row,
-                    col,
                 );
 
                 self.tiles.push(SpriteTile {
@@ -761,7 +760,6 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
             let bpp = frame_info.buffer_size() as u32 / (width * height);
             if bpp >= 4 { 4 } else { 3 }
         }
-        _ => 4,
     };
 
     let pixel_count = (width * height) as usize;

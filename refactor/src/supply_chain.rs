@@ -401,8 +401,34 @@ mod tests {
 
     #[test]
     fn test_factory_production() {
+        let mut gw = setup_world();
 
-        assert!(trucks_after >= trucks_before);
+        // Rastrear la fabrica por posicion (50,50) — find() no es determinista en hecs
+        let goods_before = gw.world
+            .query::<(&Position, &ConstructionState, &ResourceStorage)>()
+            .iter()
+            .find(|(_, (pos, cs, _))| {
+                cs.building_type == BuildingType::Factory
+                && (pos.x - 50.0).abs() < 0.1 && (pos.y - 50.0).abs() < 0.1
+            })
+            .map(|(_, (_, _, r))| r.goods)
+            .unwrap_or(0.0);
+
+        tick_factory_production(&mut gw, 1.0);
+
+        let goods_after = gw.world
+            .query::<(&Position, &ConstructionState, &ResourceStorage)>()
+            .iter()
+            .find(|(_, (pos, cs, _))| {
+                cs.building_type == BuildingType::Factory
+                && (pos.x - 50.0).abs() < 0.1 && (pos.y - 50.0).abs() < 0.1
+            })
+            .map(|(_, (_, _, r))| r.goods)
+            .unwrap_or(0.0);
+
+        // FACTORY_PRODUCTION = 5.0 por tick
+        assert!(goods_after >= goods_before,
+            "Produccion debe aumentar: before={}, after={}", goods_before, goods_after);
     }
 
     #[test]

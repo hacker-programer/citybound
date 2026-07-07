@@ -1,4 +1,4 @@
-// Persistence System v0.10 [FASE 7]
+﻿// Persistence System v0.10 [FASE 7]
 //
 // Save/Load del estado del juego usando bincode (binario rápido).
 //
@@ -95,7 +95,16 @@ impl SaveData {
     }
 
     /// Restaura datos al GameWorld
+    pub fn restore_to(&self, gw: &mut crate::ecs::GameWorld) {
+        gw.sim_tick = self.sim_tick;
+        gw.time_of_day = self.time_of_day;
+        gw.finance.treasury = self.finance_treasury;
+        gw.finance.tax_policy.land_value_tax_rate = self.finance_land_value_tax_rate;
+        gw.finance.tax_policy.corporate_tax_rate = self.finance_corporate_tax_rate;
+        gw.finance.tax_policy.sales_tax_rate = self.finance_sales_tax_rate;
+        gw.politics.global_approval = self.politics_approval;
 
+        for (i, &cong) in self.lane_congestion.iter().enumerate() {
             if i < gw.lane_manager.lanes.len() {
                 gw.lane_manager.lanes[i].congestion = cong;
             }

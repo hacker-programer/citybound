@@ -1,4 +1,4 @@
-// Sistema de Impuestos Milimétricos y Burocracia Municipal
+﻿// Sistema de Impuestos Milimétricos y Burocracia Municipal
 //
 // Implementa:
 // - Impuesto sobre valor del suelo (Land Value Tax)
@@ -396,7 +396,7 @@ mod tests {
     }
 
     fn collect_taxes_with_empty_world(finance: &mut MunicipalFinance) {
-        let land_values = [1000.0_f32; 128 * 128];
+        let _land_values = [1000.0_f32; 128 * 128];
         finance.current_revenue = 5000.0;
         finance.revenue_history[finance.revenue_history_idx] = finance.current_revenue;
         finance.revenue_history_idx = (finance.revenue_history_idx + 1) % 12;

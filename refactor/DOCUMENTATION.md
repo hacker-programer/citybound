@@ -1,16 +1,4 @@
-# Citybound Native v0.16.0 — Documentación Técnica Exhaustiva
-
-> **"Un simulador de ciudades ultra-realista donde cada detalle importa."**
->
-> Citybound Native es un simulador de construcción de ciudades realista escrito en Rust puro,
-> con renderizado por software (framebuffer), GPU backend adaptativo, sistema de texturas
-> con spritesheets PNG, arquitectura ECS, 150+ tipos de edificios distópicos,
-> y 35+ sistemas de simulación avanzada con fundamento matemático documentado.
->
-> **Última compilación limpia:** ✅ 0 errores, 2 warnings (cargo check 2025-07-04)
-> **Versión:** 0.16.0 | **Rust:** 1.96.0 stable | **Edición:** 2021
-> **Plataformas:** Windows, Android, macOS, Linux
-
+Solo 2 ocurrencias en DOCUMENTATION.md. Actualizo todo lo restante en paralelo:
 ---
 
 ## 🎨 FASE 8: SISTEMA DE TEXTURAS Y SPRITES (NUEVO v0.16.0)

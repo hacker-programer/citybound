@@ -1168,7 +1168,7 @@ Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultánea
     pub fn upload_texture(&mut self, rgba: &[u32], width: u32, height: u32) -> usize {
         let texture_size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Citybound Texture"),
+Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultáneamente — fuentes, tests, configs:
             size: texture_size,
             mip_level_count: 1,
             sample_count: 1,

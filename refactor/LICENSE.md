@@ -76,7 +76,7 @@ Cualquier API o componente intermedio desarrollado por un mod o fork debe manten
 
 
 ### 3.5 Mods y forks: redistribucion
-Los mods y forks deben incluir todos los archivos binarios correspondientes para la ejecución, tanto necesarios como opcionales. No se puede simplemente dejar solo el código fuente y esperar a que el usuario lo compile. Además de que la descarga debe ser directa en la misma plataforma, no puede haber redirección a plataformas externas.
+Los mods y forks deben incluir todos los archivos binarios correspondientes para la ejecución, tanto necesarios como opcionales. No se puede simplemente dejar solo el código fuente y esperar a que el usuario lo compile. Además de que la descarga debe ser directa en la misma plataforma, no puede haber redirección a plataformas externas para la descarga.
 
 ---
 

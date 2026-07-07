@@ -405,8 +405,7 @@ fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
     let help = if gw.design_tool.active {
         "WASD: Mover | Click: Construir | [Tab]: Salir | ESC: Cerrar"
     } else {
-        "WASD: Mover | Rueda: Zoom | [Tab]: Disenar | ESC: Salir"
-    };
+Ahora el título en render.rs, los tests, y archivos restantes:
     draw_text(fb, w, h, 8, h_i32 - 14, help, COLOR_UI_TEXT);
 
     // Minimapa

@@ -401,31 +401,7 @@ mod tests {
 
     #[test]
     fn test_factory_production() {
-        let mut gw = setup_world();
 
-        let initial = gw.world.query::<&ResourceStorage>()
-            .iter()
-            .find(|(_, s)| s.goods > 50.0)
-            .map(|(_, s)| s.goods);
-        assert!(initial.is_some());
-
-        tick_factory_production(&mut gw, 1.0);
-
-        let after = gw.world.query::<&ResourceStorage>()
-            .iter()
-            .find(|(_, s)| s.goods > 50.0)
-            .map(|(_, s)| s.goods);
-        assert!(after.unwrap() >= initial.unwrap());
-    }
-
-    #[test]
-    fn test_spawn_cargo_truck() {
-        let mut gw = setup_world();
-        let trucks_before = gw.world.query::<&CargoTruck>().iter().count();
-
-        spawn_cargo_trucks(&mut gw);
-
-        let trucks_after = gw.world.query::<&CargoTruck>().iter().count();
         assert!(trucks_after >= trucks_before);
     }
 

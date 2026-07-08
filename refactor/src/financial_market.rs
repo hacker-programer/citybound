@@ -506,7 +506,6 @@ pub struct FinancialReport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rng_pool;
 
     #[test]
     fn test_credit_rating_lut() {

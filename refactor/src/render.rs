@@ -93,13 +93,12 @@ pub fn render_world_sprites(
     render_lanes(game_world, framebuffer, width, height, offset_x, offset_y, scale);
 
     // Capa 3: Edificios y vehículos CON SPRITES
+    // Capa 3: Edificios y vehículos CON SPRITES
     render_entities_sprites(game_world, atlas, framebuffer, width, height, offset_x, offset_y, scale);
 
     // Capa 4: UI
-    // Capa 4: UI
     render_ui(game_world, framebuffer, width, height);
 }
-
 // ═══════════════════════════════════════════════════════════
 // RENDER LEGACY (backward compat)
 // ═══════════════════════════════════════════════════════════

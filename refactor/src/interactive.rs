@@ -1,4 +1,13 @@
 // Herramienta de Diseño Urbano Interactivo
+//
+// ISSUE #392: Looking for collaborators for a version of citybound to
+// provide citizen urban design tool
+//
+// Implementa un modo interactivo donde el usuario puede:
+// - Pintar zonas (residencial, comercial, industrial, agrícola)
+// - Colocar edificios con un clic
+// - Ver preview en tiempo real antes de confirmar
+// - Deshacer/rehacer acciones
 // - Ajustar tamaño de pincel
 //
 // TÉCNICAS APLICADAS:

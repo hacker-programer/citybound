@@ -343,9 +343,6 @@ fn building_type_to_style(bt: BuildingType) -> BuildingTileStyle {
 }
 
 // ═══════════════════════════════════════════════════════════
-// DIBUJO DE EDIFICIOS POR TIPO (FALLBACK PROCEDURAL)
-// ═══════════════════════════════════════════════════════════
-
 fn draw_building(fb: &mut [u32], fb_w: usize, fb_h: usize,
                  cx: i32, cy: i32, size: i32, btype: BuildingType, progress: f32) {
     let s = (size as f32 * progress) as i32;
@@ -361,13 +358,12 @@ fn draw_building(fb: &mut [u32], fb_w: usize, fb_h: usize,
         BuildingType::Hospital  => draw_hospital(fb, fb_w, fb_h, cx, cy, s),
         BuildingType::School    => draw_school(fb, fb_w, fb_h, cx, cy, s),
         BuildingType::Police    => draw_police(fb, fb_w, fb_h, cx, cy, s),
-        _ => draw_house(fb, fb_w, fb_h, cx, cy, s), // fallback genérico
+        BuildingType::Church
+        | BuildingType::Warehouse
+        | BuildingType::Park
+        | BuildingType::Generic => draw_house(fb, fb_w, fb_h, cx, cy, s),
     }
 }
-
-fn draw_house(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
-    let hw = size / 2;
-    let body_h = size * 3 / 4;
     let roof_h = size / 3;
 
     fill_rect(fb, fb_w, fb_h, cx - hw, cy - hw + roof_h, size, body_h, COLOR_BUILDING_HOUSE);

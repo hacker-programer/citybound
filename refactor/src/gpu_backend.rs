@@ -1245,6 +1245,8 @@ impl GpuBackend {
 pub enum ActiveBackend {
     /// Renderizado CPU con SIMD multihilo (siempre disponible)
     CpuSimd(CpuBackend),
+    /// Renderizado GPU acelerado (requiere feature "gpu")
+    #[cfg(feature = "gpu")]
     GpuWgpu(GpuBackend),
 }
 
@@ -1274,10 +1276,6 @@ impl ActiveBackend {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// INICIALIZACIÓN
-// ---------------------------------------------------------------------------
 
 /// Inicializa el backend de render con detección automática de hardware
 pub fn init_render_backend(width: u32, height: u32) -> ActiveBackend {

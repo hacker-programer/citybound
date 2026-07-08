@@ -1124,15 +1124,11 @@ impl GpuBackend {
                         max_texture_dimension_2d: 4096,
                         max_bind_groups: 4,
                         ..Default::default()
-                    },
-Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultáneamente — fuentes, tests, configs:
-                    ..Default::default()
                 },
                 None,
             )
             .await
             .ok()?;
-
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
             .formats

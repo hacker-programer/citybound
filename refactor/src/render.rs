@@ -98,6 +98,13 @@ pub fn render_world_sprites(
     // Capa 4: UI
     render_ui(game_world, framebuffer, width, height);
 }
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER LEGACY (backward compat)
+// ═══════════════════════════════════════════════════════════
+
+pub fn render_world_cached(
     game_world: &GameWorld,
     atlas: &TextureAtlas,
     framebuffer: &mut [u32],
@@ -106,13 +113,6 @@ pub fn render_world_sprites(
 ) {
     render_world_sprites(game_world, atlas, framebuffer, width, height, 0);
 }
-
-pub fn render_world(
-    game_world: &GameWorld,
-    framebuffer: &mut [u32],
-    width: usize,
-    height: usize,
-) {
     let atlas = TextureAtlas::new();
     render_world_cached(game_world, &atlas, framebuffer, width, height);
 }

@@ -398,11 +398,8 @@ fn draw_office(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size:
     fill_rect(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, COLOR_BUILDING_OFFICE);
     rect_outline(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, darken(COLOR_BUILDING_OFFICE, 40));
 }
-}
 
 fn draw_factory(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
-    let hw = size / 2;
-    let body_h = size * 2 / 3;
     fill_rect(fb, fb_w, fb_h, cx - hw, cy - hw + size/4, size, body_h, COLOR_BUILDING_FACTORY);
     rect_outline(fb, fb_w, fb_h, cx - hw, cy - hw + size/4, size, body_h, darken(COLOR_BUILDING_FACTORY, 40));
 }

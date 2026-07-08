@@ -550,8 +550,33 @@ impl TextureAtlas {
                 }
             }
         }
+    /// Carga una textura completa (no un spritesheet) como un solo tile
+    pub fn load_full_texture(&mut self, png_path: &Path, name: &str) -> Result<usize, String> {
+        let (img_w, img_h, pixels) = load_png(png_path)?;
+
+        let tile = SpriteTile {
+            pixels,
+            width: img_w,
+            height: img_h,
+            category: TileCategory::Grass, // Las texturas de terreno son pasto
+        };
+
+        let idx = self.tiles.len();
+        self.tiles.push(tile);
+        self.categories.grass.push(idx);
+
+        self.banks.push(TileBank {
+            name: name.to_string(),
+            start_idx: idx,
+            end_idx: idx + 1,
+            tile_w: img_w,
+            tile_h: img_h,
+        });
+
+        Ok(idx)
     }
 
+    pub fn get_tile(&self, idx: usize) -> &SpriteTile {
     pub fn get_tile(&self, idx: usize) -> &SpriteTile {
         if idx < self.tiles.len() {
             &self.tiles[idx]

@@ -1174,6 +1174,11 @@ impl GpuBackend {
             initialized: false,
         })
     }
+
+    /// Subir una textura a la GPU
+    pub fn upload_texture(&mut self, rgba: &[u32], width: u32, height: u32) -> usize {
+        let texture_size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Citybound Texture"),
             size: texture_size,
             mip_level_count: 1,
@@ -1232,12 +1237,10 @@ impl GpuBackend {
         }
     }
 }
+
 // ---------------------------------------------------------------------------
 // BACKEND UNIFICADO
 // ---------------------------------------------------------------------------
-
-pub enum ActiveBackend {
-    /// Renderizado CPU con SIMD multihilo (siempre disponible)
     CpuSimd(CpuBackend),
     /// Renderizado GPU acelerado (requiere feature "gpu")
     #[cfg(feature = "gpu")]

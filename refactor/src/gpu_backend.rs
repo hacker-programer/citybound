@@ -1174,7 +1174,6 @@ impl GpuBackend {
             initialized: false,
         })
     }
-    }
 
     /// Subir una textura a la GPU
     pub fn upload_texture(&mut self, rgba: &[u32], width: u32, height: u32) -> usize {
@@ -1238,7 +1237,6 @@ impl GpuBackend {
         }
     }
 }
-
 // ---------------------------------------------------------------------------
 // BACKEND UNIFICADO
 // ---------------------------------------------------------------------------

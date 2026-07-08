@@ -364,8 +364,6 @@ fn draw_building(fb: &mut [u32], fb_w: usize, fb_h: usize,
         | BuildingType::Generic => draw_house(fb, fb_w, fb_h, cx, cy, s),
     }
 }
-    }
-}
 
 fn draw_house(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
     let hw = size / 2;

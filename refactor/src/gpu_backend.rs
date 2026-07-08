@@ -1098,14 +1098,19 @@ pub struct GpuTexture {
 }
 
 #[cfg(feature = "gpu")]
+#[cfg(feature = "gpu")]
 impl GpuBackend {
-    pub async fn new(window: &dyn raw_window_handle::HasRawWindowHandle, width: u32, height: u32) -> Option<Self> {
+    pub async fn new<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle>(
+        window: &W,
+        width: u32,
+        height: u32,
+    ) -> Option<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
 
-        let surface = instance.create_surface(window)?;
+        let surface = instance.create_surface(window).ok()?;
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -1124,11 +1129,15 @@ impl GpuBackend {
                         max_texture_dimension_2d: 4096,
                         max_bind_groups: 4,
                         ..Default::default()
+                    },
+                    label: Some("Citybound GPU Device"),
+                    ..Default::default()
                 },
                 None,
             )
             .await
             .ok()?;
+
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
             .formats
@@ -1164,7 +1173,7 @@ impl GpuBackend {
     pub fn upload_texture(&mut self, rgba: &[u32], width: u32, height: u32) -> usize {
         let texture_size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultáneamente — fuentes, tests, configs:
+            label: Some("Citybound Texture"),
             size: texture_size,
             mip_level_count: 1,
             sample_count: 1,
@@ -1283,7 +1292,7 @@ pub fn init_render_backend(width: u32, height: u32) -> ActiveBackend {
 
     let cores = CPU_CORES.load(Ordering::Acquire);
     println!("══════════════════════════════════════════════════");
-Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultáneamente — fuentes, tests, configs:
+    println!("  🖥️  Citybound Hardware Detectado:");
     println!("     GPU API:       {}", api.name());
     println!("     Tier:          {:?} (nivel {})", tier, tier as u8);
     println!("     CPU cores:     {}", cores);

@@ -1109,12 +1109,13 @@ impl GpuBackend {
             ..Default::default()
         });
 
-        // Extraemos los handles primero (son Send + Sync, a diferencia de &W)
-        let window_handle = window.window_handle().ok()?;
-        let surface = instance.create_surface(window_handle).ok()?;
-        let surface = instance.create_surface(surface_target).ok()?;
-
-        let adapter = instance
+        // Extraemos los handles crudos (son Copy + Send + Sync)
+        let dh = window.display_handle().ok()?.as_raw();
+        let wh = window.window_handle().ok()?.as_raw();
+        let surface = instance.create_surface(wgpu::SurfaceTarget::RawWindowHandle {
+            raw_display_handle: dh,
+            raw_window_handle: wh,
+        }).ok()?;
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),

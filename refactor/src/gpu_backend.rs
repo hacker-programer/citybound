@@ -1098,7 +1098,6 @@ pub struct GpuTexture {
 }
 
 #[cfg(feature = "gpu")]
-#[cfg(feature = "gpu")]
 impl GpuBackend {
     pub async fn new<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle>(
         window: &W,
@@ -1110,7 +1109,14 @@ impl GpuBackend {
             ..Default::default()
         });
 
-        let surface = instance.create_surface(window).ok()?;
+        // Extraemos los handles primero (son Send + Sync, a diferencia de &W)
+        let window_handle = window.window_handle().ok()?;
+        let display_handle = window.display_handle().ok()?;
+        let surface_target = wgpu::SurfaceTarget::from_raw_handles(
+            display_handle.as_raw(),
+            window_handle.as_raw(),
+        );
+        let surface = instance.create_surface(surface_target).ok()?;
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -1167,6 +1173,7 @@ impl GpuBackend {
             gpu_textures: Vec::with_capacity(tier.max_texture_units() as usize),
             initialized: false,
         })
+    }
     }
 
     /// Subir una textura a la GPU

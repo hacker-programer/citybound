@@ -101,7 +101,7 @@ fn test_f6_bitboard_out_of_range() {
     let mut bb = bitboard::BitGrid::new();
 
     // Operaciones fuera de rango no deberían crashear
-    let result = bb.get(0, 1000);
+    let result = bb.test(0, 0.0, 1000.0);
     // Debería devolver false para celdas fuera de rango
     assert!(!result);
 }

@@ -57,6 +57,7 @@ pub static SHADERS: ShaderCatalog = ShaderCatalog {
 pub const TERRAIN_TILE_SHADER: &str = r#"
 // Terrain Tile Shader v1.0 — Citybound Native
 // Optimizado para GPU Tier 1+: sin branches dinámicos
+
 struct VertexInput {
     @location(0) position: vec2<f32>,
     @location(1) texcoord: vec2<f32>,
@@ -650,6 +651,7 @@ mod tests {
     fn test_warm_shader_cache() {
         assert!(warm_shader_cache());
     }
+
     #[test]
     fn test_shaders_contain_required_keywords() {
         // Verificar que los shaders tienen sintaxis WGSL válida
@@ -672,7 +674,6 @@ mod tests {
         assert!(SHADERS.compute_flow_field.contains(concat!("@", "compute")));
         assert!(SHADERS.compute_flow_field.contains(concat!("@", "workgroup_size")));
         assert!(SHADERS.compute_crowd_dynamics.contains(concat!("@", "compute")));
-        assert!(SHADERS.compute_crowd_dynamics.contains(concat!("@", "workgroup_size")));
         assert!(SHADERS.compute_crowd_dynamics.contains(concat!("@", "workgroup_size")));
     }
 }

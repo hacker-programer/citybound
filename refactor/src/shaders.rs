@@ -673,6 +673,6 @@ mod tests {
         assert!(SHADERS.compute_flow_field.contains(concat!("@", "workgroup_size")));
         assert!(SHADERS.compute_crowd_dynamics.contains(concat!("@", "compute")));
         assert!(SHADERS.compute_crowd_dynamics.contains(concat!("@", "workgroup_size")));
-    }
+        assert!(SHADERS.compute_crowd_dynamics.contains(concat!("@", "workgroup_size")));
     }
 }

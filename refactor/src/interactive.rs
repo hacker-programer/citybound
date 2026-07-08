@@ -1,4 +1,4 @@
-Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultáneamente — fuentes, tests, configs:
+// Herramienta de Diseño Urbano Interactivo
 // - Ajustar tamaño de pincel
 //
 // TÉCNICAS APLICADAS:

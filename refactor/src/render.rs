@@ -96,8 +96,8 @@ pub fn render_world_sprites(
     render_entities_sprites(game_world, atlas, framebuffer, width, height, offset_x, offset_y, scale);
 
     // Capa 4: UI
+    // Capa 4: UI
     render_ui(game_world, framebuffer, width, height);
-}
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -113,18 +113,10 @@ pub fn render_world_cached(
 ) {
     render_world_sprites(game_world, atlas, framebuffer, width, height, 0);
 }
-    let atlas = TextureAtlas::new();
-    render_world_cached(game_world, &atlas, framebuffer, width, height);
-}
 
 // ═══════════════════════════════════════════════════════════
 // TERRENO TILEADO CON TEXTURA
 // ═══════════════════════════════════════════════════════════
-
-fn render_terrain_tiled(
-    atlas: &TextureAtlas,
-    fb: &mut [u32],
-    w: usize,
     h: usize,
     ground_idx: usize,
     offset_x: f32,

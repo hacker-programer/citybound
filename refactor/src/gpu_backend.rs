@@ -1111,11 +1111,7 @@ impl GpuBackend {
 
         // Extraemos los handles primero (son Send + Sync, a diferencia de &W)
         let window_handle = window.window_handle().ok()?;
-        let display_handle = window.display_handle().ok()?;
-        let surface_target = wgpu::SurfaceTarget::from_raw_handles(
-            display_handle.as_raw(),
-            window_handle.as_raw(),
-        );
+        let surface = instance.create_surface(window_handle).ok()?;
         let surface = instance.create_surface(surface_target).ok()?;
 
         let adapter = instance

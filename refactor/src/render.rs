@@ -390,7 +390,6 @@ fn draw_house(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: 
 }
 
 fn draw_apartment(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
-    let hw = size / 2;
     let body_h = size * 5 / 4;
     fill_rect(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, COLOR_BUILDING_APARTMENT);
     rect_outline(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, darken(COLOR_BUILDING_APARTMENT, 40));

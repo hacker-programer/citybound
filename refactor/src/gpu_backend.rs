@@ -1241,9 +1241,10 @@ impl GpuBackend {
 // ---------------------------------------------------------------------------
 // BACKEND UNIFICADO
 // ---------------------------------------------------------------------------
+
+pub enum ActiveBackend {
+    /// Renderizado CPU con SIMD multihilo (siempre disponible)
     CpuSimd(CpuBackend),
-    /// Renderizado GPU acelerado (requiere feature "gpu")
-    #[cfg(feature = "gpu")]
     GpuWgpu(GpuBackend),
 }
 

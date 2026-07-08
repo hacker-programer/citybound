@@ -1,8 +1,17 @@
-// Citybound Native v0.18.0 — Renderizado Arquitectónico
+// Rycimmu v0.19.0 — Renderizado con Sprites Reales
+//
+// Usa el TextureAtlas para blitear sprites reales de los spritesheets
+// Kenney CC0. El terreno se tilea con la textura de fondo
+// (whispers_avalon_ground). Edificios y vehículos usan atlas.blit_sprite().
+//
+// PALETA: Tonos tierra armonizados (fallback procedural).
+
+use crate::ecs::{GameWorld, Camera, ConstructionState, TrafficCar, Position, ZoneComponent, ZoneType, BuildingType};
+use crate::texture_atlas::{TextureAtlas, BuildingTileStyle};
 use crate::simd_render;
 
 // ═══════════════════════════════════════════════════════════
-// PALETA DE COLORES (ARGB)
+// PALETA DE COLORES (ARGB) — fallback procedural
 // ═══════════════════════════════════════════════════════════
 
 pub const COLOR_GRASS:       u32 = 0xFF_4A_7C_3F;
@@ -23,7 +32,7 @@ pub const COLOR_CAR_ALT:     u32 = 0xFF_4A_6A_8A;
 pub const COLOR_UI_TEXT:     u32 = 0xFF_FF_FF_FF;
 pub const COLOR_UI_BG:       u32 = 0xAA_00_00_00;
 
-// Constantes legacy (usadas por render_cache.rs y otros módulos)
+// Constantes legacy
 pub const COLOR_ZONE_ROAD:   u32 = 0x18_6B_6B_6B;
 pub const COLOR_ZONE_PARK:   u32 = 0x18_5A_8C_4A;
 pub const COLOR_BUILDING_HOUSE:     u32 = 0xFF_C4_8E_6A;
@@ -40,15 +49,18 @@ pub const COLOR_CONGESTION_MED:     u32 = 0x44_FF_C1_07;
 pub const COLOR_CONGESTION_HIGH:    u32 = 0x44_EF_53_50;
 
 // ═══════════════════════════════════════════════════════════
-// RENDER PRINCIPAL
+// RENDER CON SPRITES REALES (NUEVO v0.19)
 // ═══════════════════════════════════════════════════════════
 
-pub fn render_world_cached(
+/// Renderiza el mundo usando sprites del atlas de texturas.
+/// `ground_idx` es el índice de la textura de terreno de fondo.
+pub fn render_world_sprites(
     game_world: &GameWorld,
-    _atlas: &TextureAtlas,
+    atlas: &TextureAtlas,
     framebuffer: &mut [u32],
     width: usize,
     height: usize,
+    ground_idx: usize,
 ) {
     let mut cam_offset_x: f32 = 0.0;
     let mut cam_offset_y: f32 = 0.0;
@@ -66,20 +78,38 @@ pub fn render_world_cached(
     let offset_x = (width as f32 / 2.0) - cam_offset_x * scale;
     let offset_y = (height as f32 / 2.0) - cam_offset_y * scale;
 
-    // Capa 0: Terreno suave
-    render_terrain(game_world, framebuffer, width, height, offset_x, offset_y, scale);
+    // Capa 0: Terreno con textura tileada
+    if ground_idx > 0 {
+        render_terrain_tiled(atlas, framebuffer, width, height, ground_idx, offset_x, offset_y, scale);
+    } else {
+        render_terrain_procedural(game_world, framebuffer, width, height, offset_x, offset_y, scale);
+    }
 
-    // Capa 1: Zonas sutiles
+    // Capa 1: Zonas
     render_zones(game_world, framebuffer, width, height, offset_x, offset_y, scale);
 
     // Capa 2: Carriles
     render_lanes(game_world, framebuffer, width, height, offset_x, offset_y, scale);
 
-    // Capa 3: Edificios y vehículos
-    render_entities(game_world, framebuffer, width, height, offset_x, offset_y, scale);
+    // Capa 3: Edificios y vehículos CON SPRITES
+    render_entities_sprites(game_world, atlas, framebuffer, width, height, offset_x, offset_y, scale);
 
     // Capa 4: UI
     render_ui(game_world, framebuffer, width, height);
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER LEGACY (backward compat)
+// ═══════════════════════════════════════════════════════════
+
+pub fn render_world_cached(
+    game_world: &GameWorld,
+    atlas: &TextureAtlas,
+    framebuffer: &mut [u32],
+    width: usize,
+    height: usize,
+) {
+    render_world_sprites(game_world, atlas, framebuffer, width, height, 0);
 }
 
 pub fn render_world(
@@ -93,11 +123,56 @@ pub fn render_world(
 }
 
 // ═══════════════════════════════════════════════════════════
-// TERRENO
+// TERRENO TILEADO CON TEXTURA
 // ═══════════════════════════════════════════════════════════
 
-fn render_terrain(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize,
-                  ox: f32, oy: f32, scale: f32) {
+fn render_terrain_tiled(
+    atlas: &TextureAtlas,
+    fb: &mut [u32],
+    w: usize,
+    h: usize,
+    ground_idx: usize,
+    offset_x: f32,
+    offset_y: f32,
+    scale: f32,
+) {
+    // La textura de fondo se tilea en un grid alineado con offset_x/offset_y
+    let tile = atlas.get_tile(ground_idx);
+    let tw = tile.width as i32;
+    let th = tile.height as i32;
+
+    // Calcular offset de tileo para scroll suave
+    let tile_offset_x = (offset_x.rem_euclid(tw as f32 * scale)) as i32;
+    let tile_offset_y = (offset_y.rem_euclid(th as f32 * scale)) as i32;
+
+    let w_i32 = w as i32;
+    let h_i32 = h as i32;
+
+    for py in 0..h_i32 {
+        let src_y = ((py - tile_offset_y).rem_euclid((th as f32 * scale) as i32) as f32 / scale) as i32;
+        if src_y < 0 || src_y >= th { continue; }
+        let row_start = (py as usize) * w;
+        let tile_row = (src_y as usize) * tw as usize;
+
+        for px in 0..w_i32 {
+            let src_x = ((px - tile_offset_x).rem_euclid((tw as f32 * scale) as i32) as f32 / scale) as i32;
+            if src_x < 0 || src_x >= tw { continue; }
+            unsafe {
+                *fb.get_unchecked_mut(row_start + px as usize) = tile.pixels[tile_row + src_x as usize];
+            }
+        }
+    }
+}
+
+fn render_terrain_procedural(
+    gw: &GameWorld,
+    fb: &mut [u32],
+    w: usize,
+    h: usize,
+    ox: f32,
+    oy: f32,
+    scale: f32,
+) {
     let w_i32 = w as i32;
     let h_i32 = h as i32;
     let grid_size = gw.grid_size as f32;
@@ -149,7 +224,6 @@ fn render_zones(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize,
             _ => continue,
         };
 
-        // Borde punteado (cada 4 píxeles)
         for x in (sx.max(0)..(sx + cell_w).min(w as i32)).step_by(4) {
             if sy >= 0 && sy < h as i32 { unsafe { blend_pixel(fb, w, x, sy, color); } }
             let by = sy + cell_w;
@@ -190,34 +264,86 @@ fn render_lanes(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize,
 }
 
 // ═══════════════════════════════════════════════════════════
-// ENTIDADES (EDIFICIOS + VEHÍCULOS)
+// ENTIDADES CON SPRITES (NUEVO)
 // ═══════════════════════════════════════════════════════════
 
-fn render_entities(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize,
-                   ox: f32, oy: f32, scale: f32) {
-    // Edificios con ConstructionState
+fn render_entities_sprites(
+    gw: &GameWorld,
+    atlas: &TextureAtlas,
+    fb: &mut [u32],
+    w: usize,
+    h: usize,
+    ox: f32,
+    oy: f32,
+    scale: f32,
+) {
+    // Edificios — usar sprites del atlas
     for (_entity, (pos, _renderable, cs)) in gw.world.query::<(&Position, &crate::ecs::Renderable, &ConstructionState)>().iter() {
         let cx = (pos.x * scale + ox) as i32;
         let cy = (pos.y * scale + oy) as i32;
-        let size = (3.0 * scale) as i32;
-        if size < 2 { continue; }
-        if cx + size < 0 || cx - size > w as i32 || cy + size < 0 || cy - size > h as i32 { continue; }
-        draw_building(fb, w, h, cx, cy, size, cs.building_type, cs.progress);
+
+        // Mapear BuildingType → BuildingTileStyle
+        let style = building_type_to_style(cs.building_type);
+        let sprite_idx = atlas.categories.building_sprite(style);
+
+        if sprite_idx > 0 {
+            // Usar escala: 16px tile → cell_size (32px a zoom 1.0)
+            let sprite_scale = scale / 16.0;
+            atlas.blit_sprite(sprite_idx, fb, w, h, cx, cy, sprite_scale);
+        } else {
+            // Fallback procedural si no hay sprite
+            let size = (3.0 * scale) as i32;
+            if size >= 2 {
+                draw_building(fb, w, h, cx, cy, size, cs.building_type, cs.progress);
+            }
+        }
     }
 
-    // Vehículos
+    // Vehículos — usar sprites del atlas
     for (_entity, (pos, _car)) in gw.world.query::<(&Position, &TrafficCar)>().iter() {
         let cx = (pos.x * scale + ox) as i32;
         let cy = (pos.y * scale + oy) as i32;
-        let car_size = (scale * 0.35) as i32;
-        if car_size < 2 { continue; }
-        if cx < -car_size || cx > w as i32 + car_size || cy < -car_size || cy > h as i32 + car_size { continue; }
-        draw_car(fb, w, h, cx, cy, car_size);
+
+        if cx < -20 || cx > w as i32 + 20 || cy < -20 || cy > h as i32 + 20 { continue; }
+
+        let vehicle_idx = if atlas.categories.vehicles.is_empty() {
+            0
+        } else {
+            // Usar posición como seed pseudo-aleatorio para variedad
+            let seed = (pos.x as usize).wrapping_mul(7) ^ (pos.y as usize).wrapping_mul(13);
+            atlas.categories.vehicles[seed % atlas.categories.vehicles.len()]
+        };
+
+        if vehicle_idx > 0 {
+            let sprite_scale = scale / 16.0 * 0.7; // coches más pequeños que celdas
+            atlas.blit_sprite(vehicle_idx, fb, w, h, cx, cy, sprite_scale);
+        } else {
+            let car_size = (scale * 0.35) as i32;
+            if car_size >= 2 {
+                draw_car(fb, w, h, cx, cy, car_size);
+            }
+        }
+    }
+}
+
+/// Mapea BuildingType → BuildingTileStyle para lookup en CategoryMap
+fn building_type_to_style(bt: BuildingType) -> BuildingTileStyle {
+    match bt {
+        BuildingType::House => BuildingTileStyle::House,
+        BuildingType::Apartment => BuildingTileStyle::Apartment,
+        BuildingType::Shop => BuildingTileStyle::Shop,
+        BuildingType::Office => BuildingTileStyle::Office,
+        BuildingType::Factory => BuildingTileStyle::Factory,
+        BuildingType::Farm => BuildingTileStyle::Farm,
+        BuildingType::Hospital => BuildingTileStyle::Hospital,
+        BuildingType::School => BuildingTileStyle::School,
+        BuildingType::Police => BuildingTileStyle::Police,
+        _ => BuildingTileStyle::Generic,
     }
 }
 
 // ═══════════════════════════════════════════════════════════
-// DIBUJO DE EDIFICIOS POR TIPO
+// DIBUJO DE EDIFICIOS POR TIPO (FALLBACK PROCEDURAL)
 // ═══════════════════════════════════════════════════════════
 
 fn draw_building(fb: &mut [u32], fb_w: usize, fb_h: usize,
@@ -235,6 +361,7 @@ fn draw_building(fb: &mut [u32], fb_w: usize, fb_h: usize,
         BuildingType::Hospital  => draw_hospital(fb, fb_w, fb_h, cx, cy, s),
         BuildingType::School    => draw_school(fb, fb_w, fb_h, cx, cy, s),
         BuildingType::Police    => draw_police(fb, fb_w, fb_h, cx, cy, s),
+        _ => draw_house(fb, fb_w, fb_h, cx, cy, s), // fallback genérico
     }
 }
 
@@ -254,10 +381,6 @@ fn draw_house(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: 
         if rw > 0 { fill_rect(fb, fb_w, fb_h, cx - rw/2, y, rw, 1, roof); }
     }
 
-    let dw = size / 5;
-    let dh = body_h * 2 / 3;
-    fill_rect(fb, fb_w, fb_h, cx - dw/2, cy + hw - dh, dw, dh, darken(COLOR_BUILDING_HOUSE, 60));
-
     let ws = size / 6;
     if ws > 1 {
         fill_rect(fb, fb_w, fb_h, cx - hw + size/5, cy - hw + roof_h + size/5, ws, ws, 0xFF_E8_D8_8C);
@@ -270,18 +393,6 @@ fn draw_apartment(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, si
     let body_h = size * 5 / 4;
     fill_rect(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, COLOR_BUILDING_APARTMENT);
     rect_outline(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, darken(COLOR_BUILDING_APARTMENT, 40));
-
-    let ws = size / 7;
-    if ws > 1 {
-        for r in 0..5 {
-            for c in 0..3 {
-                let wx = cx - hw + size/6 + c * (size/3);
-                let wy = cy - body_h + hw + size/8 + r * (body_h/6);
-                let lit = (r + c) % 3 != 0;
-                fill_rect(fb, fb_w, fb_h, wx, wy, ws, ws, if lit { 0xFF_E8_D8_8C } else { 0xFF_3A_3A_4A });
-            }
-        }
-    }
 }
 
 fn draw_shop(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
@@ -289,13 +400,6 @@ fn draw_shop(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i
     let body_h = size * 2 / 3;
     fill_rect(fb, fb_w, fb_h, cx - hw, cy - hw + hw/2, size, body_h, COLOR_BUILDING_SHOP);
     rect_outline(fb, fb_w, fb_h, cx - hw, cy - hw + hw/2, size, body_h, darken(COLOR_BUILDING_SHOP, 30));
-
-    let awning = 0xFF_E8_5C_3A;
-    fill_rect(fb, fb_w, fb_h, cx - hw, cy - hw, size, size/4, awning);
-    for i in 0..4 {
-        fill_rect(fb, fb_w, fb_h, cx - hw + i*size/4, cy - hw, 2, size/4, 0xFF_FF_FF_CC);
-    }
-    fill_rect(fb, fb_w, fb_h, cx - hw + 3, cy - hw + size/3, size - 6, body_h/2, 0xFF_CC_DD_EE);
 }
 
 fn draw_office(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
@@ -303,11 +407,6 @@ fn draw_office(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size:
     let body_h = size * 5 / 4;
     fill_rect(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, COLOR_BUILDING_OFFICE);
     rect_outline(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, darken(COLOR_BUILDING_OFFICE, 40));
-
-    for floor in 0..6 {
-        let fy = cy - body_h + hw + floor * body_h / 6;
-        fill_rect(fb, fb_w, fb_h, cx - hw + 2, fy, size - 4, 1, darken(COLOR_BUILDING_OFFICE, 20));
-    }
 }
 
 fn draw_factory(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
@@ -315,12 +414,6 @@ fn draw_factory(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size
     let body_h = size * 2 / 3;
     fill_rect(fb, fb_w, fb_h, cx - hw, cy - hw + size/4, size, body_h, COLOR_BUILDING_FACTORY);
     rect_outline(fb, fb_w, fb_h, cx - hw, cy - hw + size/4, size, body_h, darken(COLOR_BUILDING_FACTORY, 40));
-
-    let cw = size / 8;
-    for i in 0..2 {
-        let ch_x = cx - hw + size/3 + i * size/3;
-        fill_rect(fb, fb_w, fb_h, ch_x, cy - hw - size/4, cw, size/3, 0xFF_6A_5A_4E);
-    }
 }
 
 fn draw_farm(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
@@ -328,17 +421,6 @@ fn draw_farm(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i
     let body_h = size * 3 / 4;
     fill_rect(fb, fb_w, fb_h, cx - hw + size/6, cy - hw + size/4, size*2/3, body_h, COLOR_BUILDING_FARM);
     rect_outline(fb, fb_w, fb_h, cx - hw + size/6, cy - hw + size/4, size*2/3, body_h, darken(COLOR_BUILDING_FARM, 40));
-
-    let roof = 0xFF_7A_4A_3A;
-    let roof_h = size / 4;
-    for row in 0..roof_h {
-        let y = cy - hw + size/4 - roof_h + row;
-        let rw = (row * (size*2/3) / roof_h.max(1)) as i32;
-        if rw > 0 { fill_rect(fb, fb_w, fb_h, cx - rw/2, y, rw, 1, roof); }
-    }
-
-    let silo_x = cx + hw - size/4;
-    fill_rect(fb, fb_w, fb_h, silo_x, cy - size*3/4 + hw - size/8, size/5, size*3/4, 0xFF_AA_AA_B0);
 }
 
 fn draw_hospital(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
@@ -346,11 +428,6 @@ fn draw_hospital(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, siz
     let body_h = size;
     fill_rect(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, COLOR_BUILDING_HOSPITAL);
     rect_outline(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, 0xFF_C0_C0_C8);
-
-    let cross = size / 5;
-    let cross_y = cy - body_h/2 + hw;
-    fill_rect(fb, fb_w, fb_h, cx - cross/2, cross_y - size/6, cross, size/3, 0xFF_CC_33_33);
-    fill_rect(fb, fb_w, fb_h, cx - size/6, cross_y - cross/2, size/3, cross, 0xFF_CC_33_33);
 }
 
 fn draw_school(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
@@ -358,8 +435,6 @@ fn draw_school(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size:
     let body_h = size * 4 / 5;
     fill_rect(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, COLOR_BUILDING_SCHOOL);
     rect_outline(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, darken(COLOR_BUILDING_SCHOOL, 40));
-    fill_rect(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, 3, darken(COLOR_BUILDING_SCHOOL, 20));
-    fill_rect(fb, fb_w, fb_h, cx - size/6, cy + hw - body_h/3, size/3, body_h/3, darken(COLOR_BUILDING_SCHOOL, 30));
 }
 
 fn draw_police(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
@@ -367,17 +442,13 @@ fn draw_police(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size:
     let body_h = size * 4 / 5;
     fill_rect(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, COLOR_BUILDING_POLICE);
     rect_outline(fb, fb_w, fb_h, cx - hw, cy - body_h + hw, size, body_h, darken(COLOR_BUILDING_POLICE, 40));
-    fill_rect(fb, fb_w, fb_h, cx - hw/3, cy - body_h + hw, hw*2/3, 2, 0xFF_CC_3333);
-    fill_rect(fb, fb_w, fb_h, cx, cy - body_h + hw, hw/3, 2, 0xFF_3333_CC);
-    fill_rect(fb, fb_w, fb_h, cx - 3, cy - body_h/2 + hw - 3, 6, 6, 0xFF_FF_D700);
 }
 
 // ═══════════════════════════════════════════════════════════
-// VEHÍCULO
+// VEHÍCULO (FALLBACK)
 // ═══════════════════════════════════════════════════════════
 
-fn draw_car(fb: &mut [u32], fb_w: usize, fb_h: usize,
-            cx: i32, cy: i32, size: i32) {
+fn draw_car(fb: &mut [u32], fb_w: usize, fb_h: usize, cx: i32, cy: i32, size: i32) {
     let cw = size * 2;
     let ch = size * 2 / 3;
     fill_rect(fb, fb_w, fb_h, cx - cw/2, cy - ch/2, cw, ch, COLOR_CAR);
@@ -396,7 +467,7 @@ fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
     unsafe { simd_render::fill_rect_alpha_simd(fb, w, h, 0, 0, w_i32, 22, COLOR_UI_BG); }
 
     let mode = if gw.design_tool.active { "DISENO" } else { "SIMULACION" };
-    let title = format!("Rycimmu v0.18 | {} | {:02}:{:02} | T:{}",
+    let title = format!("Rycimmu v0.19 | {} | {:02}:{:02} | T:{}",
         mode, gw.time_of_day / 60, gw.time_of_day % 60, gw.sim_tick);
     draw_text(fb, w, h, 8, 4, &title, COLOR_UI_TEXT);
 
@@ -405,7 +476,7 @@ fn render_ui(gw: &GameWorld, fb: &mut [u32], w: usize, h: usize) {
     let help = if gw.design_tool.active {
         "WASD: Mover | Click: Construir | [Tab]: Salir | ESC: Cerrar"
     } else {
-        "WASD: Mover | Click: Inspeccionar | [Tab]: Disenar | ESC: Cerrar"
+        "WASD: Mover | Rueda: Zoom | [Tab]: Disenar | ESC: Salir"
     };
     draw_text(fb, w, h, 8, h_i32 - 14, help, COLOR_UI_TEXT);
 
@@ -524,6 +595,7 @@ fn draw_text(fb: &mut [u32], fb_w: usize, _fb_h: usize,
             '/' => [0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0, 0],
             '[' => [0b01110, 0b01000, 0b01000, 0b01000, 0b01000, 0b01000, 0b01110],
             ']' => [0b01110, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010, 0b01110],
+            '|' => [0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
             _ => [0; 7],
         };
         for row in 0..7 {

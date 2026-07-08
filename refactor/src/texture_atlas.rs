@@ -1,14 +1,8 @@
-﻿// Módulo de Atlas de Texturas v0.17.0 — Fase 9: Categorización de Sprites
+// Módulo de Atlas de Texturas v0.19.0 — Sprites Reales
 //
 // Sistema de spritesheets con carga PNG, extracción de tiles,
-// y categorización automática por color dominante para mapeo
-// de entidades a sprites reales.
-//
-// NOVEDADES v0.17.0:
-// - TileCategory enum con categorías de terreno y edificios
-// - Categorización automática durante load_spritesheet
-// - CategoryMap para lookup O(1) de sprites por categoría
-// - Métodos get_sprite_for_* para entidades
+// categorización automática, blit con alpha blending,
+// y carga de texturas completas (ground textures).
 //
 // TÉCNICAS:
 // [TC#5]  Look-Up Tables: tiles pre-extraídos indexados O(1)
@@ -22,70 +16,46 @@ use std::io::Read;
 use std::path::Path;
 
 // ---------------------------------------------------------------------------
-// CATEGORÍAS DE TILES (para mapeo automático)
+// CATEGORÍAS DE TILES
 // ---------------------------------------------------------------------------
 
-/// Categoría de un tile según su contenido visual
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TileCategory {
-    /// Hierba/vegetación verde
     Grass,
-    /// Tierra/camino marrón
     Dirt,
-    /// Carretera/asfalto gris
     Road,
-    /// Arena/playa beige
     Sand,
-    /// Agua azul
     Water,
-    /// Edificio (con sub-estilo)
     Building(BuildingTileStyle),
-    /// Vehículo (coche, camión)
     Vehicle,
-    /// Decoración (árbol, farola, banco, etc.)
     Decoration,
-    /// Personaje/peatón
     Character,
-    /// Desconocido (se usa como fallback)
     Unknown,
 }
 
-/// Sub-estilo de edificio para mapear a tipos de BuildingType
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BuildingTileStyle {
-    /// Casa residencial (cálida, pequeña)
     House,
-    /// Tienda/comercio (escaparate)
     Shop,
-    /// Fábrica/industrial (oscura, grande)
     Factory,
-    /// Apartamento (gris, alto)
     Apartment,
-    /// Oficina (gris, ventanas)
     Office,
-    /// Granja (rural, cálida)
     Farm,
-    /// Hospital (grande, blanco/rojo)
     Hospital,
-    /// Escuela (media, amarillo/marrón)
     School,
-    /// Comisaría (media, azul)
     Police,
-    /// Edificio genérico
     Generic,
 }
 
 // ---------------------------------------------------------------------------
-// TILE Y ATLAS (mejorados con categorización)
+// TILE Y ATLAS
 // ---------------------------------------------------------------------------
 
-/// Un tile individual como array plano de píxeles ARGB
 #[derive(Clone)]
 pub struct SpriteTile {
     pub pixels: Vec<u32>,
     pub width: u32,
     pub height: u32,
-    /// Categoría asignada durante la carga
     pub category: TileCategory,
 }
 
@@ -100,19 +70,13 @@ impl SpriteTile {
     }
 }
 
-/// Atlas de texturas con categorización automática
 pub struct TextureAtlas {
-    /// Todos los tiles de todas las spritesheets, indexados secuencialmente
     pub tiles: Vec<SpriteTile>,
-    /// Rango [start, end) de tiles para cada spritesheet
     pub banks: Vec<TileBank>,
-    /// Índice por defecto para entidades no mapeadas
     pub fallback_idx: usize,
-    /// Mapa de categorías para lookup rápido
     pub categories: CategoryMap,
 }
 
-/// Banco de tiles de un spritesheet específico
 #[derive(Clone)]
 pub struct TileBank {
     pub name: String,
@@ -122,7 +86,6 @@ pub struct TileBank {
     pub tile_h: u32,
 }
 
-/// Mapa de categorías: cada categoría tiene un Vec de índices
 #[derive(Clone)]
 pub struct CategoryMap {
     pub grass: Vec<usize>,
@@ -163,7 +126,6 @@ impl CategoryMap {
         }
     }
 
-    /// Obtiene un sprite aleatorio para una categoría de terreno
     pub fn random_terrain(&self, base: TerrainTileType, rng: &mut impl FnMut() -> usize) -> usize {
         let list = match base {
             TerrainTileType::Grass => &self.grass,
@@ -175,7 +137,6 @@ impl CategoryMap {
         if list.is_empty() { 0 } else { list[rng() % list.len()] }
     }
 
-    /// Obtiene un sprite para un estilo de edificio
     pub fn building_sprite(&self, style: BuildingTileStyle) -> usize {
         self.buildings.get(&style)
             .and_then(|v| if v.is_empty() { None } else { Some(v[0]) })
@@ -184,13 +145,11 @@ impl CategoryMap {
             .unwrap_or(0)
     }
 
-    /// Obtiene sprite de vehículo aleatorio
     pub fn random_vehicle(&self, rng: &mut impl FnMut() -> usize) -> usize {
         if self.vehicles.is_empty() { 0 } else { self.vehicles[rng() % self.vehicles.len()] }
     }
 }
 
-/// Tipos de terreno para mapeo
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TerrainTileType {
     Grass,
@@ -220,7 +179,6 @@ impl TextureAtlas {
         }
     }
 
-    /// Carga un spritesheet PNG, extrae tiles y los categoriza automáticamente.
     pub fn load_spritesheet(
         &mut self,
         png_path: &Path,
@@ -272,10 +230,8 @@ impl TextureAtlas {
                             sum_b += b;
                             pixel_count += 1;
 
-                            // Detectar bordes (píxeles en el perímetro)
                             if px == 0 || px == tile_w - 1 || py == 0 || py == tile_h - 1 {
                                 edge_pixels += 1;
-                                // Bordes oscuros sugieren edificio
                                 if (r + g + b) < 120 {
                                     corner_dark += 1;
                                 }
@@ -294,7 +250,6 @@ impl TextureAtlas {
                 let avg_b = (sum_b / pixel_count.max(1)) as f32;
                 let avg_brightness = (avg_r + avg_g + avg_b) / 3.0;
 
-                // Determinar categoría
                 let category = categorize_tile(
                     avg_r, avg_g, avg_b,
                     avg_brightness,
@@ -312,7 +267,6 @@ impl TextureAtlas {
                     category,
                 });
 
-                // Registrar en el mapa de categorías
                 let tile_idx = self.tiles.len() - 1;
                 match category {
                     TileCategory::Grass => self.categories.grass.push(tile_idx),
@@ -349,7 +303,7 @@ impl TextureAtlas {
     }
 
     // -----------------------------------------------------------------------
-    // Blit de sprites
+    // Blit de sprites (con alpha blending)
     // -----------------------------------------------------------------------
 
     #[inline(always)]
@@ -550,7 +504,10 @@ impl TextureAtlas {
                 }
             }
         }
-    /// Carga una textura completa (no un spritesheet) como un solo tile
+    }
+
+    /// Carga una textura completa (no un spritesheet) como un solo tile.
+    /// Útil para texturas de terreno de fondo.
     pub fn load_full_texture(&mut self, png_path: &Path, name: &str) -> Result<usize, String> {
         let (img_w, img_h, pixels) = load_png(png_path)?;
 
@@ -558,7 +515,7 @@ impl TextureAtlas {
             pixels,
             width: img_w,
             height: img_h,
-            category: TileCategory::Grass, // Las texturas de terreno son pasto
+            category: TileCategory::Grass,
         };
 
         let idx = self.tiles.len();
@@ -577,7 +534,6 @@ impl TextureAtlas {
     }
 
     pub fn get_tile(&self, idx: usize) -> &SpriteTile {
-    pub fn get_tile(&self, idx: usize) -> &SpriteTile {
         if idx < self.tiles.len() {
             &self.tiles[idx]
         } else {
@@ -591,7 +547,6 @@ impl TextureAtlas {
         self.banks.iter().find(|b| b.name == name).map(|b| b.start_idx)
     }
 
-    /// Imprime estadísticas de categorización
     pub fn print_stats(&self) {
         println!("[ATLAS] {} tiles totales en {} banks", self.tiles.len(), self.banks.len());
         println!("  Grass:     {}", self.categories.grass.len());
@@ -614,7 +569,6 @@ impl TextureAtlas {
 // CATEGORIZACIÓN AUTOMÁTICA POR COLOR
 // ---------------------------------------------------------------------------
 
-/// Analiza el color promedio y características de un tile para categorizarlo
 fn categorize_tile(
     avg_r: f32, avg_g: f32, avg_b: f32,
     avg_brightness: f32,
@@ -623,44 +577,35 @@ fn categorize_tile(
     corner_dark: u32,
     tile_size: u32,
     grid_row: u32,
-
 ) -> TileCategory {
     let fill_ratio = pixel_count as f32 / (tile_size * tile_size) as f32;
 
-    // Tiles casi vacíos
     if fill_ratio < 0.15 || pixel_count < 10 {
         return TileCategory::Unknown;
     }
 
-    // Púrpura/magenta = probablemente personajes o UI
     if avg_r > 150.0 && avg_b > 150.0 && avg_g < 100.0 && (avg_r + avg_b) > 2.5 * avg_g {
         return TileCategory::Character;
     }
 
-    // Verde dominante = hierba/vegetación
     if avg_g > avg_r + 15.0 && avg_g > avg_b + 10.0 && avg_g > 70.0 {
-        // Si es muy oscuro y compacto, podría ser un arbusto/árbol
         if fill_ratio < 0.5 && avg_brightness < 80.0 {
             return TileCategory::Decoration;
         }
         return TileCategory::Grass;
     }
 
-    // Azul dominante = agua
     if avg_b > avg_r + 20.0 && avg_b > avg_g + 15.0 && avg_b > 90.0 {
         if fill_ratio > 0.6 {
             return TileCategory::Water;
         }
-        // Azul con bordes podría ser edificio azul (policía, hospital)
         if edge_pixels > 10 && corner_dark > 2 {
             return TileCategory::Building(BuildingTileStyle::Police);
         }
     }
 
-    // Rojo/marrón cálido con alto fill = edificio de ladrillo
     if avg_r > avg_g + 10.0 && avg_r > avg_b + 15.0 && avg_r > 120.0 {
         if fill_ratio > 0.4 && edge_pixels > 8 && corner_dark > 1 {
-            // Edificio cálido - determinar sub-estilo
             if avg_brightness < 100.0 {
                 return TileCategory::Building(BuildingTileStyle::Factory);
             }
@@ -669,17 +614,15 @@ fn categorize_tile(
             }
             return TileCategory::Building(BuildingTileStyle::House);
         }
-        // Marrón tierra
         if avg_brightness < 140.0 && avg_r < 180.0 {
             return TileCategory::Dirt;
         }
         return TileCategory::Building(BuildingTileStyle::Shop);
     }
 
-    // Gris/neutro = carretera o edificio de oficinas
     if (avg_r - avg_g).abs() < 20.0 && (avg_g - avg_b).abs() < 20.0 {
         if avg_brightness > 170.0 {
-            return TileCategory::Sand; // beige claro = arena
+            return TileCategory::Sand;
         }
         if avg_brightness < 110.0 && edge_pixels > 5 {
             return TileCategory::Building(BuildingTileStyle::Apartment);
@@ -690,32 +633,26 @@ fn categorize_tile(
             }
             return TileCategory::Building(BuildingTileStyle::Generic);
         }
-        // Gris medio con alto fill = carretera
         if fill_ratio > 0.5 && avg_brightness > 100.0 && avg_brightness < 175.0 {
             return TileCategory::Road;
         }
-        // Gris oscuro compacto = vehículo
         if fill_ratio < 0.5 && avg_brightness < 90.0 && pixel_count < 100 {
             return TileCategory::Vehicle;
         }
         return TileCategory::Road;
     }
 
-    // Amarillo/marrón claro = edificio escolar
     if avg_r > 170.0 && avg_g > 160.0 && avg_b < 130.0 && edge_pixels > 5 {
         return TileCategory::Building(BuildingTileStyle::School);
     }
 
-    // Blanco/gris claro con bordes = hospital
     if avg_brightness > 170.0 && edge_pixels > 8 && corner_dark > 1 {
         if (avg_r - avg_b).abs() < 30.0 {
             return TileCategory::Building(BuildingTileStyle::Hospital);
         }
     }
 
-    // Por posición en grilla: primeras filas = terreno, filas medias = edificios
     if grid_row < 4 {
-        // Filas superiores = terreno
         if avg_g > 90.0 && avg_g > avg_b { return TileCategory::Grass; }
         if avg_r > 140.0 && avg_g < 130.0 { return TileCategory::Dirt; }
         if avg_brightness > 130.0 && avg_brightness < 170.0 { return TileCategory::Road; }
@@ -724,17 +661,14 @@ fn categorize_tile(
     }
 
     if grid_row >= 4 && grid_row <= 14 {
-        // Filas de edificios
         if fill_ratio > 0.3 && edge_pixels > 4 {
             return TileCategory::Building(BuildingTileStyle::Generic);
         }
-        // Decoraciones (árboles pequeños, arbustos)
         if fill_ratio < 0.4 && avg_g > 80.0 {
             return TileCategory::Decoration;
         }
     }
 
-    // Vehículos: compactos, no llenan el tile
     if fill_ratio < 0.45 && pixel_count > 20 && pixel_count < 120 {
         if avg_brightness < 140.0 {
             return TileCategory::Vehicle;
@@ -748,7 +682,7 @@ fn categorize_tile(
 }
 
 // ---------------------------------------------------------------------------
-// CARGA DE PNG (usando crate `png`)
+// CARGA DE PNG
 // ---------------------------------------------------------------------------
 
 fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
@@ -901,12 +835,10 @@ pub fn generate_building_tile(color: u32, height_px: u32) -> SpriteTile {
             let pixel = if y >= roof_y {
                 let shade = if x == 0 || x == size - 1 || y == roof_y {
                     70
+                } else if (x / 4 + y / 4) % 2 == 0 && x > 1 && x < size - 2 && y > roof_y + 1 && y < size - 2 {
+                    255
                 } else {
-                    if (x / 4 + y / 4) % 2 == 0 && x > 1 && x < size - 2 && y > roof_y + 1 && y < size - 2 {
-                        255
-                    } else {
-                        100
-                    }
+                    100
                 };
                 let sr = (r * shade / 255).min(255);
                 let sg = (g * shade / 255).min(255);

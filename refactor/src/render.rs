@@ -73,13 +73,14 @@ pub fn render_world_sprites(
         break;
     }
 
-    let cell_size = 32.0;
+    // Tiles de 64×64 — cell_size = 64 para que 1 tile = 1 celda a zoom 1.0
+    let cell_size = 64.0;
     let scale = cell_size * cam_zoom;
     let offset_x = (width as f32 / 2.0) - cam_offset_x * scale;
     let offset_y = (height as f32 / 2.0) - cam_offset_y * scale;
 
     // Capa 0: Terreno con textura tileada
-    if ground_idx > 0 {
+    if ground_idx > 0 && atlas.get_tile(ground_idx).width >= 32 {
         render_terrain_tiled(atlas, framebuffer, width, height, ground_idx, offset_x, offset_y, scale);
     } else {
         render_terrain_procedural(game_world, framebuffer, width, height, offset_x, offset_y, scale);
@@ -97,12 +98,6 @@ pub fn render_world_sprites(
     // Capa 4: UI
     render_ui(game_world, framebuffer, width, height);
 }
-
-// ═══════════════════════════════════════════════════════════
-// RENDER LEGACY (backward compat)
-// ═══════════════════════════════════════════════════════════
-
-pub fn render_world_cached(
     game_world: &GameWorld,
     atlas: &TextureAtlas,
     framebuffer: &mut [u32],

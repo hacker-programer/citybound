@@ -1109,13 +1109,16 @@ impl GpuBackend {
             ..Default::default()
         });
 
-        // Extraemos los handles crudos (son Copy + Send + Sync)
-        let dh = window.display_handle().ok()?.as_raw();
-        let wh = window.window_handle().ok()?.as_raw();
-        let surface = instance.create_surface(wgpu::SurfaceTarget::RawWindowHandle {
-            raw_display_handle: dh,
-            raw_window_handle: wh,
-        }).ok()?;
+        // Usamos la API unsafe porque minifb::Window no implementa Sync,
+        // pero los handles son válidos durante toda la vida del Surface.
+        let surface_target = unsafe {
+            wgpu::SurfaceTargetUnsafe::from_window(window).ok()?
+        };
+        let surface = unsafe {
+            instance.create_surface_unsafe(surface_target).ok()?
+        };
+
+        let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
@@ -1171,11 +1174,6 @@ impl GpuBackend {
             initialized: false,
         })
     }
-
-    /// Subir una textura a la GPU
-    pub fn upload_texture(&mut self, rgba: &[u32], width: u32, height: u32) -> usize {
-        let texture_size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Citybound Texture"),
             size: texture_size,
             mip_level_count: 1,

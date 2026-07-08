@@ -1,4 +1,4 @@
-﻿Ahora hago el reemplazo masivo. Aplico cambios en todos los archivos simultáneamente — fuentes, tests, configs:
+// Citybound Native v0.18.0 — Renderizado Arquitectónico
 use crate::simd_render;
 
 // ═══════════════════════════════════════════════════════════

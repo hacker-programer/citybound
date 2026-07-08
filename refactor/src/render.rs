@@ -117,6 +117,11 @@ pub fn render_world_cached(
 // ═══════════════════════════════════════════════════════════
 // TERRENO TILEADO CON TEXTURA
 // ═══════════════════════════════════════════════════════════
+
+fn render_terrain_tiled(
+    atlas: &TextureAtlas,
+    fb: &mut [u32],
+    w: usize,
     h: usize,
     ground_idx: usize,
     offset_x: f32,

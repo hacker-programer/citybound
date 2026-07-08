@@ -346,7 +346,6 @@ impl WasteManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ecs::BuildingType;
 
     #[test]
     fn test_landfill_deposit() {

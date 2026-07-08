@@ -650,29 +650,30 @@ mod tests {
     fn test_warm_shader_cache() {
         assert!(warm_shader_cache());
     }
-
     #[test]
     fn test_shaders_contain_required_keywords() {
         // Verificar que los shaders tienen sintaxis WGSL válida
-        assert!(SHADERS.terrain_tile.contains("@vertex"));
-        assert!(SHADERS.terrain_tile.contains("@fragment"));
-        assert!(SHADERS.building_sprite.contains("@vertex"));
-        assert!(SHADERS.building_sprite.contains("@fragment"));
-        assert!(SHADERS.ui_overlay.contains("@vertex"));
-        assert!(SHADERS.ui_overlay.contains("@fragment"));
-        assert!(SHADERS.particle.contains("@vertex"));
-        assert!(SHADERS.particle.contains("@fragment"));
-        assert!(SHADERS.water.contains("@vertex"));
-        assert!(SHADERS.water.contains("@fragment"));
+        assert!(SHADERS.terrain_tile.contains(concat!("@", "vertex")));
+        assert!(SHADERS.terrain_tile.contains(concat!("@", "fragment")));
+        assert!(SHADERS.building_sprite.contains(concat!("@", "vertex")));
+        assert!(SHADERS.building_sprite.contains(concat!("@", "fragment")));
+        assert!(SHADERS.ui_overlay.contains(concat!("@", "vertex")));
+        assert!(SHADERS.ui_overlay.contains(concat!("@", "fragment")));
+        assert!(SHADERS.particle.contains(concat!("@", "vertex")));
+        assert!(SHADERS.particle.contains(concat!("@", "fragment")));
+        assert!(SHADERS.water.contains(concat!("@", "vertex")));
+        assert!(SHADERS.water.contains(concat!("@", "fragment")));
     }
 
     #[test]
     fn test_compute_shaders_have_workgroup_size() {
-        assert!(SHADERS.compute_pollution_diffusion.contains("@compute"));
-        assert!(SHADERS.compute_pollution_diffusion.contains("@workgroup_size"));
-        assert!(SHADERS.compute_flow_field.contains("@compute"));
-        assert!(SHADERS.compute_flow_field.contains("@workgroup_size"));
-        assert!(SHADERS.compute_crowd_dynamics.contains("@compute"));
-        assert!(SHADERS.compute_crowd_dynamics.contains("@workgroup_size"));
+        assert!(SHADERS.compute_pollution_diffusion.contains(concat!("@", "compute")));
+        assert!(SHADERS.compute_pollution_diffusion.contains(concat!("@", "workgroup_size")));
+        assert!(SHADERS.compute_flow_field.contains(concat!("@", "compute")));
+        assert!(SHADERS.compute_flow_field.contains(concat!("@", "workgroup_size")));
+        assert!(SHADERS.compute_crowd_dynamics.contains(concat!("@", "compute")));
+        assert!(SHADERS.compute_crowd_dynamics.contains(concat!("@", "workgroup_size")));
+    }
+}
     }
 }

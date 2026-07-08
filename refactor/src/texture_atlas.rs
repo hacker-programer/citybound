@@ -774,146 +774,486 @@ fn load_png(path: &Path) -> Result<(u32, u32, Vec<u32>), String> {
 // GENERACIÓN PROCEDURAL DE TEXTURAS (FALLBACK)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// GENERACIÓN PROCEDURAL DE TEXTURAS v0.20 — TILES GRANDES (64×64)
+// ---------------------------------------------------------------------------
+// Edificios con ventanas, techos, puertas, sombras, y detalles arquitectónicos.
+// Terreno con textura de pasto detallada.
+// Carreteras con marcas de carril.
+// Vehículos con forma de coche y ventanas.
+// TODOS los tiles son 64×64 para máxima visibilidad.
+
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
+
+const TILE_SIZE: u32 = 64;
+
+fn hash_xy(x: u32, y: u32, seed: u64) -> u32 {
+    let mut h = DefaultHasher::new();
+    x.hash(&mut h);
+    y.hash(&mut h);
+    seed.hash(&mut h);
+    h.finish() as u32
+}
+
+fn lerp_u32(a: u32, b: u32, t: f32) -> u32 {
+    ((a as f32) + ((b as f32) - (a as f32)) * t) as u32
+}
+
+// ═══════════════════════════════════════════════════════════
+// TERRENO: HIERBA
+// ═══════════════════════════════════════════════════════════
+
 pub fn generate_grass_tile(variant: u32) -> SpriteTile {
-    let size = 16u32;
-    let mut pixels = vec![0u32; (size * size) as usize];
-    let base_r = 45 + (variant % 15) as u32;
-    let base_g = 90 + (variant % 20) as u32;
-    let base_b = 40 + (variant % 10) as u32;
-    for y in 0u32..size {
-        for x in 0u32..size {
-            let noise = ((x.wrapping_mul(7) ^ y.wrapping_mul(13)) % 20) as u32;
-            let r = base_r + noise / 2;
-            let g = base_g + noise;
-            let b = base_b + noise / 3;
-            pixels[(y * size + x) as usize] =
-                0xFF_00_00_00 | (r << 16) | (g << 8) | b;
-        }
-    }
-    SpriteTile { pixels, width: size, height: size, category: TileCategory::Grass }
-}
-
-pub fn generate_water_tile(frame: u32) -> SpriteTile {
-    let size = 16;
-    let mut pixels = vec![0u32; (size * size) as usize];
-    for y in 0..size {
-        for x in 0..size {
-            let wave = ((x as u32).wrapping_mul(3 + frame) ^ (y as u32).wrapping_mul(5 + frame)) % 8;
-            let r = 20 + wave;
-            let g = 40 + wave * 3;
-            let b = 100 + wave * 5;
-            pixels[(y * size + x) as usize] =
-                0xFF_00_00_00 | (r << 16) | (g << 8) | b;
-        }
-    }
-    SpriteTile { pixels, width: size, height: size, category: TileCategory::Water }
-}
-
-pub fn generate_road_tile() -> SpriteTile {
-    let size = 16u32;
-    let mut pixels = vec![0u32; (size * size) as usize];
-    for y in 0u32..size {
-        for x in 0u32..size {
-            let v = 80 + ((x.wrapping_mul(3) ^ y.wrapping_mul(7)) % 10) as u32;
-            pixels[(y * size + x) as usize] =
-                0xFF_00_00_00 | (v << 16) | (v << 8) | v;
-        }
-    }
-    SpriteTile { pixels, width: size, height: size, category: TileCategory::Road }
-}
-
-pub fn generate_building_tile(color: u32, height_px: u32) -> SpriteTile {
-    let size = 16;
-    let mut pixels = vec![0u32; (size * size) as usize];
-    let roof_y = size - height_px;
-    let r = (color >> 16) & 0xFF;
-    let g = (color >> 8) & 0xFF;
-    let b = color & 0xFF;
-
-    for y in 0..size {
-        for x in 0..size {
-            let pixel = if y >= roof_y {
-                let shade = if x == 0 || x == size - 1 || y == roof_y {
-                    70
-                } else if (x / 4 + y / 4) % 2 == 0 && x > 1 && x < size - 2 && y > roof_y + 1 && y < size - 2 {
-                    255
-                } else {
-                    100
-                };
-                let sr = (r * shade / 255).min(255);
-                let sg = (g * shade / 255).min(255);
-                let sb = (b * shade / 255).min(255);
-                0xFF_00_00_00 | (sr << 16) | (sg << 8) | sb
+    let mut pixels = vec![0u32; (TILE_SIZE * TILE_SIZE) as usize];
+    
+    // Colores base de pasto: varios tonos de verde
+    let grass_colors: [(u32, u32, u32); 5] = [
+        (55, 130, 45),   // verde oscuro
+        (65, 140, 50),   // verde medio
+        (75, 150, 55),   // verde claro
+        (50, 120, 40),   // verde sombra
+        (85, 155, 60),   // verde brillante
+    ];
+    
+    for y in 0u32..TILE_SIZE {
+        for x in 0u32..TILE_SIZE {
+            let h = hash_xy(x + variant * 1000, y, 42);
+            let noise = (h % 100) as f32 / 100.0;
+            
+            // Elegir color base con ruido
+            let ci = ((h >> 4) % 5) as usize;
+            let (br, bg, bb) = grass_colors[ci];
+            
+            // Micro-variación por posición
+            let r = (br as f32 + (noise - 0.5) * 20.0).clamp(0.0, 255.0) as u32;
+            let g = (bg as f32 + (noise - 0.5) * 25.0).clamp(0.0, 255.0) as u32;
+            let b = (bb as f32 + (noise - 0.5) * 15.0).clamp(0.0, 255.0) as u32;
+            
+            // Algunas briznas de hierba (líneas verticales sutiles)
+            let blade = if (x + y / 3) % 13 == 0 && noise > 0.6 {
+                0.15
             } else {
-                let sr = (r * 60 / 255).min(255);
-                let sg = (g * 60 / 255).min(255);
-                let sb = (b * 60 / 255).min(255);
-                0xFF_00_00_00 | (sr << 16) | (sg << 8) | sb
+                0.0
             };
-            pixels[(y * size + x) as usize] = pixel;
+            
+            let sr = (r as f32 * (1.0 + blade)).min(255.0) as u32;
+            let sg = (g as f32 * (1.0 + blade * 1.5)).min(255.0) as u32;
+            let sb = (b as f32 * (1.0 + blade)).min(255.0) as u32;
+            
+            pixels[(y * TILE_SIZE + x) as usize] = 
+                0xFF_00_00_00 | (sr << 16) | (sg << 8) | sb;
         }
     }
-    SpriteTile { pixels, width: size, height: size, category: TileCategory::Building(BuildingTileStyle::Generic) }
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Grass }
 }
+
+// ═══════════════════════════════════════════════════════════
+// TERRENO: TIERRA
+// ═══════════════════════════════════════════════════════════
 
 pub fn generate_dirt_tile(variant: u32) -> SpriteTile {
-    let size = 16u32;
-    let mut pixels = vec![0u32; (size * size) as usize];
-    let base_r = 155 + (variant % 15) as u32;
-    let base_g = 130 + (variant % 12) as u32;
-    let base_b = 100 + (variant % 10) as u32;
-    for y in 0u32..size {
-        for x in 0u32..size {
-            let noise = ((x.wrapping_mul(11) ^ y.wrapping_mul(17)) % 18) as u32;
-            let r = base_r + noise / 2;
-            let g = base_g + noise / 2;
-            let b = base_b + noise / 3;
-            pixels[(y * size + x) as usize] =
+    let mut pixels = vec![0u32; (TILE_SIZE * TILE_SIZE) as usize];
+    
+    for y in 0u32..TILE_SIZE {
+        for x in 0u32..TILE_SIZE {
+            let h = hash_xy(x + variant * 2000, y, 99);
+            let noise = (h % 100) as f32 / 100.0;
+            let r = (155.0 + (noise - 0.5) * 30.0).clamp(0.0, 255.0) as u32;
+            let g = (130.0 + (noise - 0.5) * 25.0).clamp(0.0, 255.0) as u32;
+            let b = (100.0 + (noise - 0.5) * 20.0).clamp(0.0, 255.0) as u32;
+            pixels[(y * TILE_SIZE + x) as usize] = 
                 0xFF_00_00_00 | (r << 16) | (g << 8) | b;
         }
     }
-    SpriteTile { pixels, width: size, height: size, category: TileCategory::Dirt }
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Dirt }
 }
+
+// ═══════════════════════════════════════════════════════════
+// TERRENO: ARENA
+// ═══════════════════════════════════════════════════════════
 
 pub fn generate_sand_tile(variant: u32) -> SpriteTile {
-    let size = 16u32;
-    let mut pixels = vec![0u32; (size * size) as usize];
-    let base_r = 210 + (variant % 12) as u32;
-    let base_g = 195 + (variant % 10) as u32;
-    let base_b = 150 + (variant % 8) as u32;
-    for y in 0u32..size {
-        for x in 0u32..size {
-            let noise = ((x.wrapping_mul(9) ^ y.wrapping_mul(15)) % 12) as u32;
-            let r = base_r + noise / 3;
-            let g = base_g + noise / 3;
-            let b = base_b + noise / 4;
-            pixels[(y * size + x) as usize] =
+    let mut pixels = vec![0u32; (TILE_SIZE * TILE_SIZE) as usize];
+    
+    for y in 0u32..TILE_SIZE {
+        for x in 0u32..TILE_SIZE {
+            let h = hash_xy(x + variant * 3000, y, 55);
+            let noise = (h % 100) as f32 / 100.0;
+            let r = (210.0 + (noise - 0.5) * 20.0).clamp(0.0, 255.0) as u32;
+            let g = (195.0 + (noise - 0.5) * 18.0).clamp(0.0, 255.0) as u32;
+            let b = (150.0 + (noise - 0.5) * 15.0).clamp(0.0, 255.0) as u32;
+            pixels[(y * TILE_SIZE + x) as usize] = 
                 0xFF_00_00_00 | (r << 16) | (g << 8) | b;
         }
     }
-    SpriteTile { pixels, width: size, height: size, category: TileCategory::Sand }
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Sand }
 }
 
-pub fn generate_vehicle_tile(color: u32) -> SpriteTile {
-    let size: u32 = 16;
-    let mut pixels = vec![0u32; (size * size) as usize];
-    let r = (color >> 16) & 0xFF;
-    let g = (color >> 8) & 0xFF;
-    let b = color & 0xFF;
+// ═══════════════════════════════════════════════════════════
+// CARRETERA
+// ═══════════════════════════════════════════════════════════
 
-    for y in 0u32..size {
-        for x in 0u32..size {
-            let pixel = if y >= 4 && y < 12 && x >= 2 && x < 14 {
-                let shade = if y < 5 || y > 10 || x < 3 || x > 12 { 70 } else { 100 };
-                let sr = (r * shade / 255).min(255);
-                let sg = (g * shade / 255).min(255);
-                let sb = (b * shade / 255).min(255);
-                0xFF_00_00_00 | (sr << 16) | (sg << 8) | sb
+pub fn generate_road_tile() -> SpriteTile {
+    let mut pixels = vec![0u32; (TILE_SIZE * TILE_SIZE) as usize];
+    let mid = TILE_SIZE / 2;
+    
+    for y in 0u32..TILE_SIZE {
+        for x in 0u32..TILE_SIZE {
+            let h = hash_xy(x, y, 77);
+            let noise = (h % 40) as f32 / 40.0;
+            let v = (95.0 + (noise - 0.5) * 15.0).clamp(0.0, 255.0) as u32;
+            
+            // Línea central discontinua
+            let is_center_line = x >= mid - 1 && x <= mid + 1 && (y / 8) % 2 == 0;
+            
+            let (r, g, b) = if is_center_line {
+                (220, 220, 100) // línea amarilla
             } else {
-                0x00_00_00_00
+                (v, v, v) // asfalto gris
             };
-            pixels[(y * size + x) as usize] = pixel;
+            
+            pixels[(y * TILE_SIZE + x) as usize] = 
+                0xFF_00_00_00 | (r << 16) | (g << 8) | b;
         }
     }
-    SpriteTile { pixels, width: size, height: size, category: TileCategory::Vehicle }
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Road }
 }
+
+// ═══════════════════════════════════════════════════════════
+// AGUA (ANIMADA)
+// ═══════════════════════════════════════════════════════════
+
+pub fn generate_water_tile(frame: u32) -> SpriteTile {
+    let mut pixels = vec![0u32; (TILE_SIZE * TILE_SIZE) as usize];
+    
+    for y in 0u32..TILE_SIZE {
+        for x in 0u32..TILE_SIZE {
+            let wave1 = ((x as f32 + frame as f32 * 2.0) * 0.15).sin() * 8.0;
+            let wave2 = ((y as f32 + frame as f32 * 1.5) * 0.12).cos() * 8.0;
+            let wave = (wave1 + wave2) as u32;
+            
+            let r = (25u32 + wave).min(35);
+            let g = (60u32 + wave * 2).min(80);
+            let b = (130u32 + wave * 3).min(180);
+            
+            pixels[(y * TILE_SIZE + x) as usize] = 
+                0xFF_00_00_00 | (r << 16) | (g << 8) | b;
+        }
+    }
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Water }
+}
+
+// ═══════════════════════════════════════════════════════════
+// EDIFICIOS — ARQUITECTURA DETALLADA
+// ═══════════════════════════════════════════════════════════
+
+fn fill_rect_tile(pixels: &mut [u32], tw: u32, x0: u32, y0: u32, w: u32, h: u32, color: u32) {
+    for y in y0..(y0+h).min(tw) {
+        for x in x0..(x0+w).min(tw) {
+            if y < tw && x < tw {
+                pixels[(y * tw + x) as usize] = color;
+            }
+        }
+    }
+}
+
+fn darken_color(color: u32, amount: u32) -> u32 {
+    let r = (((color >> 16) & 0xFF).saturating_sub(amount)) as u32;
+    let g = (((color >> 8) & 0xFF).saturating_sub(amount)) as u32;
+    let b = ((color & 0xFF).saturating_sub(amount)) as u32;
+    0xFF_00_00_00 | (r << 16) | (g << 8) | b
+}
+
+fn lighten_color(color: u32, amount: u32) -> u32 {
+    let r = (((color >> 16) & 0xFF).saturating_add(amount)).min(255) as u32;
+    let g = (((color >> 8) & 0xFF).saturating_add(amount)).min(255) as u32;
+    let b = ((color & 0xFF).saturating_add(amount)).min(255) as u32;
+    0xFF_00_00_00 | (r << 16) | (g << 8) | b
+}
+
+/// Dibuja un edificio genérico con cuerpo, techo, ventanas y puerta
+fn draw_building_tile(pixels: &mut [u32], body_color: u32, roof_color: u32, 
+                       window_color: u32, door_color: u32, style: BuildingTileStyle) {
+    let s = TILE_SIZE;
+    // Margen para que no toque los bordes
+    let margin = 6u32;
+    let bw = s - margin * 2;       // ancho del edificio
+    let body_top = s / 5;           // donde empieza el cuerpo (debajo del techo)
+    let roof_height = s / 6;        // altura del techo
+    let body_bottom = s - margin;   // base
+    
+    // Sombra del edificio (lado derecho + abajo)
+    let shadow_color = 0x44_00_00_00u32;
+    fill_rect_tile(pixels, s, margin + 4, body_top + 4, bw, body_bottom - body_top, shadow_color);
+    
+    // Cuerpo del edificio
+    fill_rect_tile(pixels, s, margin, body_top, bw, body_bottom - body_top, body_color);
+    
+    // Borde del cuerpo
+    let border = darken_color(body_color, 40);
+    // Línea superior
+    fill_rect_tile(pixels, s, margin, body_top, bw, 2, border);
+    // Línea inferior
+    fill_rect_tile(pixels, s, margin, body_bottom - 2, bw, 2, border);
+    // Líneas laterales
+    fill_rect_tile(pixels, s, margin, body_top, 2, body_bottom - body_top, border);
+    fill_rect_tile(pixels, s, s - margin - 2, body_top, 2, body_bottom - body_top, border);
+    
+    // Techo
+    let roof_width = bw + 8;
+    let roof_x = margin - 4;
+    fill_rect_tile(pixels, s, roof_x, 0, roof_width, roof_height, roof_color);
+    // Alero del techo (sombra debajo)
+    fill_rect_tile(pixels, s, roof_x, roof_height, roof_width, 2, darken_color(roof_color, 50));
+    // Borde del techo
+    fill_rect_tile(pixels, s, roof_x, 0, roof_width, 2, lighten_color(roof_color, 30));
+    
+    // Ventanas (grid)
+    let win_w = 8u32;
+    let win_h = 10u32;
+    let win_spacing_x = 14u32;
+    let win_spacing_y = 16u32;
+    let win_start_x = margin + 6;
+    let win_start_y = body_top + 6;
+    
+    let cols = ((bw - 12) / win_spacing_x).min(4);
+    let rows = ((body_bottom - body_top - 12) / win_spacing_y).min(3);
+    
+    for row in 0..rows {
+        for col in 0..cols {
+            let wx = win_start_x + col * win_spacing_x;
+            let wy = win_start_y + row * win_spacing_y;
+            // Marco de ventana
+            fill_rect_tile(pixels, s, wx, wy, win_w, win_h, darken_color(body_color, 60));
+            // Vidrio
+            fill_rect_tile(pixels, s, wx + 1, wy + 1, win_w - 2, win_h - 2, window_color);
+            // Reflejo en el vidrio
+            fill_rect_tile(pixels, s, wx + 1, wy + 1, 3, 3, lighten_color(window_color, 60));
+        }
+    }
+    
+    // Puerta
+    let door_w = 10u32;
+    let door_h = 16u32;
+    let door_x = margin + (bw - door_w) / 2;
+    let door_y = body_bottom - door_h;
+    fill_rect_tile(pixels, s, door_x, door_y, door_w, door_h, door_color);
+    // Marco de puerta
+    fill_rect_tile(pixels, s, door_x - 1, door_y - 1, door_w + 2, door_h + 2, darken_color(door_color, 40));
+    fill_rect_tile(pixels, s, door_x, door_y, door_w, door_h, door_color);
+    // Picaporte
+    fill_rect_tile(pixels, s, door_x + door_w - 3, door_y + door_h / 2, 2, 2, 0xFF_FF_D7_00);
+}
+
+pub fn generate_building_tile(color: u32, _height_px: u32) -> SpriteTile {
+    let mut pixels = vec![0x00_00_00_00u32; (TILE_SIZE * TILE_SIZE) as usize];
+    
+    let roof_color = darken_color(color, 80);
+    let window_color = 0xFF_88_CC_FF; // azul cielo para ventanas
+    let door_color = darken_color(color, 40);
+    
+    draw_building_tile(&mut pixels, color, roof_color, window_color, door_color, BuildingTileStyle::Generic);
+    
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Building(BuildingTileStyle::Generic) }
+}
+
+/// Casa residencial: cálida, techo a dos aguas, jardín
+pub fn generate_house_tile() -> SpriteTile {
+    let mut pixels = vec![0x00_00_00_00u32; (TILE_SIZE * TILE_SIZE) as usize];
+    let body = 0xFF_E8_C8_A8;      // beige cálido
+    let roof = 0xFF_8B_45_3A;      // teja roja
+    let windows = 0xFF_AA_DD_FF;   // azul claro
+    let door = 0xFF_6B_3A_2A;      // marrón puerta
+    
+    draw_building_tile(&mut pixels, body, roof, windows, door, BuildingTileStyle::House);
+    
+    // Jardín en la base
+    let s = TILE_SIZE;
+    let grass_color = 0xFF_55_AA_45;
+    fill_rect_tile(&mut pixels, s, 0, s - 8, s, 8, grass_color);
+    // Arbustos
+    fill_rect_tile(&mut pixels, s, 8, s - 8, 10, 6, 0xFF_3A_7A_2A);
+    fill_rect_tile(&mut pixels, s, s - 18, s - 8, 10, 6, 0xFF_3A_7A_2A);
+    
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Building(BuildingTileStyle::House) }
+}
+
+/// Apartamento: gris, más alto, muchas ventanas
+pub fn generate_apartment_tile() -> SpriteTile {
+    let mut pixels = vec![0x00_00_00_00u32; (TILE_SIZE * TILE_SIZE) as usize];
+    let body = 0xFF_C0_C0_C8;
+    let roof = 0xFF_60_60_68;
+    let windows = 0xFF_CC_EE_FF;
+    let door = 0xFF_50_50_58;
+    
+    draw_building_tile(&mut pixels, body, roof, windows, door, BuildingTileStyle::Apartment);
+    
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Building(BuildingTileStyle::Apartment) }
+}
+
+/// Tienda: colorida, escaparates grandes
+pub fn generate_shop_tile() -> SpriteTile {
+    let mut pixels = vec![0x00_00_00_00u32; (TILE_SIZE * TILE_SIZE) as usize];
+    let body = 0xFF_5C_B8_A0;
+    let roof = 0xFF_3A_8A_70;
+    let windows = 0xFF_FF_FF_CC;
+    let door = 0xFF_3A_6A_58;
+    
+    draw_building_tile(&mut pixels, body, roof, windows, door, BuildingTileStyle::Shop);
+    
+    // Cartel en el techo
+    let s = TILE_SIZE;
+    fill_rect_tile(&mut pixels, s, s/3, 0, s/3, 5, 0xFF_FF_44_44);
+    
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Building(BuildingTileStyle::Shop) }
+}
+
+/// Oficina: azul grisáceo, corporativa
+pub fn generate_office_tile() -> SpriteTile {
+    let mut pixels = vec![0x00_00_00_00u32; (TILE_SIZE * TILE_SIZE) as usize];
+    let body = 0xFF_8A_A0_B8;
+    let roof = 0xFF_5A_70_88;
+    let windows = 0xFF_DD_EE_FF;
+    let door = 0xFF_4A_60_78;
+    
+    draw_building_tile(&mut pixels, body, roof, windows, door, BuildingTileStyle::Office);
+    
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Building(BuildingTileStyle::Office) }
+}
+
+/// Fábrica: marrón industrial, chimeneas
+pub fn generate_factory_tile() -> SpriteTile {
+    let mut pixels = vec![0x00_00_00_00u32; (TILE_SIZE * TILE_SIZE) as usize];
+    let body = 0xFF_8A_7A_6E;
+    let roof = 0xFF_5A_4A_3E;
+    let windows = 0xFF_CC_CC_88;
+    let door = 0xFF_4A_3A_2E;
+    
+    draw_building_tile(&mut pixels, body, roof, windows, door, BuildingTileStyle::Factory);
+    
+    // Chimenea
+    let s = TILE_SIZE;
+    fill_rect_tile(&mut pixels, s, s - 16, 4, 8, 16, 0xFF_6A_5A_5E);
+    // Humo
+    fill_rect_tile(&mut pixels, s, s - 14, 2, 4, 4, 0x88_CC_CC_CC);
+    
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Building(BuildingTileStyle::Factory) }
+}
+
+/// Granja: verde, techo rojo de granero
+pub fn generate_farm_tile() -> SpriteTile {
+    let mut pixels = vec![0x00_00_00_00u32; (TILE_SIZE * TILE_SIZE) as usize];
+    let body = 0xFF_8C_A8_6A;
+    let roof = 0xFF_AA_44_33;
+    let windows = 0xFF_EE_FF_CC;
+    let door = 0xFF_5A_4A_2A;
+    
+    draw_building_tile(&mut pixels, body, roof, windows, door, BuildingTileStyle::Farm);
+    
+    // Granero pequeño al lado
+    let s = TILE_SIZE;
+    fill_rect_tile(&mut pixels, s, 2, s/2, 14, s/2 - 4, 0xFF_8A_6A_4A);
+    fill_rect_tile(&mut pixels, s, 0, s/2 - 4, 18, 6, 0xFF_AA_44_33);
+    
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Building(BuildingTileStyle::Farm) }
+}
+
+/// Hospital: blanco, cruz roja
+pub fn generate_hospital_tile() -> SpriteTile {
+    let mut pixels = vec![0x00_00_00_00u32; (TILE_SIZE * TILE_SIZE) as usize];
+    let body = 0xFF_F0_F0_F8;
+    let roof = 0xFF_D0_D0_D8;
+    let windows = 0xFF_CC_DD_FF;
+    let door = 0xFF_A0_A0_B0;
+    
+    draw_building_tile(&mut pixels, body, roof, windows, door, BuildingTileStyle::Hospital);
+    
+    // Cruz roja en el techo
+    let s = TILE_SIZE;
+    let cx = s/2;
+    let cy = 8;
+    fill_rect_tile(&mut pixels, s, cx - 2, cy - 6, 4, 12, 0xFF_FF_22_22);
+    fill_rect_tile(&mut pixels, s, cx - 6, cy - 2, 12, 4, 0xFF_FF_22_22);
+    
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Building(BuildingTileStyle::Hospital) }
+}
+
+/// Escuela: amarillo, patio
+pub fn generate_school_tile() -> SpriteTile {
+    let mut pixels = vec![0x00_00_00_00u32; (TILE_SIZE * TILE_SIZE) as usize];
+    let body = 0xFF_F0_E8_A0;
+    let roof = 0xFF_C0_B8_70;
+    let windows = 0xFF_FF_FF_DD;
+    let door = 0xFF_8A_7A_40;
+    
+    draw_building_tile(&mut pixels, body, roof, windows, door, BuildingTileStyle::School);
+    
+    // Patio de recreo
+    let s = TILE_SIZE;
+    fill_rect_tile(&mut pixels, s, 2, s - 6, 12, 6, 0xFF_CC_AA_88);
+    
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Building(BuildingTileStyle::School) }
+}
+
+/// Policía: azul oscuro, escudo
+pub fn generate_police_tile() -> SpriteTile {
+    let mut pixels = vec![0x00_00_00_00u32; (TILE_SIZE * TILE_SIZE) as usize];
+    let body = 0xFF_5C_70_C4;
+    let roof = 0xFF_3C_50_A4;
+    let windows = 0xFF_BB_CC_FF;
+    let door = 0xFF_3C_40_84;
+    
+    draw_building_tile(&mut pixels, body, roof, windows, door, BuildingTileStyle::Police);
+    
+    // Estrella/escudo en el techo
+    let s = TILE_SIZE;
+    fill_rect_tile(&mut pixels, s, s/2 - 5, 3, 10, 6, 0xFF_FF_D7_00);
+    
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Building(BuildingTileStyle::Police) }
+}
+
+// ═══════════════════════════════════════════════════════════
+// VEHÍCULOS
+// ═══════════════════════════════════════════════════════════
+
+pub fn generate_vehicle_tile(color: u32) -> SpriteTile {
+    let mut pixels = vec![0x00_00_00_00u32; (TILE_SIZE * TILE_SIZE) as usize];
+    let s = TILE_SIZE;
+    
+    // Coche visto desde arriba (para city builder)
+    let car_body_top = s / 3;
+    let car_body_bottom = s * 2 / 3;
+    let car_left = s / 5;
+    let car_right = s * 4 / 5;
+    let car_w = car_right - car_left;
+    let car_h = car_body_bottom - car_body_top;
+    
+    // Sombra
+    fill_rect_tile(&mut pixels, s, car_left + 2, car_body_top + 2, car_w, car_h, 0x44_00_00_00);
+    
+    // Carrocería
+    fill_rect_tile(&mut pixels, s, car_left, car_body_top, car_w, car_h, color);
+    
+    // Ventanas (parabrisas)
+    let glass = 0xFF_88_CC_EE;
+    fill_rect_tile(&mut pixels, s, car_left + 4, car_body_top + 3, car_w - 8, car_h / 3, glass);
+    fill_rect_tile(&mut pixels, s, car_left + 4, car_body_bottom - car_h / 3 - 3, car_w - 8, car_h / 3, glass);
+    
+    // Borde de la carrocería
+    let body_dark = darken_color(color, 60);
+    fill_rect_tile(&mut pixels, s, car_left, car_body_top, car_w, 1, body_dark);
+    fill_rect_tile(&mut pixels, s, car_left, car_body_bottom - 1, car_w, 1, body_dark);
+    fill_rect_tile(&mut pixels, s, car_left, car_body_top, 1, car_h, body_dark);
+    fill_rect_tile(&mut pixels, s, car_right - 1, car_body_top, 1, car_h, body_dark);
+    
+    // Ruedas
+    let wheel_color = 0xFF_33_33_33;
+    fill_rect_tile(&mut pixels, s, car_left + 3, car_body_top - 2, 6, 4, wheel_color);
+    fill_rect_tile(&mut pixels, s, car_right - 9, car_body_top - 2, 6, 4, wheel_color);
+    fill_rect_tile(&mut pixels, s, car_left + 3, car_body_bottom - 2, 6, 4, wheel_color);
+    fill_rect_tile(&mut pixels, s, car_right - 9, car_body_bottom - 2, 6, 4, wheel_color);
+    
+    SpriteTile { pixels, width: TILE_SIZE, height: TILE_SIZE, category: TileCategory::Vehicle }
+}
+
